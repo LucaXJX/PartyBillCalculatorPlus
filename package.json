@@ -6,8 +6,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node dist/server.js",
-    "dev": "nodemon --watch 'server/**/*' --exec 'ts-node' server/server.ts",
-    "build": "tsc"
+    "dev": "node --loader ts-node/esm server/server.ts",
+    "dev:watch": "nodemon --watch 'server/**/*' --exec 'node --loader ts-node/esm' server/server.ts",
+    "build": "tsc",
+    "install-concurrently": "npm install concurrently nodemon --no-save"
   },
   "repository": {
     "type": "git",
@@ -22,7 +24,11 @@
   "homepage": "https://github.com/LucaXJX/PartyBillCalculator#readme",
   "devDependencies": {
     "@types/express": "^5.0.3",
+    "@types/node": "^20.0.0",
+    "concurrently": "^8.2.0",
     "express": "^5.1.0",
+    "livereload": "^0.9.3",
+    "nodemon": "^3.0.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
