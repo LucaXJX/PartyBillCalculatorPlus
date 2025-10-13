@@ -7,8 +7,10 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 export class DataManager {
   private currentBill: Bill;
+  private userId: string | null = null;
 
-  constructor() {
+  constructor(userId?: string) {
+    this.userId = userId || null;
     // 初始化一个新账单
     this.currentBill = {
       id: generateId(),
@@ -19,6 +21,16 @@ export class DataManager {
       participants: [],
       items: [],
     };
+  }
+
+  // 設置用戶ID
+  setUserId(userId: string) {
+    this.userId = userId;
+  }
+
+  // 獲取用戶ID
+  getUserId(): string | null {
+    return this.userId;
   }
 
   reset() {
@@ -48,6 +60,15 @@ export class DataManager {
 
   // --- 参与者操作 ---
   addParticipant(name: string): Participant {
+    // 檢查是否已存在相同名稱的參與者
+    const existingParticipant = this.currentBill.participants.find(
+      (p) => p.name === name
+    );
+
+    if (existingParticipant) {
+      return existingParticipant;
+    }
+
     const newParticipant: Participant = { id: generateId(), name };
     this.currentBill.participants.push(newParticipant);
     return newParticipant;
