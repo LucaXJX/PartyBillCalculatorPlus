@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/img/icon32x32.png" sizes="16x16" />
     <title>PBC聚賬通-登入</title>
     <!-- 引入Tailwind CSS -->
@@ -19,13 +19,15 @@
         align-items: center;
         justify-content: center;
         height: 100vh;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
       }
       .login-container {
         background-color: #fff;
         padding: 2rem;
         border-radius: 0.5rem;
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -4px rgba(0, 0, 0, 0.1);
         width: 100%;
         max-width: 28rem;
       }
@@ -53,7 +55,7 @@
         padding: 0.5rem 0.75rem;
         border: 1px solid #d1d5db;
         border-radius: 0.375rem;
-        box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         outline: none;
         transition: border-color 0.2s, box-shadow 0.2s;
       }
@@ -91,24 +93,108 @@
         text-decoration: underline;
       }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="login-container">
-        <h2 class="login-title">登入帳號</h2>
-        <form action="/login" method="POST" class="login-form">
-            <div>
-                <label for="username" class="login-label">用戶名</label>
-                <input type="text" id="username" name="username" required class="login-input">
-            </div>
-            <div>
-                <label for="password" class="login-label">密碼</label>
-                <input type="password" id="password" name="password" required class="login-input">
-            </div>
-            <button type="submit" class="login-btn">登入</button>
-        </form>
-        <p class="login-footer">
-            還沒有帳號？<a href="/register" class="login-link">註冊</a>
-        </p>
+      <h2 class="login-title">登入帳號</h2>
+      <form id="loginForm" class="login-form">
+        <div>
+          <label for="email" class="login-label">郵箱</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            class="login-input"
+            placeholder="請輸入您的郵箱"
+          />
+        </div>
+        <div>
+          <label for="password" class="login-label">密碼</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            class="login-input"
+            placeholder="請輸入您的密碼"
+          />
+        </div>
+        <button type="submit" class="login-btn" id="loginBtn">
+          <span id="loginBtnText">登入</span>
+          <span id="loginBtnLoading" style="display: none">登入中...</span>
+        </button>
+        <div
+          id="errorMessage"
+          style="
+            display: none;
+            color: #dc2626;
+            font-size: 0.875rem;
+            text-align: center;
+            margin-top: 0.5rem;
+          "
+        ></div>
+      </form>
+      <p class="login-footer">
+        還沒有帳號？<a href="/registration-page.html" class="login-link"
+          >註冊</a
+        >
+      </p>
     </div>
-</body>
+
+    <script>
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+          const loginBtn = document.getElementById("loginBtn");
+          const loginBtnText = document.getElementById("loginBtnText");
+          const loginBtnLoading = document.getElementById("loginBtnLoading");
+          const errorMessage = document.getElementById("errorMessage");
+
+          // 顯示加載狀態
+          loginBtn.disabled = true;
+          loginBtnText.style.display = "none";
+          loginBtnLoading.style.display = "inline";
+          errorMessage.style.display = "none";
+
+          try {
+            const response = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ email, password }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              // 登入成功，保存會話信息
+              localStorage.setItem("sessionId", data.sessionId);
+              localStorage.setItem("user", JSON.stringify(data.user));
+
+              // 重定向到計算器頁面
+              window.location.href = "/calculator.html";
+            } else {
+              // 顯示錯誤信息
+              errorMessage.textContent = data.error || "登入失敗";
+              errorMessage.style.display = "block";
+            }
+          } catch (error) {
+            console.error("Login error:", error);
+            errorMessage.textContent = "網絡錯誤，請稍後再試";
+            errorMessage.style.display = "block";
+          } finally {
+            // 恢復按鈕狀態
+            loginBtn.disabled = false;
+            loginBtnText.style.display = "inline";
+            loginBtnLoading.style.display = "none";
+          }
+        });
+    </script>
+  </body>
 </html>

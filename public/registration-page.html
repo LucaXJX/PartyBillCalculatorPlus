@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/img/icon32x32.png" sizes="16x16" />
     <title>PBC聚賬通-註冊</title>
     <!-- 引入Tailwind CSS -->
@@ -19,13 +19,15 @@
         align-items: center;
         justify-content: center;
         height: 100vh;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
       }
       .register-container {
         background-color: #fff; /* bg-white */
         padding: 2rem; /* p-8 */
         border-radius: 0.5rem; /* rounded-lg */
-        box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1); /* shadow-lg */
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+          0 4px 6px -4px rgba(0, 0, 0, 0.1); /* shadow-lg */
         width: 100%;
         max-width: 28rem; /* max-w-md */
       }
@@ -53,7 +55,7 @@
         padding: 0.5rem 0.75rem;
         border: 1px solid #d1d5db;
         border-radius: 0.375rem;
-        box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05);
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
         outline: none;
         transition: border-color 0.2s, box-shadow 0.2s;
       }
@@ -65,7 +67,7 @@
         width: 100%;
         background-color: #2563eb;
         color: #fff;
-        padding: 0.5rem 1rem; 
+        padding: 0.5rem 1rem;
         border-radius: 0.375rem;
         transition: background-color 0.2s;
         border: none;
@@ -77,7 +79,7 @@
         background-color: #1d4ed8;
       }
       .register-footer {
-        margin-top: 1rem; 
+        margin-top: 1rem;
         text-align: center;
         font-size: 0.875rem;
         color: #4b5563;
@@ -91,32 +93,146 @@
         text-decoration: underline;
       }
     </style>
-</head>
-<body>
+  </head>
+  <body>
     <div class="register-container">
-        <h2 class="register-title">註冊帳號</h2>
-        <form action="/register" method="POST" class="register-form">
-            <div>
-                <label for="username" class="register-label">用戶名</label>
-                <input type="text" id="username" name="username" required class="register-input">
-            </div>
-            <div>
-                <label for="email" class="register-label">電子郵件</label>
-                <input type="email" id="email" name="email" required class="register-input">
-            </div>
-            <div>
-                <label for="password" class="register-label">密碼</label>
-                <input type="password" id="password" name="password" required class="register-input">
-            </div>
-            <div>
-                <label for="confirm-password" class="register-label">確認密碼</label>
-                <input type="password" id="confirm-password" name="confirm-password" required class="register-input">
-            </div>
-            <button type="submit" class="register-btn">註冊</button>
-        </form>
-        <p class="register-footer">
-            已有帳號？<a href="/login" class="register-link">登入</a>
-        </p>
+      <h2 class="register-title">註冊帳號</h2>
+      <form id="registerForm" class="register-form">
+        <div>
+          <label for="username" class="register-label">用戶名</label>
+          <input
+            type="text"
+            id="username"
+            name="username"
+            required
+            class="register-input"
+            placeholder="請輸入用戶名"
+          />
+        </div>
+        <div>
+          <label for="email" class="register-label">電子郵件</label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            required
+            class="register-input"
+            placeholder="請輸入電子郵件"
+          />
+        </div>
+        <div>
+          <label for="password" class="register-label">密碼</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            required
+            class="register-input"
+            placeholder="請輸入密碼"
+          />
+        </div>
+        <div>
+          <label for="confirm-password" class="register-label">確認密碼</label>
+          <input
+            type="password"
+            id="confirm-password"
+            name="confirm-password"
+            required
+            class="register-input"
+            placeholder="請再次輸入密碼"
+          />
+        </div>
+        <button type="submit" class="register-btn" id="registerBtn">
+          <span id="registerBtnText">註冊</span>
+          <span id="registerBtnLoading" style="display: none">註冊中...</span>
+        </button>
+        <div
+          id="errorMessage"
+          style="
+            display: none;
+            color: #dc2626;
+            font-size: 0.875rem;
+            text-align: center;
+            margin-top: 0.5rem;
+          "
+        ></div>
+      </form>
+      <p class="register-footer">
+        已有帳號？<a href="/login-page.html" class="register-link">登入</a>
+      </p>
     </div>
-</body>
+
+    <script>
+      document
+        .getElementById("registerForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const username = document.getElementById("username").value;
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+          const confirmPassword =
+            document.getElementById("confirm-password").value;
+          const registerBtn = document.getElementById("registerBtn");
+          const registerBtnText = document.getElementById("registerBtnText");
+          const registerBtnLoading =
+            document.getElementById("registerBtnLoading");
+          const errorMessage = document.getElementById("errorMessage");
+
+          // 驗證密碼匹配
+          if (password !== confirmPassword) {
+            errorMessage.textContent = "密碼不匹配";
+            errorMessage.style.display = "block";
+            return;
+          }
+
+          // 驗證密碼長度
+          if (password.length < 6) {
+            errorMessage.textContent = "密碼至少需要6個字符";
+            errorMessage.style.display = "block";
+            return;
+          }
+
+          // 顯示加載狀態
+          registerBtn.disabled = true;
+          registerBtnText.style.display = "none";
+          registerBtnLoading.style.display = "inline";
+          errorMessage.style.display = "none";
+
+          try {
+            const response = await fetch("/api/auth/register", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ username, email, password }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              // 註冊成功，自動登入
+              localStorage.setItem("sessionId", data.sessionId);
+              localStorage.setItem("user", JSON.stringify(data.user));
+
+              // 重定向到計算器頁面
+              window.location.href = "/calculator.html";
+            } else {
+              // 顯示錯誤信息
+              errorMessage.textContent = data.error || "註冊失敗";
+              errorMessage.style.display = "block";
+            }
+          } catch (error) {
+            console.error("Registration error:", error);
+            errorMessage.textContent = "網絡錯誤，請稍後再試";
+            errorMessage.style.display = "block";
+          } finally {
+            // 恢復按鈕狀態
+            registerBtn.disabled = false;
+            registerBtnText.style.display = "inline";
+            registerBtnLoading.style.display = "none";
+          }
+        });
+    </script>
+  </body>
 </html>
