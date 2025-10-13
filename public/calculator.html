@@ -279,27 +279,7 @@
                 </div>
 
                 <div id="participants-container" class="space-y-4">
-                  <div
-                    class="participant-item flex items-center p-4 bg-light rounded-lg"
-                    data-participant-id=""
-                    data-participant-name=""
-                  >
-                    <div
-                      class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4"
-                    >
-                      <i class="fa fa-user"></i>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="參與者姓名"
-                      class="flex-grow px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300"
-                    />
-                    <button
-                      class="remove-person-btn ml-4 text-gray-400 hover:text-red-500 transition-colors"
-                    >
-                      <i class="fa fa-times-circle text-xl"></i>
-                    </button>
-                  </div>
+                  <!-- 初始參與者將通過JavaScript動態創建 -->
                 </div>
               </div>
 
@@ -612,67 +592,77 @@
       // 初始化
       if (!checkAuth()) {
         // 如果未認證，頁面會重定向，不需要繼續執行
-        return;
-      }
-
-      // 更新用戶信息顯示
-      const userAvatar = document.querySelector('img[alt="用戶頭像"]');
-      const userName = document.querySelector(
-        ".hidden.sm\\:inline-block.font-medium"
-      );
-      if (userAvatar && userName) {
-        userName.textContent = currentUser.username;
-      }
-
-      // 初始化日期為今天
-      billDateInput.value = new Date().toISOString().split("T")[0];
-
-      // 當頁面加載時，重置服務器上的賬單狀態
-      authenticatedFetch("/api/bill/reset", { method: "POST" })
-        .then((response) => (response ? response.json() : null))
-        .then((data) => (data ? console.log(data.message) : null))
-        .catch((error) => console.error("Error resetting bill:", error));
-
-      // --- 所有與數據相關的函數都需要修改 ---
-
-      // 更新賬單基本信息 (現在是異步操作)
-      async function updateBillInfo() {
-        const billInfo = {
-          name: billNameInput.value,
-          date: billDateInput.value,
-          location: billLocationInput.value,
-          tipPercentage: parseInt(billTipInput.value) || 0,
-        };
-        try {
-          const response = await authenticatedFetch("/api/bill/info", {
-            method: "POST",
-            body: JSON.stringify(billInfo),
-          });
-          if (!response) return; // 認證失敗，已重定向
-          if (!response.ok) {
-            throw new Error("更新賬單信息失敗");
+        console.log("用戶未認證，頁面將重定向");
+        // 在模塊中不能使用return，改用條件執行
+      } else {
+        // 更新用戶信息顯示
+        const userAvatar = document.querySelector('img[alt="用戶頭像"]');
+        // 使用更簡單的選擇器
+        const userName = document.querySelector("span.font-medium");
+        if (userAvatar && userName) {
+          userName.textContent = currentUser.username;
+          console.log("用戶名已更新為:", currentUser.username);
+        } else {
+          console.log("找不到用戶名元素，嘗試其他選擇器");
+          // 嘗試更簡單的選擇器
+          const userNameAlt = document.querySelector("span");
+          if (userNameAlt && userNameAlt.textContent === "陳小明") {
+            userNameAlt.textContent = currentUser.username;
+            console.log("使用備用選擇器更新用戶名:", currentUser.username);
+          } else {
+            console.log("仍然找不到用戶名元素");
           }
-          const data = await response.json();
-          console.log(data.message);
-        } catch (error) {
-          console.error("Error updating bill info:", error);
-          alert("更新賬單信息時出錯，請查看控制台");
         }
-      }
 
-      // 添加參與者
-      addPersonBtn.addEventListener("click", async () => {
-        const newParticipantInput = document.createElement("input");
-        newParticipantInput.type = "text";
-        newParticipantInput.placeholder = "參與者姓名";
-        newParticipantInput.className =
-          "flex-grow px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300";
+        // 初始化日期為今天
+        billDateInput.value = new Date().toISOString().split("T")[0];
 
-        // 創建新的參與者DOM元素
-        const newParticipant = document.createElement("div");
-        newParticipant.className =
-          "participant-item flex items-center p-4 bg-light rounded-lg transform transition-all duration-300 opacity-0 translate-y-2";
-        newParticipant.innerHTML = `
+        // 當頁面加載時，重置服務器上的賬單狀態
+        authenticatedFetch("/api/bill/reset", { method: "POST" })
+          .then((response) => (response ? response.json() : null))
+          .then((data) => (data ? console.log(data.message) : null))
+          .catch((error) => console.error("Error resetting bill:", error));
+
+        // --- 所有與數據相關的函數都需要修改 ---
+
+        // 更新賬單基本信息 (現在是異步操作)
+        async function updateBillInfo() {
+          const billInfo = {
+            name: billNameInput.value,
+            date: billDateInput.value,
+            location: billLocationInput.value,
+            tipPercentage: parseInt(billTipInput.value) || 0,
+          };
+          try {
+            const response = await authenticatedFetch("/api/bill/info", {
+              method: "POST",
+              body: JSON.stringify(billInfo),
+            });
+            if (!response) return; // 認證失敗，已重定向
+            if (!response.ok) {
+              throw new Error("更新賬單信息失敗");
+            }
+            const data = await response.json();
+            console.log(data.message);
+          } catch (error) {
+            console.error("Error updating bill info:", error);
+            alert("更新賬單信息時出錯，請查看控制台");
+          }
+        }
+
+        // 添加參與者
+        addPersonBtn.addEventListener("click", async () => {
+          const newParticipantInput = document.createElement("input");
+          newParticipantInput.type = "text";
+          newParticipantInput.placeholder = "參與者姓名";
+          newParticipantInput.className =
+            "flex-grow px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300";
+
+          // 創建新的參與者DOM元素
+          const newParticipant = document.createElement("div");
+          newParticipant.className =
+            "participant-item flex items-center p-4 bg-light rounded-lg transform transition-all duration-300 opacity-0 translate-y-2";
+          newParticipant.innerHTML = `
             <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4">
                 <i class="fa fa-user"></i>
             </div>
@@ -682,196 +672,199 @@
                 <i class="fa fa-times-circle text-xl"></i>
             </button>
         `;
-        participantsContainer.appendChild(newParticipant);
+          participantsContainer.appendChild(newParticipant);
 
-        // 觸發動畫
-        setTimeout(() => {
-          newParticipant.classList.remove("opacity-0", "translate-y-2");
-        }, 10);
+          // 觸發動畫
+          setTimeout(() => {
+            newParticipant.classList.remove("opacity-0", "translate-y-2");
+          }, 10);
 
-        // 綁定刪除按鈕事件
-        newParticipant
-          .querySelector(".remove-person-btn")
-          .addEventListener("click", function () {
-            newParticipant.classList.add("opacity-0", "translate-y-2");
-            setTimeout(() => {
-              newParticipant.remove();
-              // 刪除參與者後，更新所有項目的參與者標籤
-              updateParticipantTags();
-            }, 300);
-          });
+          // 綁定刪除按鈕事件
+          newParticipant
+            .querySelector(".remove-person-btn")
+            .addEventListener("click", function () {
+              newParticipant.classList.add("opacity-0", "translate-y-2");
+              setTimeout(() => {
+                newParticipant.remove();
+                // 刪除參與者後，更新所有項目的參與者標籤
+                updateParticipantTags();
+              }, 300);
+            });
 
-        // 自動聚焦新輸入框
-        const inputField = newParticipant.querySelector("input");
-        inputField.focus();
+          // 自動聚焦新輸入框
+          const inputField = newParticipant.querySelector("input");
+          inputField.focus();
 
-        // 當用戶輸入完成後（例如，按下回車或失去焦點），發送請求
-        inputField.addEventListener("blur", async () => {
-          const name = inputField.value.trim();
-          if (name) {
-            try {
-              const response = await authenticatedFetch("/api/participant", {
-                method: "POST",
-                body: JSON.stringify({ name: name }),
-              });
-              if (!response) return; // 認證失敗，已重定向
-              if (!response.ok) {
-                throw new Error("添加參與者失敗");
+          // 當用戶輸入完成後（例如，按下回車或失去焦點），發送請求
+          inputField.addEventListener("blur", async () => {
+            const name = inputField.value.trim();
+            if (name) {
+              try {
+                const response = await authenticatedFetch("/api/participant", {
+                  method: "POST",
+                  body: JSON.stringify({ name: name }),
+                });
+                if (!response) return; // 認證失敗，已重定向
+                if (!response.ok) {
+                  throw new Error("添加參與者失敗");
+                }
+                const participant = await response.json();
+                console.log("參與者已添加:", participant);
+                // 將返回的ID存儲在DOM元素上，用於後續操作
+                newParticipant.dataset.participantId = participant.id;
+                newParticipant.dataset.participantName = participant.name;
+                // 更新輸入框的值為服務器返回的完整名稱
+                inputField.value = participant.name;
+                // 更新所有項目的參與者標籤
+                updateParticipantTags();
+              } catch (error) {
+                console.error("Error adding participant:", error);
+                alert("添加參與者時出錯，請查看控制台");
               }
-              const participant = await response.json();
-              console.log("參與者已添加:", participant);
-              // 將返回的ID存儲在DOM元素上，用於後續操作
-              newParticipant.dataset.participantId = participant.id;
-              newParticipant.dataset.participantName = participant.name;
-              // 更新輸入框的值為服務器返回的完整名稱
-              inputField.value = participant.name;
-              // 更新所有項目的參與者標籤
-              updateParticipantTags();
-            } catch (error) {
-              console.error("Error adding participant:", error);
-              alert("添加參與者時出錯，請查看控制台");
             }
-          }
+          });
         });
-      });
 
-      // 計算按鈕點擊事件
-      calculateBtn.addEventListener("click", async function () {
-        try {
-          // 首先保存所有表單數據到服務器
-          await updateBillInfo();
+        // 計算按鈕點擊事件
+        calculateBtn.addEventListener("click", async function () {
+          try {
+            // 首先保存所有表單數據到服務器
+            await updateBillInfo();
 
-          // 收集參與者信息
-          const participantItems =
-            participantsContainer.querySelectorAll(".participant-item");
-          const participants = Array.from(participantItems)
-            .map((item) => {
-              const input = item.querySelector("input");
-              const name = item.dataset.participantName || input.value.trim();
-              const id = item.dataset.participantId;
-              // 確保名稱不為空且有效
-              if (!name || name.length === 0 || !id) return null;
-              return { name, id };
-            })
-            .filter((p) => p !== null);
+            // 收集參與者信息
+            const participantItems =
+              participantsContainer.querySelectorAll(".participant-item");
+            const participants = Array.from(participantItems)
+              .map((item) => {
+                const input = item.querySelector("input");
+                const name = item.dataset.participantName || input.value.trim();
+                const id = item.dataset.participantId;
+                // 確保名稱不為空且有效，如果沒有ID但有名字，暫時使用名字作為標識
+                if (!name || name.length === 0) return null;
+                return { name, id: id || `temp_${name}` };
+              })
+              .filter((p) => p !== null);
 
-          if (participants.length === 0) {
-            alert("請至少添加一個參與者");
-            return;
-          }
-
-          // 收集並上傳項目信息
-          const items = Array.from(
-            itemsContainer.querySelectorAll(".item-card")
-          )
-            .map((item) => {
-              const name = item.querySelector(".item-name").value.trim();
-              const amount =
-                parseFloat(item.querySelector(".item-amount").value) || 0;
-              const isShared = item.querySelector(".item-is-shared").checked;
-
-              let participantIds = [];
-              if (isShared) {
-                // 如果是共享項目，所有參與者都參與
-                participantIds = participants.map((p) => p.id);
-              } else {
-                // 如果不是共享項目，只包含選中的參與者
-                participantIds = Array.from(
-                  item.querySelectorAll(".person-tag.bg-primary")
-                )
-                  .map((tag) => tag.dataset.participantId)
-                  .filter((id) => id);
-              }
-
-              return {
-                name,
-                amount,
-                isShared,
-                participantIds,
-              };
-            })
-            .filter(
-              (item) =>
-                item.name && item.amount > 0 && item.participantIds.length > 0
-            );
-
-          if (items.length === 0) {
-            alert("請至少添加一個消費項目");
-            return;
-          }
-
-          // 批量上傳項目
-          for (const item of items) {
-            try {
-              const response = await authenticatedFetch("/api/item", {
-                method: "POST",
-                body: JSON.stringify(item),
-              });
-              if (!response) return; // 認證失敗，已重定向
-              if (!response.ok) {
-                throw new Error("上傳項目失敗");
-              }
-            } catch (error) {
-              console.error("Error adding item:", error);
-              alert("上傳項目時出錯，請查看控制台");
+            if (participants.length === 0) {
+              alert("請至少添加一個參與者");
               return;
             }
+
+            // 收集並上傳項目信息
+            const items = Array.from(
+              itemsContainer.querySelectorAll(".item-card")
+            )
+              .map((item) => {
+                const name = item.querySelector(".item-name").value.trim();
+                const amount =
+                  parseFloat(item.querySelector(".item-amount").value) || 0;
+                const isShared = item.querySelector(".item-is-shared").checked;
+
+                let participantIds = [];
+                if (isShared) {
+                  // 如果是共享項目，所有參與者都參與
+                  participantIds = participants.map((p) => p.id);
+                } else {
+                  // 如果不是共享項目，只包含選中的參與者
+                  participantIds = Array.from(
+                    item.querySelectorAll(".person-tag.bg-primary")
+                  )
+                    .map((tag) => tag.dataset.participantId)
+                    .filter((id) => id);
+                }
+
+                return {
+                  name,
+                  amount,
+                  isShared,
+                  participantIds,
+                };
+              })
+              .filter(
+                (item) =>
+                  item.name && item.amount > 0 && item.participantIds.length > 0
+              );
+
+            if (items.length === 0) {
+              alert("請至少添加一個消費項目");
+              return;
+            }
+
+            // 批量上傳項目
+            for (const item of items) {
+              try {
+                const response = await authenticatedFetch("/api/item", {
+                  method: "POST",
+                  body: JSON.stringify(item),
+                });
+                if (!response) return; // 認證失敗，已重定向
+                if (!response.ok) {
+                  throw new Error("上傳項目失敗");
+                }
+              } catch (error) {
+                console.error("Error adding item:", error);
+                alert("上傳項目時出錯，請查看控制台");
+                return;
+              }
+            }
+
+            // 調用計算API
+            const response = await authenticatedFetch("/api/calculate");
+            if (!response) return; // 認證失敗，已重定向
+            if (!response.ok) {
+              throw new Error("計算賬單失敗");
+            }
+            const { bill, results } = await response.json();
+
+            // 更新結果模態框
+            updateResultModal(bill, results);
+
+            // 顯示模態框
+            resultModal.classList.remove("opacity-0", "invisible");
+            resultModal.querySelector(".bg-white").classList.remove("scale-95");
+            resultModal.querySelector(".bg-white").classList.add("scale-100");
+            document.body.style.overflow = "hidden";
+          } catch (error) {
+            console.error("Error calculating bill:", error);
+            alert("計算賬單時出錯，請查看控制台");
           }
+        });
 
-          // 調用計算API
-          const response = await authenticatedFetch("/api/calculate");
-          if (!response) return; // 認證失敗，已重定向
-          if (!response.ok) {
-            throw new Error("計算賬單失敗");
-          }
-          const { bill, results } = await response.json();
+        // 更新結果模態框的函數
+        function updateResultModal(bill, results) {
+          // 更新聚會信息
+          document.getElementById("result-bill-name").textContent =
+            bill.name || "未命名聚會";
+          document.getElementById("result-bill-date").textContent =
+            formatDateForDisplay(bill.date);
+          document.getElementById("result-bill-location").textContent =
+            bill.location || "未指定地點";
+          document.getElementById(
+            "result-bill-participants"
+          ).textContent = `${bill.participants.length}位參與者`;
 
-          // 更新結果模態框
-          updateResultModal(bill, results);
-
-          // 顯示模態框
-          resultModal.classList.remove("opacity-0", "invisible");
-          resultModal.querySelector(".bg-white").classList.remove("scale-95");
-          resultModal.querySelector(".bg-white").classList.add("scale-100");
-          document.body.style.overflow = "hidden";
-        } catch (error) {
-          console.error("Error calculating bill:", error);
-          alert("計算賬單時出錯，請查看控制台");
-        }
-      });
-
-      // 更新結果模態框的函數
-      function updateResultModal(bill, results) {
-        // 更新聚會信息
-        document.getElementById("result-bill-name").textContent =
-          bill.name || "未命名聚會";
-        document.getElementById("result-bill-date").textContent =
-          formatDateForDisplay(bill.date);
-        document.getElementById("result-bill-location").textContent =
-          bill.location || "未指定地點";
-        document.getElementById(
-          "result-bill-participants"
-        ).textContent = `${bill.participants.length}位參與者`;
-
-        // 更新費用明細表格
-        const itemsTableBody = document.getElementById("result-items-table");
-        itemsTableBody.innerHTML = "";
-        bill.items.forEach((item) => {
-          const row = document.createElement("tr");
-          row.innerHTML = `
+          // 更新費用明細表格
+          const itemsTableBody = document.getElementById("result-items-table");
+          itemsTableBody.innerHTML = "";
+          bill.items.forEach((item) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
             <td class="py-3 px-4 border-b">${item.name}</td>
             <td class="py-3 px-4 text-right border-b">$${item.amount.toFixed(
               2
             )}</td>
           `;
-          itemsTableBody.appendChild(row);
-        });
+            itemsTableBody.appendChild(row);
+          });
 
-        // 添加小費行
-        const subtotal = bill.items.reduce((sum, item) => sum + item.amount, 0);
-        const tipAmount = subtotal * (bill.tipPercentage / 100);
-        const tipRow = document.createElement("tr");
-        tipRow.innerHTML = `
+          // 添加小費行
+          const subtotal = bill.items.reduce(
+            (sum, item) => sum + item.amount,
+            0
+          );
+          const tipAmount = subtotal * (bill.tipPercentage / 100);
+          const tipRow = document.createElement("tr");
+          tipRow.innerHTML = `
           <td class="py-3 px-4 border-b font-semibold">小費 (${
             bill.tipPercentage
           }%)</td>
@@ -879,32 +872,32 @@
             2
           )}</td>
         `;
-        itemsTableBody.appendChild(tipRow);
+          itemsTableBody.appendChild(tipRow);
 
-        // 添加總計行
-        const totalRow = document.createElement("tr");
-        totalRow.className = "bg-primary/5";
-        totalRow.innerHTML = `
+          // 添加總計行
+          const totalRow = document.createElement("tr");
+          totalRow.className = "bg-primary/5";
+          totalRow.innerHTML = `
           <td class="py-3 px-4 font-bold">總計</td>
           <td class="py-3 px-4 text-right font-bold">$${(
             subtotal + tipAmount
           ).toFixed(2)}</td>
         `;
-        itemsTableBody.appendChild(totalRow);
+          itemsTableBody.appendChild(totalRow);
 
-        // 更新分攤結果
-        const participantsContainer = document.getElementById(
-          "result-participants-container"
-        );
-        participantsContainer.innerHTML = "";
-        results.forEach((result) => {
-          const participant = bill.participants.find(
-            (p) => p.id === result.participantId
+          // 更新分攤結果
+          const participantsContainer = document.getElementById(
+            "result-participants-container"
           );
-          if (participant && participant.name && participant.name.trim()) {
-            const participantCard = document.createElement("div");
-            participantCard.className = "bg-light rounded-lg p-4";
-            participantCard.innerHTML = `
+          participantsContainer.innerHTML = "";
+          results.forEach((result) => {
+            const participant = bill.participants.find(
+              (p) => p.id === result.participantId
+            );
+            if (participant && participant.name && participant.name.trim()) {
+              const participantCard = document.createElement("div");
+              participantCard.className = "bg-light rounded-lg p-4";
+              participantCard.innerHTML = `
               <div class="flex justify-between items-center">
                 <div>
                   <h5 class="font-semibold text-gray-800">${participant.name.trim()}</h5>
@@ -919,62 +912,21 @@
                 </div>
               </div>
             `;
-            participantsContainer.appendChild(participantCard);
-          }
-        });
-      }
-
-      // 格式化日期顯示
-      function formatDateForDisplay(dateString) {
-        const date = new Date(dateString);
-        return `${date.getFullYear()}年${
-          date.getMonth() + 1
-        }月${date.getDate()}日`;
-      }
-
-      // 關閉模態框
-      closeModalBtn.addEventListener("click", async () => {
-        resultModal.classList.add("opacity-0", "invisible");
-        resultModal.querySelector(".bg-white").classList.add("scale-95");
-        resultModal.querySelector(".bg-white").classList.remove("scale-100");
-        document.body.style.overflow = "auto";
-
-        // 不要重置服務器狀態，保持參與者數據
-        // 只清空項目數據，但保留參與者
-        try {
-          // 獲取當前參與者列表
-          const participantItems =
-            participantsContainer.querySelectorAll(".participant-item");
-          const participants = Array.from(participantItems)
-            .map((item) => {
-              const input = item.querySelector("input");
-              const name = item.dataset.participantName || input.value.trim();
-              const id = item.dataset.participantId;
-              if (!name || name.length === 0 || !id) return null;
-              return { name, id };
-            })
-            .filter((p) => p !== null);
-
-          // 重置服務器狀態
-          await authenticatedFetch("/api/bill/reset", { method: "POST" });
-
-          // 重新添加參與者到服務器
-          for (const participant of participants) {
-            await authenticatedFetch("/api/participant", {
-              method: "POST",
-              body: JSON.stringify({ name: participant.name }),
-            });
-          }
-
-          console.log("賬單狀態已重置，參與者已重新添加");
-        } catch (error) {
-          console.error("重置賬單狀態失敗:", error);
+              participantsContainer.appendChild(participantCard);
+            }
+          });
         }
-      });
 
-      // 點擊模態框背景關閉
-      resultModal.addEventListener("click", async (e) => {
-        if (e.target === resultModal) {
+        // 格式化日期顯示
+        function formatDateForDisplay(dateString) {
+          const date = new Date(dateString);
+          return `${date.getFullYear()}年${
+            date.getMonth() + 1
+          }月${date.getDate()}日`;
+        }
+
+        // 關閉模態框
+        closeModalBtn.addEventListener("click", async () => {
           resultModal.classList.add("opacity-0", "invisible");
           resultModal.querySelector(".bg-white").classList.add("scale-95");
           resultModal.querySelector(".bg-white").classList.remove("scale-100");
@@ -991,8 +943,9 @@
                 const input = item.querySelector("input");
                 const name = item.dataset.participantName || input.value.trim();
                 const id = item.dataset.participantId;
-                if (!name || name.length === 0 || !id) return null;
-                return { name, id };
+                // 確保名稱不為空且有效，如果沒有ID但有名字，暫時使用名字作為標識
+                if (!name || name.length === 0) return null;
+                return { name, id: id || `temp_${name}` };
               })
               .filter((p) => p !== null);
 
@@ -1001,9 +954,8 @@
 
             // 重新添加參與者到服務器
             for (const participant of participants) {
-              await fetch("/api/participant", {
+              await authenticatedFetch("/api/participant", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name: participant.name }),
               });
             }
@@ -1012,36 +964,81 @@
           } catch (error) {
             console.error("重置賬單狀態失敗:", error);
           }
-        }
-      });
+        });
 
-      // 保存草稿功能
-      saveDraftBtn.addEventListener("click", async () => {
-        try {
-          await updateBillInfo();
-          alert("草稿已保存");
-        } catch (error) {
-          console.error("Error saving draft:", error);
-          alert("保存草稿時出錯");
-        }
-      });
+        // 點擊模態框背景關閉
+        resultModal.addEventListener("click", async (e) => {
+          if (e.target === resultModal) {
+            resultModal.classList.add("opacity-0", "invisible");
+            resultModal.querySelector(".bg-white").classList.add("scale-95");
+            resultModal
+              .querySelector(".bg-white")
+              .classList.remove("scale-100");
+            document.body.style.overflow = "auto";
 
-      // 保存結果功能
-      saveResultBtn.addEventListener("click", async () => {
-        try {
-          alert("賬單已保存");
-        } catch (error) {
-          console.error("Error saving result:", error);
-          alert("保存賬單時出錯");
-        }
-      });
+            // 不要重置服務器狀態，保持參與者數據
+            // 只清空項目數據，但保留參與者
+            try {
+              // 獲取當前參與者列表
+              const participantItems =
+                participantsContainer.querySelectorAll(".participant-item");
+              const participants = Array.from(participantItems)
+                .map((item) => {
+                  const input = item.querySelector("input");
+                  const name =
+                    item.dataset.participantName || input.value.trim();
+                  const id = item.dataset.participantId;
+                  // 確保名稱不為空且有效，如果沒有ID但有名字，暫時使用名字作為標識
+                  if (!name || name.length === 0) return null;
+                  return { name, id: id || `temp_${name}` };
+                })
+                .filter((p) => p !== null);
 
-      // 添加消費項目的功能
-      addItemBtn.addEventListener("click", () => {
-        const itemCard = document.createElement("div");
-        itemCard.className =
-          "item-card bg-light rounded-lg p-6 transform transition-all duration-300 opacity-0 translate-y-2";
-        itemCard.innerHTML = `
+              // 重置服務器狀態
+              await authenticatedFetch("/api/bill/reset", { method: "POST" });
+
+              // 重新添加參與者到服務器
+              for (const participant of participants) {
+                await authenticatedFetch("/api/participant", {
+                  method: "POST",
+                  body: JSON.stringify({ name: participant.name }),
+                });
+              }
+
+              console.log("賬單狀態已重置，參與者已重新添加");
+            } catch (error) {
+              console.error("重置賬單狀態失敗:", error);
+            }
+          }
+        });
+
+        // 保存草稿功能
+        saveDraftBtn.addEventListener("click", async () => {
+          try {
+            await updateBillInfo();
+            alert("草稿已保存");
+          } catch (error) {
+            console.error("Error saving draft:", error);
+            alert("保存草稿時出錯");
+          }
+        });
+
+        // 保存結果功能
+        saveResultBtn.addEventListener("click", async () => {
+          try {
+            alert("賬單已保存");
+          } catch (error) {
+            console.error("Error saving result:", error);
+            alert("保存賬單時出錯");
+          }
+        });
+
+        // 添加消費項目的功能
+        addItemBtn.addEventListener("click", () => {
+          const itemCard = document.createElement("div");
+          itemCard.className =
+            "item-card bg-light rounded-lg p-6 transform transition-all duration-300 opacity-0 translate-y-2";
+          itemCard.innerHTML = `
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label class="block text-gray-700 font-medium mb-2">項目名稱</label>
@@ -1071,214 +1068,232 @@
           </div>
         `;
 
-        itemsContainer.appendChild(itemCard);
+          itemsContainer.appendChild(itemCard);
 
-        // 觸發動畫
-        setTimeout(() => {
-          itemCard.classList.remove("opacity-0", "translate-y-2");
-        }, 10);
+          // 觸發動畫
+          setTimeout(() => {
+            itemCard.classList.remove("opacity-0", "translate-y-2");
+          }, 10);
 
-        // 獲取參與者選擇容器
-        const participantsSelection = itemCard.querySelector(
-          ".participants-selection"
-        );
+          // 獲取參與者選擇容器
+          const participantsSelection = itemCard.querySelector(
+            ".participants-selection"
+          );
 
-        // 更新參與者選擇標籤（只更新新添加的項目）
-        updateParticipantTagsForSelection(participantsSelection);
+          // 更新參與者選擇標籤（只更新新添加的項目）
+          updateParticipantTagsForSelection(participantsSelection);
 
-        // 綁定刪除按鈕事件
-        itemCard
-          .querySelector(".remove-item-btn")
-          .addEventListener("click", () => {
-            itemCard.classList.add("opacity-0", "translate-y-2");
+          // 綁定刪除按鈕事件
+          itemCard
+            .querySelector(".remove-item-btn")
+            .addEventListener("click", () => {
+              itemCard.classList.add("opacity-0", "translate-y-2");
+              setTimeout(() => {
+                itemCard.remove();
+              }, 300);
+            });
+
+          // 綁定共享項目切換事件
+          const isSharedCheckbox = itemCard.querySelector(".item-is-shared");
+
+          isSharedCheckbox.addEventListener("change", () => {
+            if (isSharedCheckbox.checked) {
+              participantsSelection.style.display = "none";
+            } else {
+              participantsSelection.style.display = "block";
+              // 只更新當前項目的參與者標籤，不影響其他項目
+              updateParticipantTagsForSelection(participantsSelection);
+            }
+          });
+        });
+
+        // 更新參與者選擇標籤的函數
+        function updateParticipantTags() {
+          const participantItems =
+            participantsContainer.querySelectorAll(".participant-item");
+          const participants = Array.from(participantItems)
+            .map((item) => {
+              const input = item.querySelector("input");
+              const name = item.dataset.participantName || input.value.trim();
+              const id = item.dataset.participantId;
+              // 確保名稱不為空且有效，如果沒有ID但有名字，暫時使用名字作為標識
+              if (!name || name.length === 0) return null;
+              return { name, id: id || `temp_${name}` };
+            })
+            .filter((p) => p !== null);
+
+          // 更新所有項目卡片中的參與者選擇
+          document
+            .querySelectorAll(".participants-selection")
+            .forEach((selection) => {
+              // 保存當前選中的參與者ID
+              const selectedIds = new Set();
+              selection
+                .querySelectorAll(".person-tag.bg-primary")
+                .forEach((tag) => {
+                  selectedIds.add(tag.dataset.participantId);
+                });
+
+              // 清空並重新創建標籤
+              selection.innerHTML = "";
+              participants.forEach((participant) => {
+                const tag = document.createElement("span");
+                const isSelected = selectedIds.has(participant.id);
+                tag.className = isSelected
+                  ? "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary text-white cursor-pointer hover:bg-primary/80 transition-colors"
+                  : "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors";
+                tag.textContent = participant.name;
+                tag.dataset.participantId = participant.id;
+                tag.dataset.participantName = participant.name;
+                selection.appendChild(tag);
+
+                // 綁定點擊事件來切換選擇狀態
+                tag.addEventListener("click", () => {
+                  tag.classList.toggle("bg-primary");
+                  tag.classList.toggle("text-white");
+                  tag.classList.toggle("bg-primary/10");
+                  tag.classList.toggle("text-primary");
+                });
+              });
+            });
+        }
+
+        // 更新特定選擇容器的參與者標籤
+        function updateParticipantTagsForSelection(selection) {
+          const participantItems =
+            participantsContainer.querySelectorAll(".participant-item");
+          const participants = Array.from(participantItems)
+            .map((item) => {
+              const input = item.querySelector("input");
+              const name = item.dataset.participantName || input.value.trim();
+              const id = item.dataset.participantId;
+              // 確保名稱不為空且有效，如果沒有ID但有名字，暫時使用名字作為標識
+              if (!name || name.length === 0) return null;
+              return { name, id: id || `temp_${name}` };
+            })
+            .filter((p) => p !== null);
+
+          // 保存當前選中的參與者ID
+          const selectedIds = new Set();
+          selection
+            .querySelectorAll(".person-tag.bg-primary")
+            .forEach((tag) => {
+              selectedIds.add(tag.dataset.participantId);
+            });
+
+          // 清空並重新創建標籤
+          selection.innerHTML = "";
+          participants.forEach((participant) => {
+            const tag = document.createElement("span");
+            const isSelected = selectedIds.has(participant.id);
+            tag.className = isSelected
+              ? "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary text-white cursor-pointer hover:bg-primary/80 transition-colors"
+              : "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors";
+            tag.textContent = participant.name;
+            tag.dataset.participantId = participant.id;
+            tag.dataset.participantName = participant.name;
+            selection.appendChild(tag);
+
+            // 綁定點擊事件來切換選擇狀態
+            tag.addEventListener("click", () => {
+              tag.classList.toggle("bg-primary");
+              tag.classList.toggle("text-white");
+              tag.classList.toggle("bg-primary/10");
+              tag.classList.toggle("text-primary");
+            });
+          });
+        }
+
+        // 當參與者輸入框內容改變時，更新所有項目的參與者標籤
+        participantsContainer.addEventListener("input", async (e) => {
+          const input = e.target;
+          const participantItem = input.closest(".participant-item");
+          const name = input.value.trim();
+
+          // 如果參與者還沒有ID但有名字，則創建參與者
+          if (
+            name &&
+            name.length > 0 &&
+            !participantItem.dataset.participantId
+          ) {
+            try {
+              const response = await authenticatedFetch("/api/participant", {
+                method: "POST",
+                body: JSON.stringify({ name: name }),
+              });
+              if (response.ok) {
+                const participant = await response.json();
+                participantItem.dataset.participantId = participant.id;
+                participantItem.dataset.participantName = participant.name;
+                // 更新輸入框的值為服務器返回的完整名稱
+                input.value = participant.name;
+                updateParticipantTags();
+              }
+            } catch (error) {
+              console.error("Error creating participant:", error);
+            }
+          } else if (!name || name.length === 0) {
+            // 如果名字被清空，清除ID
+            participantItem.dataset.participantId = "";
+            participantItem.dataset.participantName = "";
+            updateParticipantTags();
+          } else {
+            // 更新名字 - 只有在沒有ID的情況下才更新dataset
+            if (!participantItem.dataset.participantId) {
+              participantItem.dataset.participantName = name;
+            }
+            updateParticipantTags();
+          }
+        });
+
+        // 為初始參與者添加刪除事件
+        document.querySelectorAll(".remove-person-btn").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            const participantItem = btn.closest(".participant-item");
+            participantItem.classList.add("opacity-0", "translate-y-2");
             setTimeout(() => {
-              itemCard.remove();
+              participantItem.remove();
+              // 刪除參與者後，更新所有項目的參與者標籤
+              updateParticipantTags();
             }, 300);
           });
-
-        // 綁定共享項目切換事件
-        const isSharedCheckbox = itemCard.querySelector(".item-is-shared");
-
-        isSharedCheckbox.addEventListener("change", () => {
-          if (isSharedCheckbox.checked) {
-            participantsSelection.style.display = "none";
-          } else {
-            participantsSelection.style.display = "block";
-            // 只更新當前項目的參與者標籤，不影響其他項目
-            updateParticipantTagsForSelection(participantsSelection);
-          }
-        });
-      });
-
-      // 更新參與者選擇標籤的函數
-      function updateParticipantTags() {
-        const participantItems =
-          participantsContainer.querySelectorAll(".participant-item");
-        const participants = Array.from(participantItems)
-          .map((item) => {
-            const input = item.querySelector("input");
-            const name = item.dataset.participantName || input.value.trim();
-            const id = item.dataset.participantId;
-            // 確保名稱不為空且有效
-            if (!name || name.length === 0 || !id) return null;
-            return { name, id };
-          })
-          .filter((p) => p !== null);
-
-        // 更新所有項目卡片中的參與者選擇
-        document
-          .querySelectorAll(".participants-selection")
-          .forEach((selection) => {
-            // 保存當前選中的參與者ID
-            const selectedIds = new Set();
-            selection
-              .querySelectorAll(".person-tag.bg-primary")
-              .forEach((tag) => {
-                selectedIds.add(tag.dataset.participantId);
-              });
-
-            // 清空並重新創建標籤
-            selection.innerHTML = "";
-            participants.forEach((participant) => {
-              const tag = document.createElement("span");
-              const isSelected = selectedIds.has(participant.id);
-              tag.className = isSelected
-                ? "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary text-white cursor-pointer hover:bg-primary/80 transition-colors"
-                : "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors";
-              tag.textContent = participant.name;
-              tag.dataset.participantId = participant.id;
-              tag.dataset.participantName = participant.name;
-              selection.appendChild(tag);
-
-              // 綁定點擊事件來切換選擇狀態
-              tag.addEventListener("click", () => {
-                tag.classList.toggle("bg-primary");
-                tag.classList.toggle("text-white");
-                tag.classList.toggle("bg-primary/10");
-                tag.classList.toggle("text-primary");
-              });
-            });
-          });
-      }
-
-      // 更新特定選擇容器的參與者標籤
-      function updateParticipantTagsForSelection(selection) {
-        const participantItems =
-          participantsContainer.querySelectorAll(".participant-item");
-        const participants = Array.from(participantItems)
-          .map((item) => {
-            const input = item.querySelector("input");
-            const name = item.dataset.participantName || input.value.trim();
-            const id = item.dataset.participantId;
-            // 確保名稱不為空且有效
-            if (!name || name.length === 0 || !id) return null;
-            return { name, id };
-          })
-          .filter((p) => p !== null);
-
-        // 保存當前選中的參與者ID
-        const selectedIds = new Set();
-        selection.querySelectorAll(".person-tag.bg-primary").forEach((tag) => {
-          selectedIds.add(tag.dataset.participantId);
         });
 
-        // 清空並重新創建標籤
-        selection.innerHTML = "";
-        participants.forEach((participant) => {
-          const tag = document.createElement("span");
-          const isSelected = selectedIds.has(participant.id);
-          tag.className = isSelected
-            ? "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary text-white cursor-pointer hover:bg-primary/80 transition-colors"
-            : "person-tag inline-flex items-center px-3 py-1 rounded-full text-sm bg-primary/10 text-primary cursor-pointer hover:bg-primary/20 transition-colors";
-          tag.textContent = participant.name;
-          tag.dataset.participantId = participant.id;
-          tag.dataset.participantName = participant.name;
-          selection.appendChild(tag);
+        // 登出功能
+        const logoutBtn = document.getElementById("logout-btn");
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("登出按鈕被點擊");
 
-          // 綁定點擊事件來切換選擇狀態
-          tag.addEventListener("click", () => {
-            tag.classList.toggle("bg-primary");
-            tag.classList.toggle("text-white");
-            tag.classList.toggle("bg-primary/10");
-            tag.classList.toggle("text-primary");
-          });
-        });
-      }
-
-      // 當參與者輸入框內容改變時，更新所有項目的參與者標籤
-      participantsContainer.addEventListener("input", async (e) => {
-        const input = e.target;
-        const participantItem = input.closest(".participant-item");
-        const name = input.value.trim();
-
-        // 如果參與者還沒有ID但有名字，則創建參與者
-        if (name && name.length > 0 && !participantItem.dataset.participantId) {
-          try {
-            const response = await authenticatedFetch("/api/participant", {
-              method: "POST",
-              body: JSON.stringify({ name: name }),
-            });
-            if (response.ok) {
-              const participant = await response.json();
-              participantItem.dataset.participantId = participant.id;
-              participantItem.dataset.participantName = participant.name;
-              // 更新輸入框的值為服務器返回的完整名稱
-              input.value = participant.name;
-              updateParticipantTags();
+            try {
+              await authenticatedFetch("/api/auth/logout", { method: "POST" });
+              console.log("登出請求已發送");
+            } catch (error) {
+              console.error("Logout error:", error);
+            } finally {
+              // 清除本地存儲
+              localStorage.removeItem("sessionId");
+              localStorage.removeItem("user");
+              console.log("本地存儲已清除，重定向到主頁");
+              // 重定向到主頁
+              window.location.href = "/index.html";
             }
-          } catch (error) {
-            console.error("Error creating participant:", error);
-          }
-        } else if (!name || name.length === 0) {
-          // 如果名字被清空，清除ID
-          participantItem.dataset.participantId = "";
-          participantItem.dataset.participantName = "";
-          updateParticipantTags();
+          });
+          console.log("登出按鈕事件監聽器已綁定");
         } else {
-          // 更新名字 - 只有在沒有ID的情況下才更新dataset
-          if (!participantItem.dataset.participantId) {
-            participantItem.dataset.participantName = name;
-          }
-          updateParticipantTags();
+          console.log("找不到登出按鈕");
         }
-      });
 
-      // 為初始參與者添加刪除事件
-      document.querySelectorAll(".remove-person-btn").forEach((btn) => {
-        btn.addEventListener("click", function () {
-          const participantItem = btn.closest(".participant-item");
-          participantItem.classList.add("opacity-0", "translate-y-2");
-          setTimeout(() => {
-            participantItem.remove();
-            // 刪除參與者後，更新所有項目的參與者標籤
-            updateParticipantTags();
-          }, 300);
-        });
-      });
-
-      // 登出功能
-      document
-        .getElementById("logout-btn")
-        .addEventListener("click", async (e) => {
-          e.preventDefault();
-
-          try {
-            await authenticatedFetch("/api/auth/logout", { method: "POST" });
-          } catch (error) {
-            console.error("Logout error:", error);
-          } finally {
-            // 清除本地存儲
-            localStorage.removeItem("sessionId");
-            localStorage.removeItem("user");
-            // 重定向到登入頁面
-            window.location.href = "/login-page.html";
-          }
-        });
-
-      // 初始化時添加一個項目輸入框
-      setTimeout(() => {
-        addItemBtn.click();
-      }, 100);
+        // 初始化時添加一個參與者和一個項目輸入框
+        setTimeout(() => {
+          // 添加初始參與者
+          addPersonBtn.click();
+          // 添加初始項目
+          addItemBtn.click();
+        }, 100);
+      } // 結束 else 塊
     </script>
   </body>
 </html>
