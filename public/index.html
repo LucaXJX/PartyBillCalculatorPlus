@@ -174,10 +174,13 @@
               <div
                 class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4"
               >
-                <a href="#" class="btn-primary text-center">
+                <a href="/login-page.html" class="btn-primary text-center">
                   開始使用 <i class="fa fa-arrow-right ml-2"></i>
                 </a>
-                <a href="#" class="btn-secondary text-center">
+                <a
+                  href="/registration-page.html"
+                  class="btn-secondary text-center"
+                >
                   立即註冊 <i class="fa fa-info-circle ml-2"></i>
                 </a>
               </div>
@@ -383,7 +386,7 @@
               加入已經在使用我們服務的用戶大家庭，讓聚會賬單管理變得輕鬆愉快。
             </p>
             <a
-              href="#"
+              href="/registration-page.html"
               class="inline-block bg-white text-primary font-semibold py-3 px-8 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
             >
               立即免費註冊 <i class="fa fa-arrow-right ml-2"></i>
@@ -474,8 +477,10 @@
             <h4 class="text-lg font-semibold mb-6">聯絡我們</h4>
             <ul class="space-y-3">
               <li class="flex items-start">
-                <i class="fa fa-envelope-o text-gray-400 mt-1 mr-3"></i>
-                <span class="text-gray-400">nobodyevercare@icloud.com</span>
+                <i
+                  class="fa fa-envelope-o text-gray-400 mt-1 mr-3 flex-shrink-0"
+                ></i>
+                <span class="text-gray-400 break-all">support@pbcapp.com</span>
               </li>
               <li class="flex items-start">
                 <i class="fa fa-phone text-gray-400 mt-1 mr-3"></i>
@@ -641,6 +646,29 @@
       async function logout() {
         await window.authManager.logout();
       }
+
+      // 優化"開始使用"按鈕邏輯 - 如果已登錄則跳轉到計算頁面
+      document.addEventListener("DOMContentLoaded", () => {
+        // 獲取所有"開始使用"按鈕
+        const startButtons = document.querySelectorAll(
+          'a[href="/login-page.html"]'
+        );
+
+        startButtons.forEach((button) => {
+          button.addEventListener("click", (e) => {
+            // 檢查用戶是否已登錄
+            const sessionId = localStorage.getItem("sessionId");
+            const userData = localStorage.getItem("user");
+
+            if (sessionId && userData) {
+              // 如果已登錄，跳轉到計算頁面
+              e.preventDefault();
+              window.location.href = "/calculator.html";
+            }
+            // 如果未登錄，繼續跳轉到登錄頁面（默認行為）
+          });
+        });
+      });
     </script>
   </body>
 </html>

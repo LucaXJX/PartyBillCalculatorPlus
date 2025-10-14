@@ -159,17 +159,17 @@ class ComponentManager {
             <div>
               <h4 class="text-lg font-semibold mb-6">聯絡我們</h4>
               <ul class="space-y-3">
-                <li class="flex items-start">
-                  <i class="fa fa-envelope-o text-gray-400 mt-1 mr-3"></i>
-                  <span class="text-gray-400">nobodyevercare@icloud.com</span>
+                <li class="flex items-center">
+                  <i class="fa fa-envelope text-gray-400 mr-3" style="min-width: 1.2rem;"></i>
+                  <span class="text-gray-400 break-words">support@pbcapp.com</span>
                 </li>
-                <li class="flex items-start">
-                  <i class="fa fa-phone text-gray-400 mt-1 mr-3"></i>
+                <li class="flex items-center">
+                  <i class="fa fa-phone text-gray-400 mr-3" style="min-width: 1.2rem;"></i>
                   <span class="text-gray-400">852-1234-5678</span>
                 </li>
                 <li class="flex items-start">
-                  <i class="fa fa-map-marker text-gray-400 mt-1 mr-3"></i>
-                  <span class="text-gray-400 whitespace-normal">香港專業進修學校 應用教育文憑 智能科技應用及手機程式設計 專題研習</span>
+                  <i class="fa fa-map-marker text-gray-400 mt-1 mr-3" style="min-width: 1.2rem;"></i>
+                  <span class="text-gray-400 break-words">香港專業進修學校 應用教育文憑 智能科技應用及手機程式設計 專題研習</span>
                 </li>
               </ul>
             </div>
