@@ -9,15 +9,26 @@
     "dev": "node --loader ts-node/esm server/server.ts",
     "dev:watch": "nodemon --watch 'server/**/*' --exec 'node --loader ts-node/esm' server/server.ts",
     "build": "tsc",
+    "format": "prettier --write \"**/*.{ts,js,json,md}\"",
+    "lint": "eslint \"**/*.{ts,js}\"",
+    "type-check": "tsc --noEmit",
     "install-concurrently": "npm install concurrently nodemon --no-save"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/LucaXJX/PartyBillCalculator.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "bill-calculator",
+    "expense-splitting",
+    "party-bill",
+    "group-expenses",
+    "typescript",
+    "express",
+    "nodejs"
+  ],
+  "author": "LucaXJX",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/LucaXJX/PartyBillCalculator/issues"
   },
@@ -27,6 +38,7 @@
     "express-session": "^1.18.2",
     "formidable": "^3.5.4",
     "html2canvas": "^1.4.1",
+    "multer": "^1.4.5-lts.1",
     "pg": "^8.16.3",
     "dotenv": "^16.0.0"
   },
@@ -34,6 +46,7 @@
     "@types/express": "^5.0.3",
     "@types/express-session": "^1.18.2",
     "@types/formidable": "^3.4.6",
+    "@types/multer": "^1.4.12",
     "@types/node": "^20.0.0",
     "@types/pg": "^8.15.5",
     "concurrently": "^8.2.0",
