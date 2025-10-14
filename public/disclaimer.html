@@ -78,13 +78,19 @@
           </div>
 
           <!-- 登入/註冊 -->
-          <div class="flex items-center space-x-4">
+          <div id="nav-user-section" class="flex items-center space-x-4">
             <a
-              href="#"
+              href="/login-page.html"
+              id="login-btn"
               class="hidden sm:inline-block text-gray-600 hover:text-primary transition-colors"
               >登入</a
             >
-            <a href="#" class="btn-primary hidden sm:inline-block">立即註冊</a>
+            <a
+              href="/registration-page.html"
+              id="register-btn"
+              class="btn-primary hidden sm:inline-block"
+              >立即註冊</a
+            >
 
             <!-- 移動端菜單按鈕 -->
             <button
@@ -113,7 +119,7 @@
     </header>
 
     <!-- 主要內容 -->
-    <main class="pt-32 pb-20">
+    <main class="pt-32 pb-20 min-h-[calc(100vh-200px)]">
       <section class="container mx-auto px-4 sm:px-6 lg:px-8">
         <div
           class="max-w-3xl mx-auto bg-white rounded-xl shadow-md p-8 md:p-10"
@@ -132,13 +138,14 @@
               免責條款、版權資料及私隱資料免責條款
             </h2>
             <p class="text-gray-600 mb-6">
-              本網頁所載資料乃PBC聚賬通根據現行情況及政策，利用現有資料製作，並已力求內容正確無誤。
+              本網站（PBC聚賬通 Party Bill
+              Calculator）所載資料乃根據現行情況及最佳實踐，利用現有資料製作，並已力求內容正確無誤。本網站為開源項目，採用MIT許可協議，源代碼託管於GitHub。
             </p>
             <p class="text-gray-600 mb-6">
-              PBC聚賬通定期檢討網頁，如有需要會安排更新內容。雖然PBC聚賬通力求網頁正確無誤，但對於讀者因使用或參考網頁，或因其中資料不準確、錯漏，或因瀏覽網頁或存取其中資料而直接或間接蒙受經濟或其他損失，PBC聚賬通不會負任何法律上或其他方面的責任。
+              PBC聚賬通定期檢討網站功能和內容，如有需要會安排更新。雖然PBC聚賬通力求網站功能正確無誤，但對於用戶因使用本網站的賬單計算、支付追蹤、收據上傳等功能，或因其中資料不準確、錯漏，或因瀏覽網站或存取其中資料而直接或間接蒙受經濟或其他損失，PBC聚賬通不會負任何法律上或其他方面的責任。
             </p>
             <p class="text-gray-600 mb-6">
-              本網頁只提供一般資料，並不包含與PBC聚賬通任何服務或產品有關的專業意見、推廣或使用提議，亦不包含任何關於賬單管理功能或提供服務的具約束力承諾。
+              本網站提供的賬單計算和分攤功能僅作為輔助工具，計算結果僅供參考。用戶應自行核對賬單金額、參與者分攤和支付狀態等信息。本網站不對計算結果的準確性、支付追蹤的完整性或用戶間的財務糾紛承擔任何責任。
             </p>
             <p class="text-gray-600 mb-6">
               瀏覽者如對本網頁所載任何功能或服務有特別疑問，應請教合資格的專業人士；因瀏覽本網頁內容而引致任何損失，PBC聚賬通概不負責。
@@ -258,14 +265,53 @@
       </div>
     </footer>
 
+    <!-- 認證模組 -->
+    <script type="module" src="/js/auth.js"></script>
+
     <!-- JavaScript -->
-    <script>
-      // 1. 顶部Logo点击：直接刷新并回到顶部
+    <script type="module">
+      // 頁面加載時檢查登錄狀態
+      window.addEventListener("DOMContentLoaded", () => {
+        const user = window.authManager?.getCurrentUser();
+
+        if (user) {
+          // 用戶已登錄，隱藏登入/註冊按鈕，顯示用戶信息
+          const loginBtn = document.getElementById("login-btn");
+          const registerBtn = document.getElementById("register-btn");
+          const navSection = document.getElementById("nav-user-section");
+
+          if (loginBtn) loginBtn.style.display = "none";
+          if (registerBtn) registerBtn.style.display = "none";
+
+          // 添加用戶信息
+          const userInfo = document.createElement("div");
+          userInfo.className = "hidden sm:flex items-center space-x-4";
+          userInfo.innerHTML = `
+            <span class="text-gray-700">歡迎，${user.username}</span>
+            <a href="/calculator.html" class="text-primary hover:text-primary/80 transition-colors">
+              <i class="fa fa-calculator mr-1"></i>開始計算
+            </a>
+            <button onclick="logout()" class="text-gray-600 hover:text-primary transition-colors">
+              <i class="fa fa-sign-out mr-1"></i>登出
+            </button>
+          `;
+          navSection.insertBefore(userInfo, navSection.firstChild);
+        }
+      });
+
+      // 登出函數
+      async function logout() {
+        if (window.authManager) {
+          await window.authManager.logout();
+        }
+      }
+
+      // 1. 頂部Logo點擊：返回首頁
       document
-        .getElementById("logo-link")
+        .getElementById("top-logo")
         .addEventListener("click", function (e) {
           e.preventDefault();
-          window.location.reload();
+          window.location.href = "/index.html";
         });
 
       // 2. 導航欄滾動效果

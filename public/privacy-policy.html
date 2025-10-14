@@ -78,13 +78,19 @@
           </div>
 
           <!-- 登入/註冊 -->
-          <div class="flex items-center space-x-4">
+          <div id="nav-user-section" class="flex items-center space-x-4">
             <a
-              href="#"
+              href="/login-page.html"
+              id="login-btn"
               class="hidden sm:inline-block text-gray-600 hover:text-primary transition-colors"
               >登入</a
             >
-            <a href="#" class="btn-primary hidden sm:inline-block">立即註冊</a>
+            <a
+              href="/registration-page.html"
+              id="register-btn"
+              class="btn-primary hidden sm:inline-block"
+              >立即註冊</a
+            >
 
             <!-- 移動端菜單按鈕 -->
             <button
@@ -113,7 +119,7 @@
     </header>
 
     <!-- 主要內容 -->
-    <main class="pt-32 pb-20">
+    <main class="pt-32 pb-20 min-h-[calc(100vh-200px)]">
       <section class="container mx-auto px-4 sm:px-6 lg:px-8">
         <div
           class="max-w-3xl mx-auto bg-white rounded-xl shadow-md p-8 md:p-10"
@@ -132,7 +138,8 @@
               個人資料使用守則
             </h2>
             <p class="text-gray-600 mb-6">
-              PBC聚賬通致力於遵守《個人資料（私隱）條例》的規定，確保所有收集的個人資料均得到妥善保護、準確無誤，並採用安全的儲存方法。為幫助您了解我們如何處理您的個人資料，請仔細閱讀本政策。
+              PBC聚賬通（Party Bill
+              Calculator）致力於遵守《個人資料（私隱）條例》的規定，確保所有收集的個人資料均得到妥善保護、準確無誤，並採用安全的儲存方法。所有用戶數據、賬單記錄和收據圖片均存儲於本地服務器的加密目錄中，通過認證API訪問，不會對外公開或與第三方共享。為幫助您了解我們如何處理您的個人資料，請仔細閱讀本政策。
             </p>
 
             <!-- 收集資料目的及使用準則 -->
@@ -241,7 +248,9 @@
             <h4 class="text-lg font-semibold mb-4">聯絡我們</h4>
             <ul class="space-y-2">
               <li class="flex items-start">
-                <i class="fa fa-envelope-o text-gray-400 mt-1 mr-3 flex-shrink-0"></i>
+                <i
+                  class="fa fa-envelope-o text-gray-400 mt-1 mr-3 flex-shrink-0"
+                ></i>
                 <span class="text-gray-400 break-all">support@pbcapp.com</span>
               </li>
               <li class="flex items-start">
@@ -258,14 +267,53 @@
       </div>
     </footer>
 
+    <!-- 認證模組 -->
+    <script type="module" src="/js/auth.js"></script>
+
     <!-- JavaScript -->
-    <script>
-      // 1. 顶部Logo点击：直接刷新并回到顶部
+    <script type="module">
+      // 頁面加載時檢查登錄狀態
+      window.addEventListener("DOMContentLoaded", () => {
+        const user = window.authManager?.getCurrentUser();
+
+        if (user) {
+          // 用戶已登錄，隱藏登入/註冊按鈕，顯示用戶信息
+          const loginBtn = document.getElementById("login-btn");
+          const registerBtn = document.getElementById("register-btn");
+          const navSection = document.getElementById("nav-user-section");
+
+          if (loginBtn) loginBtn.style.display = "none";
+          if (registerBtn) registerBtn.style.display = "none";
+
+          // 添加用戶信息
+          const userInfo = document.createElement("div");
+          userInfo.className = "hidden sm:flex items-center space-x-4";
+          userInfo.innerHTML = `
+            <span class="text-gray-700">歡迎，${user.username}</span>
+            <a href="/calculator.html" class="text-primary hover:text-primary/80 transition-colors">
+              <i class="fa fa-calculator mr-1"></i>開始計算
+            </a>
+            <button onclick="logout()" class="text-gray-600 hover:text-primary transition-colors">
+              <i class="fa fa-sign-out mr-1"></i>登出
+            </button>
+          `;
+          navSection.insertBefore(userInfo, navSection.firstChild);
+        }
+      });
+
+      // 登出函數
+      async function logout() {
+        if (window.authManager) {
+          await window.authManager.logout();
+        }
+      }
+
+      // 1. 頂部Logo點擊：返回首頁
       document
-        .getElementById("logo-link")
+        .getElementById("top-logo")
         .addEventListener("click", function (e) {
           e.preventDefault();
-          window.location.reload();
+          window.location.href = "/index.html";
         });
 
       // 2. 導航欄滾動效果

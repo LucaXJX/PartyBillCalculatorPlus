@@ -78,13 +78,19 @@
           </div>
 
           <!-- 登入/註冊 -->
-          <div class="flex items-center space-x-4">
+          <div id="nav-user-section" class="flex items-center space-x-4">
             <a
-              href="#"
+              href="/login-page.html"
+              id="login-btn"
               class="hidden sm:inline-block text-gray-600 hover:text-primary transition-colors"
               >登入</a
             >
-            <a href="#" class="btn-primary hidden sm:inline-block">立即註冊</a>
+            <a
+              href="/registration-page.html"
+              id="register-btn"
+              class="btn-primary hidden sm:inline-block"
+              >立即註冊</a
+            >
 
             <!-- 移動端菜單按鈕 -->
             <button
@@ -113,7 +119,7 @@
     </header>
 
     <!-- 主要內容 -->
-    <main class="pt-32 pb-20">
+    <main class="pt-32 pb-20 min-h-[calc(100vh-200px)]">
       <section class="container mx-auto px-4 sm:px-6 lg:px-8">
         <div
           class="max-w-3xl mx-auto bg-white rounded-xl shadow-md p-8 md:p-10"
@@ -132,18 +138,19 @@
               一、網站自有內容版權
             </h2>
             <p class="text-gray-600 mb-4">
-              本網站（PBC聚賬通，網址：[請填入網站域名]）內所有標識、文字、圖片、圖標、版面設計、功能架構及服務內容（包括但不限於「功能展示」「用戶評價」等專區內容）的知識產權均歸PBC聚賬通所有。
+              本網站（PBC聚賬通 Party Bill
+              Calculator）內所有標識、文字、圖標、版面設計、功能架構及服務內容（包括但不限於智能計算、賬單管理、支付追蹤等功能）的知識產權均歸PBC聚賬通所有。
             </p>
             <p class="text-gray-600 mb-6">
-              未經PBC聚賬通書面許可，任何單位或個人不得以任何方式複製、傳播、展示、修改、翻譯、摘編本網站內容，或用於商業用途。非商業用途的合理使用（如個人學習參考）需保留完整版權標識，並不得修改內容原意。
+              未經PBC聚賬通書面許可，任何單位或個人不得以任何方式複製、傳播、展示、修改、翻譯、摘編本網站內容，或用於商業用途。本項目採用MIT開源許可協議，允許非商業和商業使用，但需保留版權聲明和許可協議聲明。
             </p>
 
-            <!-- 二、第三方圖片聲明 -->
+            <!-- 二、開源項目說明 -->
             <h2 class="text-xl font-semibold text-dark mt-8 mb-4">
-              二、第三方圖片使用說明
+              二、開源項目聲明
             </h2>
             <p class="text-gray-600 mb-6">
-              本網站中用於演示的隨機圖片（來源於picsum.photos）僅用於開發測試及展示效果，其版權歸原圖片作者所有。正式上線後，相關圖片將替換為PBC聚賬通自有版權圖片或獲得授權的商用圖片。如原圖作者認為存在版權侵權，可隨時聯絡我們處理。
+              本項目為開源軟件，遵循MIT許可協議。源代碼託管於GitHub，歡迎社區貢獻和改進。用戶數據和收據圖片等隱私資料存儲於本地服務器，不對外公開，確保用戶隱私安全。
             </p>
 
             <!-- 三、第三方庫及工具引用聲明 -->
@@ -184,6 +191,12 @@
                   </tr>
                 </thead>
                 <tbody class="text-gray-600">
+                  <!-- 前端庫 -->
+                  <tr>
+                    <td class="py-3 px-4 border-b font-semibold" colspan="4">
+                      前端框架與工具
+                    </td>
+                  </tr>
                   <tr>
                     <td class="py-3 px-4 border-b">Tailwind CSS</td>
                     <td class="py-3 px-4 border-b">頁面樣式與響應式布局</td>
@@ -193,35 +206,105 @@
                         href="https://tailwindcss.com"
                         target="_blank"
                         class="text-primary hover:underline"
-                        >https://tailwindcss.com</a
+                        >tailwindcss.com</a
                       >
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-3 px-4 border-b">Font Awesome 4.7.0</td>
-                    <td class="py-3 px-4 border-b">
-                      圖標展示（如按鈕、導航圖標）
-                    </td>
+                    <td class="py-3 px-4 border-b">Font Awesome 5.15.4</td>
+                    <td class="py-3 px-4 border-b">圖標展示</td>
                     <td class="py-3 px-4 border-b">MIT License</td>
                     <td class="py-3 px-4 border-b">
                       <a
-                        href="https://fontawesome.com/v4.7/"
+                        href="https://fontawesome.com"
                         target="_blank"
                         class="text-primary hover:underline"
-                        >https://fontawesome.com/v4.7/</a
+                        >fontawesome.com</a
                       >
                     </td>
                   </tr>
                   <tr>
-                    <td class="py-3 px-4">picsum.photos</td>
-                    <td class="py-3 px-4">開發階段演示圖片提供</td>
-                    <td class="py-3 px-4">MIT License</td>
-                    <td class="py-3 px-4">
+                    <td class="py-3 px-4 border-b">html2canvas</td>
+                    <td class="py-3 px-4 border-b">賬單截圖導出功能</td>
+                    <td class="py-3 px-4 border-b">MIT License</td>
+                    <td class="py-3 px-4 border-b">
                       <a
-                        href="https://picsum.photos/"
+                        href="https://html2canvas.hertzen.com"
                         target="_blank"
                         class="text-primary hover:underline"
-                        >https://picsum.photos/</a
+                        >html2canvas.hertzen.com</a
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 px-4 border-b">DiceBear Avatars</td>
+                    <td class="py-3 px-4 border-b">用戶頭像生成</td>
+                    <td class="py-3 px-4 border-b">MIT License</td>
+                    <td class="py-3 px-4 border-b">
+                      <a
+                        href="https://www.dicebear.com"
+                        target="_blank"
+                        class="text-primary hover:underline"
+                        >dicebear.com</a
+                      >
+                    </td>
+                  </tr>
+
+                  <!-- 後端庫 -->
+                  <tr>
+                    <td class="py-3 px-4 border-b font-semibold" colspan="4">
+                      後端框架與工具
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 px-4 border-b">Express.js</td>
+                    <td class="py-3 px-4 border-b">Web服務器框架</td>
+                    <td class="py-3 px-4 border-b">MIT License</td>
+                    <td class="py-3 px-4 border-b">
+                      <a
+                        href="https://expressjs.com"
+                        target="_blank"
+                        class="text-primary hover:underline"
+                        >expressjs.com</a
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 px-4 border-b">Multer</td>
+                    <td class="py-3 px-4 border-b">文件上傳處理（收據圖片）</td>
+                    <td class="py-3 px-4 border-b">MIT License</td>
+                    <td class="py-3 px-4 border-b">
+                      <a
+                        href="https://github.com/expressjs/multer"
+                        target="_blank"
+                        class="text-primary hover:underline"
+                        >github.com/expressjs/multer</a
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 px-4 border-b">TypeScript</td>
+                    <td class="py-3 px-4 border-b">類型安全的JavaScript開發</td>
+                    <td class="py-3 px-4 border-b">Apache 2.0</td>
+                    <td class="py-3 px-4 border-b">
+                      <a
+                        href="https://www.typescriptlang.org"
+                        target="_blank"
+                        class="text-primary hover:underline"
+                        >typescriptlang.org</a
+                      >
+                    </td>
+                  </tr>
+                  <tr>
+                    <td class="py-3 px-4 border-b">Node.js</td>
+                    <td class="py-3 px-4 border-b">JavaScript運行環境</td>
+                    <td class="py-3 px-4 border-b">MIT License</td>
+                    <td class="py-3 px-4 border-b">
+                      <a
+                        href="https://nodejs.org"
+                        target="_blank"
+                        class="text-primary hover:underline"
+                        >nodejs.org</a
                       >
                     </td>
                   </tr>
@@ -348,14 +431,53 @@
       </div>
     </footer>
 
+    <!-- 認證模組 -->
+    <script type="module" src="/js/auth.js"></script>
+
     <!-- JavaScript -->
-    <script>
+    <script type="module">
+      // 頁面加載時檢查登錄狀態
+      window.addEventListener("DOMContentLoaded", () => {
+        const user = window.authManager?.getCurrentUser();
+
+        if (user) {
+          // 用戶已登錄，隱藏登入/註冊按鈕，顯示用戶信息
+          const loginBtn = document.getElementById("login-btn");
+          const registerBtn = document.getElementById("register-btn");
+          const navSection = document.getElementById("nav-user-section");
+
+          if (loginBtn) loginBtn.style.display = "none";
+          if (registerBtn) registerBtn.style.display = "none";
+
+          // 添加用戶信息
+          const userInfo = document.createElement("div");
+          userInfo.className = "hidden sm:flex items-center space-x-4";
+          userInfo.innerHTML = `
+            <span class="text-gray-700">歡迎，${user.username}</span>
+            <a href="/calculator.html" class="text-primary hover:text-primary/80 transition-colors">
+              <i class="fa fa-calculator mr-1"></i>開始計算
+            </a>
+            <button onclick="logout()" class="text-gray-600 hover:text-primary transition-colors">
+              <i class="fa fa-sign-out mr-1"></i>登出
+            </button>
+          `;
+          navSection.insertBefore(userInfo, navSection.firstChild);
+        }
+      });
+
+      // 登出函數
+      async function logout() {
+        if (window.authManager) {
+          await window.authManager.logout();
+        }
+      }
+
       // 1. 顶部Logo点击：直接刷新并回到顶部
       document
-        .getElementById("logo-link")
+        .getElementById("top-logo")
         .addEventListener("click", function (e) {
           e.preventDefault();
-          window.location.reload();
+          window.location.href = "/index.html";
         });
 
       // 2. 導航欄滾動效果

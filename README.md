@@ -39,10 +39,13 @@
 
 ### 📊 賬單管理
 
-- 個人賬單列表
-- 支付狀態追蹤
-- 憑證圖片上傳
-- 賬單搜索和篩選
+- 個人賬單列表（創建的和參與的）
+- 支付狀態追蹤（待支付/已支付）
+- 憑證圖片上傳（最多 6 張，帶預覽）
+- 賬單搜索和篩選（5 種狀態篩選）
+- 應收款/應付款統計和管理
+- 確認收款功能 ⭐
+- 拒絕收款功能（未收到款/錯誤單據）⭐
 
 ### 🎨 用戶界面
 
@@ -142,8 +145,12 @@
 
 4. **管理賬單**
    - 在「我的賬單」頁面查看所有賬單
-   - 標記支付狀態
-   - 上傳支付憑證
+   - 查看統計數據（6 個統計卡片）
+   - 標記支付狀態（待支付/已支付）
+   - 上傳支付憑證（最多 6 張圖片）
+   - 查看應收款詳情
+   - 確認收款或拒絕收款
+   - 使用篩選和搜索功能
 
 ## 📚 API 文檔
 
@@ -176,43 +183,56 @@
 
 - `GET /api/calculate` - 計算賬單分攤
 
-### 支付狀態
+### 支付管理
 
 - `POST /api/bill/payment-status` - 更新支付狀態
+- `POST /api/bill/confirm-payment` - 確認收款 ⭐
+- `POST /api/bill/reject-payment` - 拒絕收款 ⭐
+- `POST /api/receipt/upload` - 上傳收據圖片
+- `GET /receipts/:filename` - 獲取收據圖片（需認證）
 
 ## 📁 項目結構
 
 ```
 PartyBillCalculator/
-├── public/                 # 前端靜態文件
-│   ├── index.html         # 首頁
-│   ├── calculator.html    # 計算器頁面
-│   ├── my-bills.html      # 我的賬單頁面
-│   ├── login-page.html    # 登入頁面
-│   ├── registration-page.html # 註冊頁面
-│   ├── js/                # JavaScript 文件
-│   └── img/               # 圖片資源
-├── server/                # 後端服務器代碼
-│   ├── server.ts          # 主服務器文件
-│   ├── types.ts           # TypeScript 類型定義
-│   ├── dataManager.ts     # 數據管理
-│   ├── storage.ts         # 數據存儲
-│   └── billCalculator.ts  # 計算邏輯
-├── docs/                  # 項目文檔
-│   ├── README.md          # 文檔說明
-│   ├── TEST_RESULTS.md    # 測試結果
-│   └── TEST_USERS.md      # 測試用戶
-├── data/                  # 數據文件
-│   ├── users.json         # 用戶數據
-│   └── bills.json         # 賬單數據
-├── config/                # 配置文件
-├── database/              # 數據庫相關
-├── dist/                  # 編譯輸出
-├── node_modules/          # 依賴包
-├── package.json           # 項目配置
-├── tsconfig.json          # TypeScript 配置
-├── .gitignore            # Git 忽略文件
-└── README.md             # 項目說明
+├── public/                      # 前端靜態文件
+│   ├── index.html              # 首頁
+│   ├── calculator.html         # 智能計算頁面
+│   ├── my-bills.html           # 我的賬單頁面 ⭐
+│   ├── login-page.html         # 登入頁面
+│   ├── registration-page.html  # 註冊頁面
+│   ├── copyright.html          # 版權聲明
+│   ├── privacy-policy.html     # 隱私政策
+│   ├── disclaimer.html         # 免責聲明
+│   ├── test-my-bills-final.html # 測試頁面 ⭐
+│   ├── js/                     # JavaScript 模組
+│   │   ├── auth.js            # 認證管理
+│   │   ├── components.js      # UI組件
+│   │   └── page-setup.js      # 頁面設置
+│   └── img/                    # 圖片資源
+├── server/                     # 後端服務器代碼
+│   ├── server.ts              # 主服務器文件
+│   ├── types.ts               # TypeScript 類型定義
+│   ├── dataManager.ts         # 數據管理
+│   ├── storage.ts             # 數據存儲 ⭐
+│   └── billCalculator.ts      # 計算邏輯
+├── docs/                       # 項目文檔
+│   ├── MY_BILLS_PAGE.md       # 我的賬單頁面文檔 ⭐
+│   ├── COMPONENT_SYSTEM.md    # 組件系統文檔
+│   └── TEST_USERS.md          # 測試用戶列表
+├── data/                       # 數據文件
+│   ├── users.json             # 用戶數據
+│   ├── bills.json             # 賬單數據
+│   └── receipts/              # 收據圖片 ⭐
+├── dist/                       # TypeScript 編譯輸出
+├── scripts/                    # 工具腳本
+├── .github/                    # GitHub 配置
+│   └── ISSUE_TEMPLATE/        # Issue 模板
+├── package.json                # 項目配置
+├── tsconfig.json               # TypeScript 配置
+├── LICENSE                     # MIT 許可證
+├── CONTRIBUTING.md             # 貢獻指南
+└── README.md                   # 項目說明
 ```
 
 ## 🔧 開發指南
