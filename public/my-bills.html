@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>我的賬單 - PBC聚賬通</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --primary: #4f46e5;
+        --primary-light: #e0e7ff;
+        --dark: #1f2937;
+        --light: #f8fafc;
+      }
+
+      .text-primary {
+        color: var(--primary);
+      }
+
+      .bg-primary {
+        background-color: var(--primary);
+      }
+
+      .bg-light {
+        background-color: var(--light);
+      }
+
+      .text-dark {
+        color: var(--dark);
+      }
+
+      .input-focus:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+      }
+
+      .btn-primary {
+        background-color: var(--primary);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+      }
+
+      .btn-primary:hover {
+        background-color: #3730a3;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+      }
+
+      .btn-secondary {
+        background-color: #f3f4f6;
+        color: var(--dark);
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: 1px solid #d1d5db;
+        cursor: pointer;
+      }
+
+      .btn-secondary:hover {
+        background-color: #e5e7eb;
+        transform: translateY(-1px);
+      }
+
+      .status-pending {
+        background-color: #fef3c7;
+        color: #92400e;
+      }
+
+      .status-paid {
+        background-color: #d1fae5;
+        color: #065f46;
+      }
+
+      .status-overdue {
+        background-color: #fee2e2;
+        color: #991b1b;
+      }
+    </style>
+  </head>
+
+  <body
+    class="font-sans text-dark bg-gray-50 min-h-screen"
+    style="background-color: #f9fafb"
+  >
+    <!-- Header 將由 JavaScript 動態插入 -->
+
+    <!-- 主要內容 -->
+    <main class="pt-24 pb-20">
+      <section class="container mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- 頁面標題 -->
+        <div class="text-center mb-12">
+          <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold mb-4 text-dark">
+            我的<span class="text-primary">賬單</span>
+          </h1>
+          <p class="text-gray-600 max-w-2xl mx-auto text-lg">
+            查看和管理您的所有賬單記錄
+          </p>
+        </div>
+
+        <!-- 統計卡片 -->
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+          <div class="bg-white rounded-lg p-6 shadow-sm">
+            <div class="flex items-center">
+              <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                <i class="fa fa-file-text text-xl"></i>
+              </div>
+              <div class="ml-4">
+                <p class="text-sm font-medium text-gray-600">總賬單數</p>
+                <p class="text-2xl font-bold text-gray-900" id="total-bills">
+                  0
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg p-6 shadow-sm">
+            <div class="flex items-center">
+              <div class="p-3 rounded-full bg-orange-100 text-orange-600">
+                <i class="fa fa-clock text-xl"></i>
+              </div>
+              <div class="ml-4">
+                <p class="text-sm font-medium text-gray-600">待支付</p>
+                <p class="text-2xl font-bold text-gray-900" id="pending-bills">
+                  0
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg p-6 shadow-sm">
+            <div class="flex items-center">
+              <div class="p-3 rounded-full bg-green-100 text-green-600">
+                <i class="fa fa-check-circle text-xl"></i>
+              </div>
+              <div class="ml-4">
+                <p class="text-sm font-medium text-gray-600">已支付</p>
+                <p class="text-2xl font-bold text-gray-900" id="paid-bills">
+                  0
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg p-6 shadow-sm">
+            <div class="flex items-center">
+              <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                <i class="fa fa-arrow-up text-xl"></i>
+              </div>
+              <div class="ml-4">
+                <p class="text-sm font-medium text-gray-600">應收款</p>
+                <p class="text-2xl font-bold text-gray-900" id="receivables">
+                  $0.00
+                </p>
+                <p class="text-xs text-gray-500" id="receivables-count">0筆</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="bg-white rounded-lg p-6 shadow-sm">
+            <div class="flex items-center">
+              <div class="p-3 rounded-full bg-red-100 text-red-600">
+                <i class="fa fa-arrow-down text-xl"></i>
+              </div>
+              <div class="ml-4">
+                <p class="text-sm font-medium text-gray-600">應付款</p>
+                <p class="text-2xl font-bold text-gray-900" id="payables">
+                  $0.00
+                </p>
+                <p class="text-xs text-gray-500" id="payables-count">0筆</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 篩選和搜索 -->
+        <div class="bg-white rounded-lg p-6 shadow-sm mb-6">
+          <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+              <input
+                type="text"
+                id="search-input"
+                placeholder="搜索賬單名稱、地點或參與者..."
+                class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300"
+              />
+            </div>
+            <div class="flex gap-2">
+              <select
+                id="status-filter"
+                class="px-4 py-2 border border-gray-300 rounded-lg input-focus"
+              >
+                <option value="">所有狀態</option>
+                <option value="pending">待支付</option>
+                <option value="paid">已支付</option>
+              </select>
+              <select
+                id="date-filter"
+                class="px-4 py-2 border border-gray-300 rounded-lg input-focus"
+              >
+                <option value="">所有時間</option>
+                <option value="today">今天</option>
+                <option value="week">本週</option>
+                <option value="month">本月</option>
+                <option value="year">今年</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- 賬單列表 -->
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+          <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-900">賬單列表</h2>
+          </div>
+          <div id="bills-container" class="divide-y divide-gray-200">
+            <!-- 賬單項目將通過JavaScript動態生成 -->
+          </div>
+          <div id="empty-state" class="text-center py-12 hidden">
+            <i class="fa fa-file-text text-4xl text-gray-300 mb-4"></i>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">暫無賬單</h3>
+            <p class="text-gray-500 mb-4">您還沒有創建任何賬單</p>
+            <a
+              href="/calculator.html"
+              class="btn-primary inline-flex items-center"
+            >
+              <i class="fa fa-plus mr-2"></i>創建新賬單
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- 支付狀態更新模態框 -->
+    <div
+      id="payment-modal"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 transition-all duration-300 opacity-0 invisible"
+    >
+      <div
+        class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-95"
+      >
+        <div
+          class="bg-gradient-to-r from-primary to-primary/80 p-6 text-white flex justify-between items-center"
+        >
+          <h3 class="text-xl font-bold">更新支付狀態</h3>
+          <button
+            id="close-payment-modal-btn"
+            class="text-white hover:text-white/80 transition-colors"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="p-6">
+          <div class="mb-4">
+            <label class="block text-gray-700 font-medium mb-2">支付狀態</label>
+            <select
+              id="payment-status-select"
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus"
+            >
+              <option value="pending">待支付</option>
+              <option value="paid">已支付</option>
+            </select>
+          </div>
+          <div id="receipt-upload-section" class="mb-4 hidden">
+            <label class="block text-gray-700 font-medium mb-2">支付憑證</label>
+            <div
+              class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center"
+            >
+              <input
+                type="file"
+                id="receipt-file"
+                accept="image/*"
+                class="hidden"
+              />
+              <button
+                id="upload-receipt-btn"
+                class="text-primary hover:text-primary/80 transition-colors"
+              >
+                <i class="fa fa-cloud-upload text-2xl mb-2"></i>
+                <p>點擊上傳憑證圖片</p>
+                <p class="text-sm text-gray-500">支持 JPG、PNG 格式</p>
+              </button>
+            </div>
+            <div id="receipt-preview" class="mt-4 hidden">
+              <img
+                id="receipt-image"
+                class="w-full h-32 object-cover rounded-lg"
+              />
+              <button
+                id="remove-receipt-btn"
+                class="mt-2 text-red-500 hover:text-red-700 text-sm"
+              >
+                <i class="fa fa-trash mr-1"></i>移除圖片
+              </button>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button id="cancel-payment-btn" class="btn-secondary flex-1">
+              取消
+            </button>
+            <button id="save-payment-btn" class="btn-primary flex-1">
+              保存
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer 將由 JavaScript 動態插入 -->
+
+    <!-- 引入必要的腳本 -->
+    <script src="/js/auth.js"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/page-setup.js"></script>
+
+    <script type="module">
+      // 頁面初始化
+      document.addEventListener("DOMContentLoaded", async () => {
+        // 設置頁面組件
+        const pageInitialized = await window.pageSetup.init({
+          currentPage: "my-bills",
+          requireAuth: true,
+          showHeader: true,
+          showFooter: true,
+        });
+
+        if (!pageInitialized) {
+          return; // 認證失敗，頁面會重定向
+        }
+
+        // 設置頁面特定功能
+        window.pageSetup.setupPageFeatures({
+          updateUserDisplay: true,
+          setupLogout: true,
+          setupAuthCheck: true,
+        });
+
+        // 使用認證管理器的fetch方法
+        const authenticatedFetch = window.authManager.authenticatedFetch.bind(
+          window.authManager
+        );
+
+        // DOM元素
+        const searchInput = document.getElementById("search-input");
+        const statusFilter = document.getElementById("status-filter");
+        const dateFilter = document.getElementById("date-filter");
+        const billsContainer = document.getElementById("bills-container");
+        const emptyState = document.getElementById("empty-state");
+        const totalBillsEl = document.getElementById("total-bills");
+        const pendingBillsEl = document.getElementById("pending-bills");
+        const paidBillsEl = document.getElementById("paid-bills");
+        const receivablesEl = document.getElementById("receivables");
+        const receivablesCountEl = document.getElementById("receivables-count");
+        const payablesEl = document.getElementById("payables");
+        const payablesCountEl = document.getElementById("payables-count");
+
+        // 支付模態框元素
+        const paymentModal = document.getElementById("payment-modal");
+        const closePaymentModalBtn = document.getElementById(
+          "close-payment-modal-btn"
+        );
+        const paymentStatusSelect = document.getElementById(
+          "payment-status-select"
+        );
+        const receiptUploadSection = document.getElementById(
+          "receipt-upload-section"
+        );
+        const receiptFile = document.getElementById("receipt-file");
+        const uploadReceiptBtn = document.getElementById("upload-receipt-btn");
+        const receiptPreview = document.getElementById("receipt-preview");
+        const receiptImage = document.getElementById("receipt-image");
+        const removeReceiptBtn = document.getElementById("remove-receipt-btn");
+        const cancelPaymentBtn = document.getElementById("cancel-payment-btn");
+        const savePaymentBtn = document.getElementById("save-payment-btn");
+
+        let currentBillId = null;
+        let currentParticipantId = null;
+        let bills = [];
+
+        // 初始化
+        document.addEventListener("DOMContentLoaded", async () => {
+          // 更新用戶信息顯示
+          window.authManager.updateUserDisplay();
+
+          await loadBills();
+          setupEventListeners();
+        });
+
+        // 設置事件監聽器
+        function setupEventListeners() {
+          // 搜索和篩選
+          searchInput.addEventListener("input", filterBills);
+          statusFilter.addEventListener("change", filterBills);
+          dateFilter.addEventListener("change", filterBills);
+
+          // 支付模態框
+          closePaymentModalBtn.addEventListener("click", closePaymentModal);
+          cancelPaymentBtn.addEventListener("click", closePaymentModal);
+          paymentStatusSelect.addEventListener("change", toggleReceiptUpload);
+          uploadReceiptBtn.addEventListener("click", () => receiptFile.click());
+          receiptFile.addEventListener("change", handleReceiptUpload);
+          removeReceiptBtn.addEventListener("click", removeReceipt);
+          savePaymentBtn.addEventListener("click", savePaymentStatus);
+
+          // 點擊模態框背景關閉
+          paymentModal.addEventListener("click", (e) => {
+            if (e.target === paymentModal) {
+              closePaymentModal();
+            }
+          });
+
+          // 設置登出功能
+          window.authManager.setupLogoutButton();
+        }
+
+        // 加載賬單列表
+        async function loadBills() {
+          try {
+            const response = await authenticatedFetch("/api/bills");
+            if (!response) return; // 認證失敗，已重定向
+
+            if (response.ok) {
+              bills = await response.json();
+              displayBills(bills);
+              updateStatistics(bills);
+            } else {
+              console.error("加載賬單失敗");
+            }
+          } catch (error) {
+            console.error("加載賬單時出錯:", error);
+          }
+        }
+
+        // 顯示賬單列表
+        function displayBills(billsToShow) {
+          billsContainer.innerHTML = "";
+
+          if (billsToShow.length === 0) {
+            emptyState.classList.remove("hidden");
+            return;
+          }
+
+          emptyState.classList.add("hidden");
+
+          billsToShow.forEach((bill) => {
+            const billElement = createBillElement(bill);
+            billsContainer.appendChild(billElement);
+          });
+        }
+
+        // 創建賬單元素
+        function createBillElement(bill) {
+          const billDiv = document.createElement("div");
+          billDiv.className = "p-6 hover:bg-gray-50 transition-colors";
+
+          const date = new Date(bill.date);
+          const formattedDate = date.toLocaleDateString("zh-TW");
+
+          // 計算參與者的支付狀態
+          const participantStatuses = bill.results || [];
+          const currentUser = window.authManager.getCurrentUser();
+          const userResult = participantStatuses.find(
+            (r) => r.participantId === currentUser.id
+          );
+          const userStatus = userResult ? userResult.paymentStatus : "pending";
+
+          // 檢查是否為付款人
+          const isPayer = bill.payerId === currentUser.id;
+          const totalAmount = bill.items.reduce(
+            (sum, item) => sum + item.amount,
+            0
+          );
+          const userAmount = userResult ? userResult.amount : 0;
+
+          const statusClass =
+            userStatus === "paid" ? "status-paid" : "status-pending";
+          const statusText = userStatus === "paid" ? "已支付" : "待支付";
+          const statusIcon =
+            userStatus === "paid" ? "fa-check-circle" : "fa-clock";
+
+          // 計算應收款和應付款
+          let receivablesAmount = 0;
+          let payablesAmount = 0;
+          let receivablesCount = 0;
+          let payablesCount = 0;
+
+          if (isPayer) {
+            // 付款人：應收款 = 總金額 - 自己的分攤
+            receivablesAmount = totalAmount - userAmount;
+            receivablesCount = bill.participants.length - 1;
+          } else {
+            // 非付款人：應付款 = 自己的分攤
+            payablesAmount = userAmount;
+            payablesCount = 1;
+          }
+
+          billDiv.innerHTML = `
+             <div class="flex items-center justify-between">
+               <div class="flex-1">
+                 <div class="flex items-center gap-3 mb-2">
+                   <h3 class="text-lg font-semibold text-gray-900">${
+                     bill.name || "未命名聚會"
+                   }</h3>
+                   <span class="px-2 py-1 rounded-full text-xs font-medium ${statusClass}">
+                     <i class="fa ${statusIcon} mr-1"></i>${statusText}
+                   </span>
+                   ${
+                     isPayer
+                       ? '<span class="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"><i class="fa fa-credit-card mr-1"></i>付款人</span>'
+                       : ""
+                   }
+                 </div>
+                 <div class="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                   <span><i class="fa fa-calendar mr-1"></i>${formattedDate}</span>
+                   <span><i class="fa fa-map-marker mr-1"></i>${
+                     bill.location || "未指定地點"
+                   }</span>
+                   <span><i class="fa fa-users mr-1"></i>${
+                     bill.participants.length
+                   }位參與者</span>
+                 </div>
+                 <div class="text-sm text-gray-500 mb-2">
+                   總金額: $${totalAmount.toFixed(2)}
+                   ${
+                     userResult
+                       ? ` | 您的分攤: $${userResult.amount.toFixed(2)}`
+                       : ""
+                   }
+                 </div>
+                 ${
+                   isPayer
+                     ? `
+                   <div class="text-sm text-purple-600">
+                     <i class="fa fa-arrow-up mr-1"></i>應收款: $${receivablesAmount.toFixed(
+                       2
+                     )} (${receivablesCount}筆)
+                   </div>
+                 `
+                     : `
+                   <div class="text-sm text-red-600">
+                     <i class="fa fa-arrow-down mr-1"></i>應付款: $${payablesAmount.toFixed(
+                       2
+                     )}
+                   </div>
+                 `
+                 }
+               </div>
+               <div class="flex items-center gap-2">
+                 <button class="btn-secondary text-sm" onclick="viewBillDetails('${
+                   bill.id
+                 }')">
+                   <i class="fa fa-eye mr-1"></i>查看詳情
+                 </button>
+                 ${
+                   userStatus === "pending"
+                     ? `
+                   <button class="btn-primary text-sm" onclick="openPaymentModal('${bill.id}', '${currentUser.id}')">
+                     <i class="fa fa-credit-card mr-1"></i>標記已支付
+                   </button>
+                 `
+                     : ""
+                 }
+                 ${
+                   isPayer
+                     ? `
+                   <button class="btn-secondary text-sm" onclick="viewReceivables('${bill.id}')">
+                     <i class="fa fa-list mr-1"></i>查看應收款
+                   </button>
+                 `
+                     : ""
+                 }
+               </div>
+             </div>
+           `;
+
+          return billDiv;
+        }
+
+        // 更新統計信息
+        function updateStatistics(billsToShow) {
+          const total = billsToShow.length;
+          const currentUser = window.authManager.getCurrentUser();
+
+          let pending = 0;
+          let paid = 0;
+          let totalReceivables = 0;
+          let totalPayables = 0;
+          let receivablesCount = 0;
+          let payablesCount = 0;
+
+          billsToShow.forEach((bill) => {
+            const userResult = (bill.results || []).find(
+              (r) => r.participantId === currentUser.id
+            );
+            const userStatus = userResult
+              ? userResult.paymentStatus
+              : "pending";
+            const isPayer = bill.payerId === currentUser.id;
+            const totalAmount = bill.items.reduce(
+              (sum, item) => sum + item.amount,
+              0
+            );
+            const userAmount = userResult ? userResult.amount : 0;
+
+            if (userStatus === "pending") {
+              pending++;
+            } else {
+              paid++;
+            }
+
+            if (isPayer) {
+              // 付款人：應收款 = 總金額 - 自己的分攤
+              const receivablesAmount = totalAmount - userAmount;
+              totalReceivables += receivablesAmount;
+              receivablesCount += bill.participants.length - 1;
+            } else {
+              // 非付款人：應付款 = 自己的分攤
+              totalPayables += userAmount;
+              payablesCount++;
+            }
+          });
+
+          totalBillsEl.textContent = total;
+          pendingBillsEl.textContent = pending;
+          paidBillsEl.textContent = paid;
+          receivablesEl.textContent = `$${totalReceivables.toFixed(2)}`;
+          receivablesCountEl.textContent = `${receivablesCount}筆`;
+          payablesEl.textContent = `$${totalPayables.toFixed(2)}`;
+          payablesCountEl.textContent = `${payablesCount}筆`;
+        }
+
+        // 篩選賬單
+        function filterBills() {
+          const searchTerm = searchInput.value.toLowerCase();
+          const statusFilterValue = statusFilter.value;
+          const dateFilterValue = dateFilter.value;
+
+          let filteredBills = bills.filter((bill) => {
+            // 搜索篩選
+            const matchesSearch =
+              !searchTerm ||
+              bill.name.toLowerCase().includes(searchTerm) ||
+              bill.location.toLowerCase().includes(searchTerm) ||
+              bill.participants.some((p) =>
+                p.name.toLowerCase().includes(searchTerm)
+              );
+
+            // 狀態篩選
+            const currentUser = window.authManager.getCurrentUser();
+            const userResult = (bill.results || []).find(
+              (r) => r.participantId === currentUser.id
+            );
+            const userStatus = userResult
+              ? userResult.paymentStatus
+              : "pending";
+            const matchesStatus =
+              !statusFilterValue || userStatus === statusFilterValue;
+
+            // 日期篩選
+            const billDate = new Date(bill.date);
+            const now = new Date();
+            let matchesDate = true;
+
+            if (dateFilterValue) {
+              switch (dateFilterValue) {
+                case "today":
+                  matchesDate = billDate.toDateString() === now.toDateString();
+                  break;
+                case "week":
+                  const weekAgo = new Date(
+                    now.getTime() - 7 * 24 * 60 * 60 * 1000
+                  );
+                  matchesDate = billDate >= weekAgo;
+                  break;
+                case "month":
+                  matchesDate =
+                    billDate.getMonth() === now.getMonth() &&
+                    billDate.getFullYear() === now.getFullYear();
+                  break;
+                case "year":
+                  matchesDate = billDate.getFullYear() === now.getFullYear();
+                  break;
+              }
+            }
+
+            return matchesSearch && matchesStatus && matchesDate;
+          });
+
+          displayBills(filteredBills);
+        }
+
+        // 打開支付模態框
+        function openPaymentModal(billId, participantId) {
+          currentBillId = billId;
+          currentParticipantId = participantId;
+          paymentModal.classList.remove("opacity-0", "invisible");
+          paymentModal.querySelector(".bg-white").classList.remove("scale-95");
+          paymentModal.querySelector(".bg-white").classList.add("scale-100");
+        }
+
+        // 關閉支付模態框
+        function closePaymentModal() {
+          paymentModal.classList.add("opacity-0", "invisible");
+          paymentModal.querySelector(".bg-white").classList.add("scale-95");
+          paymentModal.querySelector(".bg-white").classList.remove("scale-100");
+          currentBillId = null;
+          currentParticipantId = null;
+          resetPaymentModal();
+        }
+
+        // 重置支付模態框
+        function resetPaymentModal() {
+          paymentStatusSelect.value = "pending";
+          receiptUploadSection.classList.add("hidden");
+          receiptPreview.classList.add("hidden");
+          receiptFile.value = "";
+        }
+
+        // 切換憑證上傳區域
+        function toggleReceiptUpload() {
+          if (paymentStatusSelect.value === "paid") {
+            receiptUploadSection.classList.remove("hidden");
+          } else {
+            receiptUploadSection.classList.add("hidden");
+            receiptPreview.classList.add("hidden");
+          }
+        }
+
+        // 處理憑證上傳
+        function handleReceiptUpload(event) {
+          const file = event.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              receiptImage.src = e.target.result;
+              receiptPreview.classList.remove("hidden");
+            };
+            reader.readAsDataURL(file);
+          }
+        }
+
+        // 移除憑證
+        function removeReceipt() {
+          receiptFile.value = "";
+          receiptPreview.classList.add("hidden");
+        }
+
+        // 保存支付狀態
+        async function savePaymentStatus() {
+          if (!currentBillId || !currentParticipantId) return;
+
+          const paymentStatus = paymentStatusSelect.value;
+          const receiptFile = document.getElementById("receipt-file").files[0];
+
+          try {
+            const formData = new FormData();
+            formData.append("billId", currentBillId);
+            formData.append("participantId", currentParticipantId);
+            formData.append("paymentStatus", paymentStatus);
+
+            if (receiptFile) {
+              formData.append("receipt", receiptFile);
+            }
+
+            const response = await authenticatedFetch(
+              "/api/bill/payment-status",
+              {
+                method: "POST",
+                body: formData,
+              }
+            );
+
+            if (!response) return; // 認證失敗，已重定向
+
+            if (response.ok) {
+              alert("支付狀態已更新");
+              closePaymentModal();
+              await loadBills(); // 重新加載賬單列表
+            } else {
+              const error = await response.json();
+              alert(`更新失敗: ${error.error}`);
+            }
+          } catch (error) {
+            console.error("更新支付狀態時出錯:", error);
+            alert("更新支付狀態時出錯");
+          }
+        }
+
+        // 查看賬單詳情
+        function viewBillDetails(billId) {
+          // 這裡可以實現查看詳情的功能
+          alert("查看詳情功能即將推出");
+        }
+
+        // 查看應收款詳情
+        function viewReceivables(billId) {
+          const bill = bills.find((b) => b.id === billId);
+          if (!bill) return;
+
+          const currentUser = window.authManager.getCurrentUser();
+          const unpaidParticipants = bill.participants.filter(
+            (p) => p.id !== currentUser.id
+          );
+          const paidParticipants = (bill.results || []).filter(
+            (r) =>
+              r.participantId !== currentUser.id && r.paymentStatus === "paid"
+          );
+          const pendingParticipants = unpaidParticipants.filter(
+            (p) => !paidParticipants.some((paid) => paid.participantId === p.id)
+          );
+
+          let message = `賬單：${bill.name}\n\n`;
+          message += `總金額：$${bill.items
+            .reduce((sum, item) => sum + item.amount, 0)
+            .toFixed(2)}\n`;
+          message += `您的分攤：$${
+            (bill.results || [])
+              .find((r) => r.participantId === currentUser.id)
+              ?.amount.toFixed(2) || "0.00"
+          }\n\n`;
+
+          if (paidParticipants.length > 0) {
+            message += `已支付 (${paidParticipants.length}人)：\n`;
+            paidParticipants.forEach((paid) => {
+              const participant = bill.participants.find(
+                (p) => p.id === paid.participantId
+              );
+              message += `• ${
+                participant?.name || "未知"
+              }: $${paid.amount.toFixed(2)}\n`;
+            });
+            message += "\n";
+          }
+
+          if (pendingParticipants.length > 0) {
+            message += `待支付 (${pendingParticipants.length}人)：\n`;
+            pendingParticipants.forEach((participant) => {
+              const result = (bill.results || []).find(
+                (r) => r.participantId === participant.id
+              );
+              message += `• ${participant.name}: $${
+                result?.amount.toFixed(2) || "0.00"
+              }\n`;
+            });
+          } else {
+            message += "所有參與者已支付！";
+          }
+
+          alert(message);
+        }
+
+        // 全局函數，供HTML調用
+        window.openPaymentModal = openPaymentModal;
+        window.viewBillDetails = viewBillDetails;
+        window.viewReceivables = viewReceivables;
+      });
+    </script>
+  </body>
+</html>
