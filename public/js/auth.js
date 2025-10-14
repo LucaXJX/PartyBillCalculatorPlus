@@ -86,8 +86,12 @@ class AuthManager {
     const headers = {
       ...options.headers,
       Authorization: `Bearer ${this.sessionId}`,
-      "Content-Type": "application/json",
     };
+
+    // 如果不是 FormData，才添加 Content-Type
+    if (!(options.body instanceof FormData)) {
+      headers["Content-Type"] = "application/json";
+    }
 
     const response = await fetch(url, {
       ...options,

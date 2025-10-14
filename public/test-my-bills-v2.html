@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>我的賬單頁面完整測試 - 第二階段V2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+    />
+    <style>
+      .test-pass {
+        color: #10b981;
+      }
+      .test-fail {
+        color: #ef4444;
+      }
+      .test-warn {
+        color: #f59e0b;
+      }
+      .test-info {
+        color: #3b82f6;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100 p-8">
+    <div class="max-w-7xl mx-auto">
+      <div class="mb-6">
+        <h1 class="text-3xl font-bold mb-2">我的賬單頁面完整測試系統 V2</h1>
+        <p class="text-gray-600">
+          第二階段：API功能、狀態變更邏輯、實際操作測試
+        </p>
+        <p class="text-sm text-yellow-600 mt-2">
+          <i class="fas fa-info-circle mr-1"></i>
+          建議：先在「我的賬單」頁面進行手動測試，再使用此頁面驗證API
+        </p>
+      </div>
+
+      <!-- 快速導航 -->
+      <div class="bg-white rounded-lg shadow p-4 mb-6">
+        <div class="flex flex-wrap gap-2">
+          <a
+            href="/my-bills.html"
+            target="_blank"
+            class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            <i class="fas fa-external-link-alt mr-2"></i>打開我的賬單頁面
+          </a>
+          <a
+            href="/calculator.html"
+            target="_blank"
+            class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+          >
+            <i class="fas fa-calculator mr-2"></i>打開智能計算頁面
+          </a>
+        </div>
+      </div>
+
+      <!-- 控制面板 -->
+      <div class="bg-white rounded-lg shadow p-6 mb-6">
+        <div class="flex flex-wrap items-center gap-4 mb-4">
+          <button
+            id="run-all-tests"
+            class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            <i class="fas fa-play mr-2"></i>運行所有測試
+          </button>
+          <button
+            id="test-payment-update"
+            class="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"
+          >
+            <i class="fas fa-dollar-sign mr-2"></i>測試支付狀態更新
+          </button>
+          <button
+            id="test-confirm-payment"
+            class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
+          >
+            <i class="fas fa-check mr-2"></i>測試確認收款
+          </button>
+          <button
+            id="export-results"
+            class="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700"
+          >
+            <i class="fas fa-download mr-2"></i>導出結果
+          </button>
+        </div>
+
+        <!-- 統計信息 -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mt-4">
+          <div class="bg-green-50 p-4 rounded-lg">
+            <div class="text-sm text-gray-600">通過</div>
+            <div class="text-2xl font-bold text-green-600" id="pass-count">
+              0
+            </div>
+          </div>
+          <div class="bg-red-50 p-4 rounded-lg">
+            <div class="text-sm text-gray-600">失敗</div>
+            <div class="text-2xl font-bold text-red-600" id="fail-count">0</div>
+          </div>
+          <div class="bg-yellow-50 p-4 rounded-lg">
+            <div class="text-sm text-gray-600">警告</div>
+            <div class="text-2xl font-bold text-yellow-600" id="warn-count">
+              0
+            </div>
+          </div>
+          <div class="bg-blue-50 p-4 rounded-lg">
+            <div class="text-sm text-gray-600">信息</div>
+            <div class="text-2xl font-bold text-blue-600" id="info-count">
+              0
+            </div>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-lg">
+            <div class="text-sm text-gray-600">總計</div>
+            <div class="text-2xl font-bold text-gray-600" id="total-count">
+              0
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 手動操作指南 -->
+      <div class="bg-yellow-50 border-l-4 border-yellow-500 p-6 mb-6 rounded">
+        <h3 class="font-bold text-yellow-800 mb-3">
+          <i class="fas fa-hand-point-right mr-2"></i>手動測試指南
+        </h3>
+        <div class="space-y-2 text-sm text-yellow-700">
+          <p><strong>測試應付款（參與者視角）：</strong></p>
+          <ol class="list-decimal ml-6 space-y-1">
+            <li>
+              在「我的賬單」頁面找到一個待支付的應付款賬單（例如：生日聚會）
+            </li>
+            <li>點擊「更新支付」按鈕</li>
+            <li>選擇「已支付」</li>
+            <li>上傳收據圖片（可選）</li>
+            <li>點擊「保存」</li>
+            <li>檢查賬單狀態是否更新為「已支付」</li>
+            <li>檢查統計數據（待支付 -1，已支付 +1，應付款 -金額）</li>
+          </ol>
+
+          <p class="mt-4"><strong>測試應收款（付款人視角）：</strong></p>
+          <ol class="list-decimal ml-6 space-y-1">
+            <li>
+              在「我的賬單」頁面找到一個您是付款人的賬單（例如：團隊午餐）
+            </li>
+            <li>點擊「查看應收款」按鈕</li>
+            <li>查看哪些人已付款、哪些人待付款</li>
+            <li>對於已付款的人，點擊「查看收據」查看轉賬截圖</li>
+            <li>點擊「確認收款」確認已收到款項</li>
+            <li>檢查該人的狀態是否顯示「✓ 已確認」</li>
+          </ol>
+        </div>
+      </div>
+
+      <!-- 測試結果 -->
+      <div id="test-results" class="space-y-4"></div>
+    </div>
+
+    <script type="module">
+      let testResults = [];
+      let stats = { pass: 0, fail: 0, warn: 0, info: 0, total: 0 };
+      let testBills = null;
+      let currentUser = null;
+
+      // 認證 fetch
+      async function authenticatedFetch(url, options = {}) {
+        const sessionId = localStorage.getItem("sessionId");
+        if (!sessionId) {
+          throw new Error("未登入");
+        }
+
+        const headers = {
+          ...options.headers,
+          Authorization: `Bearer ${sessionId}`,
+        };
+
+        if (!(options.body instanceof FormData)) {
+          headers["Content-Type"] = "application/json";
+        }
+
+        const response = await fetch(url, { ...options, headers });
+
+        if (response.status === 401) {
+          throw new Error("認證失敗");
+        }
+
+        return response;
+      }
+
+      // 添加測試結果
+      function addResult(category, name, status, message, details = null) {
+        const result = {
+          timestamp: new Date().toISOString(),
+          category,
+          name,
+          status,
+          message,
+          details,
+        };
+        testResults.push(result);
+        stats.total++;
+        if (stats[status] !== undefined) stats[status]++;
+        updateStats();
+        renderResult(result);
+      }
+
+      function updateStats() {
+        document.getElementById("pass-count").textContent = stats.pass;
+        document.getElementById("fail-count").textContent = stats.fail;
+        document.getElementById("warn-count").textContent = stats.warn;
+        document.getElementById("info-count").textContent = stats.info;
+        document.getElementById("total-count").textContent = stats.total;
+      }
+
+      function renderResult(result) {
+        const container = document.getElementById("test-results");
+        const statusIcons = {
+          pass: '<i class="fas fa-check-circle test-pass"></i>',
+          fail: '<i class="fas fa-times-circle test-fail"></i>',
+          warn: '<i class="fas fa-exclamation-triangle test-warn"></i>',
+          info: '<i class="fas fa-info-circle test-info"></i>',
+        };
+
+        const statusClasses = {
+          pass: "bg-green-50 border-green-200",
+          fail: "bg-red-50 border-red-200",
+          warn: "bg-yellow-50 border-yellow-200",
+          info: "bg-blue-50 border-blue-200",
+        };
+
+        const div = document.createElement("div");
+        div.className = `border-l-4 p-4 rounded ${
+          statusClasses[result.status]
+        }`;
+        div.innerHTML = `
+          <div class="flex items-start gap-3">
+            <div class="text-xl">${statusIcons[result.status]}</div>
+            <div class="flex-1">
+              <div class="font-semibold">[${result.category}] ${
+          result.name
+        }</div>
+              <div class="text-sm text-gray-600 mt-1 whitespace-pre-wrap">${
+                result.message
+              }</div>
+              ${
+                result.details
+                  ? `<pre class="mt-2 text-xs bg-white p-2 rounded overflow-auto max-h-40">${JSON.stringify(
+                      result.details,
+                      null,
+                      2
+                    )}</pre>`
+                  : ""
+              }
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+      }
+
+      // 初始化
+      async function init() {
+        const sessionId = localStorage.getItem("sessionId");
+        const userStr = localStorage.getItem("user");
+
+        if (!sessionId || !userStr) {
+          addResult("初始化", "登入狀態", "fail", "未登入");
+          return false;
+        }
+
+        currentUser = JSON.parse(userStr);
+        addResult(
+          "初始化",
+          "登入狀態",
+          "pass",
+          `已登入: ${currentUser.username}`
+        );
+
+        try {
+          const response = await authenticatedFetch("/api/bills");
+          const data = await response.json();
+          testBills = data.bills || data;
+          addResult(
+            "初始化",
+            "賬單數據",
+            "pass",
+            `成功獲取 ${testBills.length} 個賬單`
+          );
+          return true;
+        } catch (error) {
+          addResult("初始化", "賬單數據", "fail", error.message);
+          return false;
+        }
+      }
+
+      // 測試 1: 獲取賬單並分析
+      async function testBillAnalysis() {
+        addResult("賬單分析", "開始分析", "info", "分析賬單結構和數據...");
+
+        let userPayerBills = [];
+        let userParticipantBills = [];
+        let pendingPayables = [];
+        let paidPayables = [];
+        let receivablesNeedConfirm = [];
+
+        testBills.forEach((bill) => {
+          const userParticipant = bill.participants.find(
+            (p) => p.name === currentUser.username
+          );
+          if (!userParticipant) return;
+
+          const isPayer = bill.payerId === userParticipant.id;
+          const userResult = bill.results?.find(
+            (r) => r.participantId === userParticipant.id
+          );
+
+          if (isPayer) {
+            userPayerBills.push(bill);
+
+            // 檢查應收款中是否有待確認的
+            const otherResults = bill.results.filter(
+              (r) => r.participantId !== userParticipant.id
+            );
+            otherResults.forEach((r) => {
+              if (r.paymentStatus === "paid" && !r.confirmedByPayer) {
+                receivablesNeedConfirm.push({
+                  billId: bill.id,
+                  billName: bill.name,
+                  participantId: r.participantId,
+                  amount: r.amount,
+                });
+              }
+            });
+          } else {
+            userParticipantBills.push(bill);
+
+            if (userResult) {
+              if (userResult.paymentStatus === "pending") {
+                pendingPayables.push({ bill, result: userResult });
+              } else {
+                paidPayables.push({ bill, result: userResult });
+              }
+            }
+          }
+        });
+
+        addResult(
+          "賬單分析",
+          "角色分類",
+          "pass",
+          `付款人賬單: ${userPayerBills.length}, 參與者賬單: ${userParticipantBills.length}`
+        );
+
+        addResult(
+          "賬單分析",
+          "應付款狀態",
+          "pass",
+          `待支付: ${pendingPayables.length}, 已支付: ${paidPayables.length}`
+        );
+
+        addResult(
+          "賬單分析",
+          "待確認收款",
+          receivablesNeedConfirm.length > 0 ? "info" : "pass",
+          `有 ${receivablesNeedConfirm.length} 筆收款待確認`,
+          receivablesNeedConfirm.length > 0 ? receivablesNeedConfirm : null
+        );
+
+        return {
+          userPayerBills,
+          userParticipantBills,
+          pendingPayables,
+          paidPayables,
+          receivablesNeedConfirm,
+        };
+      }
+
+      // 測試 2: 實際測試支付狀態更新
+      async function testActualPaymentUpdate() {
+        addResult("支付更新", "開始測試", "info", "測試實際更新支付狀態API...");
+
+        const analysis = await testBillAnalysis();
+
+        if (analysis.pendingPayables.length === 0) {
+          addResult("支付更新", "測試案例", "warn", "沒有待支付的應付款可測試");
+          return;
+        }
+
+        const testCase = analysis.pendingPayables[0];
+        const bill = testCase.bill;
+        const userParticipant = bill.participants.find(
+          (p) => p.name === currentUser.username
+        );
+
+        addResult(
+          "支付更新",
+          "測試案例",
+          "info",
+          `選擇賬單: ${bill.name || "(無名稱)"}, 金額: $${
+            testCase.result.amount
+          }`,
+          {
+            billId: bill.id,
+            participantId: userParticipant.id,
+            currentStatus: "pending",
+            testAction: "模擬標記為已支付（不上傳收據）",
+          }
+        );
+
+        try {
+          // 測試 API（保持原狀態，不實際更改）
+          const formData = new FormData();
+          formData.append("billId", bill.id);
+          formData.append("participantId", userParticipant.id);
+          formData.append("paymentStatus", "pending"); // 保持不變
+
+          const response = await authenticatedFetch(
+            "/api/bill/payment-status",
+            {
+              method: "POST",
+              body: formData,
+            }
+          );
+
+          if (response.ok) {
+            addResult(
+              "支付更新",
+              "API調用",
+              "pass",
+              "支付狀態更新 API 正常工作"
+            );
+            addResult(
+              "支付更新",
+              "預期影響",
+              "info",
+              "如果實際更新為 paid，預期影響：\n" +
+                `- 待支付數量: -1\n` +
+                `- 已支付數量: +1\n` +
+                `- 應付款總額: -$${testCase.result.amount}\n` +
+                `- 該賬單將移出「待支付」列表`
+            );
+          } else {
+            const error = await response.json();
+            addResult(
+              "支付更新",
+              "API調用",
+              "fail",
+              `API錯誤: ${response.status}`,
+              error
+            );
+          }
+        } catch (error) {
+          addResult("支付更新", "API調用", "fail", error.message);
+        }
+      }
+
+      // 測試 3: 實際測試確認收款
+      async function testActualConfirmPayment() {
+        addResult("確認收款", "開始測試", "info", "測試實際確認收款API...");
+
+        const analysis = await testBillAnalysis();
+
+        if (analysis.receivablesNeedConfirm.length === 0) {
+          addResult("確認收款", "測試案例", "warn", "沒有待確認的收款");
+          return;
+        }
+
+        const testCase = analysis.receivablesNeedConfirm[0];
+
+        addResult(
+          "確認收款",
+          "測試案例",
+          "info",
+          `選擇賬單: ${testCase.billName || "(無名稱)"}, 金額: $${
+            testCase.amount
+          }`,
+          testCase
+        );
+
+        try {
+          // 測試 API（實際執行確認）
+          const response = await authenticatedFetch(
+            "/api/bill/confirm-payment",
+            {
+              method: "POST",
+              body: JSON.stringify({
+                billId: testCase.billId,
+                participantId: testCase.participantId,
+                confirmed: true,
+              }),
+            }
+          );
+
+          if (response.ok) {
+            addResult(
+              "確認收款",
+              "API調用",
+              "pass",
+              "確認收款 API 正常工作，已實際執行確認"
+            );
+            addResult(
+              "確認收款",
+              "實際影響",
+              "info",
+              "已執行確認，影響：\n" +
+                `- 該筆收款標記為「已確認」\n` +
+                `- 待確認數量: -1\n` +
+                `- 請刷新「我的賬單」頁面查看變化`
+            );
+          } else {
+            const error = await response.json();
+            addResult(
+              "確認收款",
+              "API調用",
+              "fail",
+              `API錯誤: ${response.status}`,
+              error
+            );
+          }
+        } catch (error) {
+          addResult("確認收款", "API調用", "fail", error.message);
+        }
+      }
+
+      // 測試 4: 統計數據驗證
+      async function testStatisticsCalculation() {
+        addResult("統計驗證", "開始計算", "info", "驗證統計數據計算邏輯...");
+
+        let pending = 0,
+          paid = 0;
+        let totalReceivables = 0,
+          totalPayables = 0;
+        let receivablesCount = 0,
+          payablesCount = 0;
+
+        testBills.forEach((bill) => {
+          const userParticipant = bill.participants.find(
+            (p) => p.name === currentUser.username
+          );
+          if (!userParticipant) return;
+
+          const userResult = bill.results?.find(
+            (r) => r.participantId === userParticipant.id
+          );
+          if (!userResult) return;
+
+          const isPayer = bill.payerId === userParticipant.id;
+          const totalAmount =
+            bill.items?.reduce((sum, item) => sum + item.amount, 0) || 0;
+
+          if (userResult.paymentStatus === "pending") pending++;
+          else paid++;
+
+          if (isPayer) {
+            const receivables = totalAmount - userResult.amount;
+            totalReceivables += receivables;
+            receivablesCount += bill.participants.length - 1;
+          } else {
+            totalPayables += userResult.amount;
+            payablesCount++;
+          }
+        });
+
+        const stats = {
+          totalBills: testBills.length,
+          pending,
+          paid,
+          totalReceivables: totalReceivables.toFixed(2),
+          totalPayables: totalPayables.toFixed(2),
+          receivablesCount,
+          payablesCount,
+        };
+
+        addResult("統計驗證", "計算結果", "pass", "統計數據計算完成", stats);
+
+        addResult(
+          "統計驗證",
+          "對比說明",
+          "info",
+          "請對比「我的賬單」頁面顯示的統計數據：\n" +
+            `- 總賬單數應為: ${stats.totalBills}\n` +
+            `- 待支付應為: ${stats.pending}\n` +
+            `- 已支付應為: ${stats.paid}\n` +
+            `- 應收款應為: $${stats.totalReceivables} (${stats.receivablesCount}筆)\n` +
+            `- 應付款應為: $${stats.totalPayables} (${stats.payablesCount}筆)`
+        );
+      }
+
+      // 測試 5: 數據完整性
+      async function testDataIntegrity() {
+        addResult("數據完整性", "開始檢查", "info", "檢查賬單數據完整性...");
+
+        let issues = [];
+
+        testBills.forEach((bill) => {
+          // 檢查參與者和結果匹配
+          const participantIds = bill.participants.map((p) => p.id);
+          const resultIds = bill.results?.map((r) => r.participantId) || [];
+
+          const missing = participantIds.filter(
+            (id) => !resultIds.includes(id)
+          );
+          const extra = resultIds.filter((id) => !participantIds.includes(id));
+
+          if (missing.length > 0 || extra.length > 0) {
+            issues.push({
+              bill: bill.name || bill.id,
+              type: "參與者ID不匹配",
+              missing,
+              extra,
+            });
+          }
+
+          // 檢查付款人
+          if (bill.payerId && !participantIds.includes(bill.payerId)) {
+            issues.push({
+              bill: bill.name || bill.id,
+              type: "付款人不在參與者列表",
+              payerId: bill.payerId,
+            });
+          }
+
+          // 檢查已支付記錄
+          bill.results?.forEach((r) => {
+            if (r.paymentStatus === "paid" && !r.paidAt) {
+              issues.push({
+                bill: bill.name || bill.id,
+                type: "已支付記錄缺少時間",
+                participantId: r.participantId,
+              });
+            }
+          });
+        });
+
+        if (issues.length === 0) {
+          addResult("數據完整性", "完整性檢查", "pass", "所有數據完整且一致");
+        } else {
+          addResult(
+            "數據完整性",
+            "完整性檢查",
+            "fail",
+            `發現 ${issues.length} 個問題`,
+            issues
+          );
+        }
+      }
+
+      // 運行所有測試
+      async function runAllTests() {
+        clearResults();
+        addResult(
+          "系統",
+          "測試開始",
+          "info",
+          new Date().toLocaleString("zh-TW")
+        );
+
+        const ok = await init();
+        if (!ok) return;
+
+        await testBillAnalysis();
+        await testStatisticsCalculation();
+        await testDataIntegrity();
+
+        const passRate = ((stats.pass / stats.total) * 100).toFixed(1);
+        addResult(
+          "系統",
+          "測試完成",
+          "info",
+          `完成時間: ${new Date().toLocaleString(
+            "zh-TW"
+          )}\n通過率: ${passRate}%`
+        );
+      }
+
+      // 導出
+      function generateMarkdown() {
+        let md = `# 我的賬單頁面完整測試結果 V2（第二階段）\n\n`;
+        md += `**測試時間**: ${new Date().toLocaleString("zh-TW")}\n`;
+        md += `**測試用戶**: ${currentUser?.username || "N/A"}\n\n`;
+
+        md += `## 📊 測試統計\n\n`;
+        md += `- 總計: ${stats.total} 項\n`;
+        md += `- 通過: ${stats.pass} 項 ✅\n`;
+        md += `- 失敗: ${stats.fail} 項 ❌\n`;
+        md += `- 警告: ${stats.warn} 項 ⚠️\n`;
+        md += `- 信息: ${stats.info} 項 ℹ️\n\n`;
+        md += `**通過率**: ${((stats.pass / stats.total) * 100).toFixed(
+          1
+        )}%\n\n`;
+
+        md += `## 📋 詳細測試結果\n\n`;
+
+        const categories = [...new Set(testResults.map((r) => r.category))];
+        categories.forEach((category) => {
+          md += `### ${category}\n\n`;
+          testResults
+            .filter((r) => r.category === category)
+            .forEach((result) => {
+              const icon = { pass: "✅", fail: "❌", warn: "⚠️", info: "ℹ️" }[
+                result.status
+              ];
+              md += `**${icon} ${result.name}**\n${result.message}\n`;
+              if (result.details)
+                md += `\n\`\`\`json\n${JSON.stringify(
+                  result.details,
+                  null,
+                  2
+                )}\n\`\`\`\n`;
+              md += `\n`;
+            });
+        });
+
+        md += `---\n*PBC聚賬通 測試系統自動生成*\n`;
+        return md;
+      }
+
+      function exportResults() {
+        const md = generateMarkdown();
+        const blob = new Blob([md], { type: "text/markdown" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `我的賬單測試V2_${
+          new Date().toISOString().split("T")[0]
+        }.md`;
+        a.click();
+        URL.revokeObjectURL(url);
+        navigator.clipboard.writeText(md).then(() => alert("已下載並複製！"));
+      }
+
+      function clearResults() {
+        document.getElementById("test-results").innerHTML = "";
+        testResults = [];
+        stats = { pass: 0, fail: 0, warn: 0, info: 0, total: 0 };
+        updateStats();
+      }
+
+      // 事件
+      document
+        .getElementById("run-all-tests")
+        .addEventListener("click", runAllTests);
+      document
+        .getElementById("test-payment-update")
+        .addEventListener("click", async () => {
+          clearResults();
+          await init();
+          await testActualPaymentUpdate();
+        });
+      document
+        .getElementById("test-confirm-payment")
+        .addEventListener("click", async () => {
+          clearResults();
+          await init();
+          await testActualConfirmPayment();
+        });
+      document
+        .getElementById("export-results")
+        .addEventListener("click", exportResults);
+
+      // 頁面加載
+      window.addEventListener("DOMContentLoaded", () => {
+        const userStr = localStorage.getItem("user");
+        if (!userStr) {
+          alert("請先登入！");
+          window.location.href = "/login-page.html";
+        }
+      });
+    </script>
+  </body>
+</html>

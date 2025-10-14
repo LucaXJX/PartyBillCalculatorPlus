@@ -63,7 +63,8 @@ const getUserDataManager = (userId: string): DataManager => {
 };
 
 // 中間件：解析JSON請求體
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // 中間件：用戶認證
 const authenticateUser = async (req: any, res: any, next: any) => {
@@ -346,6 +347,45 @@ app.post(
     } catch (error) {
       console.error("確認收款失敗:", error);
       res.status(500).json({ error: "確認收款失敗" });
+    }
+  }
+);
+
+// 拒絕收款（付款人標記問題並退回待支付）
+app.post(
+  "/api/bill/reject-payment",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { billId, participantId, reason, rejectedAt } = req.body;
+
+      if (!billId || !participantId || !reason) {
+        return res.status(400).json({ error: "缺少必要參數" });
+      }
+
+      // 驗證拒絕原因
+      const validReasons = ["not_received", "wrong_receipt"];
+      if (!validReasons.includes(reason)) {
+        return res.status(400).json({ error: "無效的拒絕原因" });
+      }
+
+      // 拒絕收款並退回待支付狀態
+      await dataStorage.rejectPayment(
+        billId,
+        participantId,
+        reason,
+        rejectedAt
+      );
+
+      const reasonText = reason === "not_received" ? "未收到款項" : "收據有誤";
+      console.log(
+        `用戶 ${req.userId} 拒絕參與者 ${participantId} 的付款（原因: ${reasonText}）`
+      );
+
+      res.status(200).json({ message: "已標記問題並退回待支付狀態" });
+    } catch (error) {
+      console.error("拒絕收款失敗:", error);
+      res.status(500).json({ error: "拒絕收款失敗" });
     }
   }
 );

@@ -295,16 +295,37 @@ export class DataStorage {
       );
       if (resultIndex !== -1) {
         bill.results[resultIndex].paymentStatus = paymentStatus;
+
+        // 設置支付時間
+        if (paymentStatus === "paid") {
+          bill.results[resultIndex].paidAt = new Date().toISOString();
+        } else {
+          // 如果改回待支付，刪除支付時間
+          delete bill.results[resultIndex].paidAt;
+        }
+
+        // 設置收據URL
         if (receiptImageUrl) {
           bill.results[resultIndex].receiptImageUrl = receiptImageUrl;
         }
+
+        console.log(
+          `✅ 更新支付狀態: 賬單=${billId}, 參與者=${participantId}, 狀態=${paymentStatus}`
+        );
+      } else {
+        console.error(`❌ 找不到參與者: ${participantId}`);
+        throw new Error("找不到指定的參與者");
       }
+    } else {
+      console.error(`❌ 賬單沒有results`);
+      throw new Error("賬單數據格式錯誤");
     }
 
     bill.updatedAt = new Date().toISOString();
 
     // 保存更新後的數據
     fs.writeFileSync(BILLS_FILE, JSON.stringify(bills, null, 2));
+    console.log(`✅ 賬單已保存到文件: ${billId}`);
   }
 
   // 更新賬單收據（付款人上傳付款憑證）
@@ -363,6 +384,57 @@ export class DataStorage {
       );
       if (resultIndex !== -1) {
         bill.results[resultIndex].confirmedByPayer = confirmed;
+      }
+    }
+
+    bill.updatedAt = new Date().toISOString();
+
+    // 保存更新後的數據
+    fs.writeFileSync(BILLS_FILE, JSON.stringify(bills, null, 2));
+  }
+
+  // 拒絕收款（付款人標記問題並退回待支付）
+  async rejectPayment(
+    billId: string,
+    participantId: string,
+    reason: string,
+    rejectedAt: string
+  ): Promise<void> {
+    ensureDataDir();
+    if (!fs.existsSync(BILLS_FILE)) {
+      throw new Error("賬單文件不存在");
+    }
+
+    const data = fs.readFileSync(BILLS_FILE, "utf8");
+    const bills: BillRecord[] = JSON.parse(data);
+
+    const billIndex = bills.findIndex((bill) => bill.id === billId);
+    if (billIndex === -1) {
+      throw new Error("找不到指定的賬單");
+    }
+
+    const bill = bills[billIndex];
+
+    // 更新結果中的支付狀態
+    if (bill.results) {
+      const resultIndex = bill.results.findIndex(
+        (r) => r.participantId === participantId
+      );
+      if (resultIndex !== -1) {
+        const result = bill.results[resultIndex];
+
+        // 退回待支付狀態
+        result.paymentStatus = "pending";
+
+        // 移除支付相關字段
+        delete (result as any).paidAt;
+        delete (result as any).confirmedByPayer;
+
+        // 保留收據但標記為被拒絕（可選）
+        if (result.receiptImageUrl) {
+          (result as any).rejectedReason = reason;
+          (result as any).rejectedAt = rejectedAt;
+        }
       }
     }
 

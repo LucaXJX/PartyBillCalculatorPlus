@@ -113,84 +113,105 @@
 
         <!-- 統計卡片 -->
         <div class="mb-8">
-          <!-- 第一行：總賬單數、待支付、已支付 -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-            <div class="bg-white rounded-lg p-6 shadow-sm">
-              <div class="flex items-center">
-                <div class="p-3 rounded-full bg-blue-100 text-blue-600">
-                  <i class="fa fa-file-text text-xl"></i>
-                </div>
-                <div class="ml-4 flex-1">
-                  <p class="text-sm font-medium text-gray-600">總賬單數</p>
-                  <p class="text-2xl font-bold text-gray-900" id="total-bills">
-                    0
-                  </p>
-                </div>
+          <!-- 第一行：總賬單數、待支付、已支付、應收款、已收款 -->
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-4">
+            <div class="bg-white rounded-lg p-4 shadow-sm text-center">
+              <div
+                class="w-10 h-10 mx-auto rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-2"
+              >
+                <i class="fa fa-file-text"></i>
               </div>
+              <p class="text-xs text-gray-600 mb-1">總賬單數</p>
+              <p class="text-2xl font-bold text-gray-900" id="total-bills">0</p>
             </div>
 
-            <div class="bg-white rounded-lg p-6 shadow-sm">
-              <div class="flex items-center">
-                <div class="p-3 rounded-full bg-orange-100 text-orange-600">
-                  <i class="fa fa-clock text-xl"></i>
-                </div>
-                <div class="ml-4 flex-1">
-                  <p class="text-sm font-medium text-gray-600">待支付</p>
-                  <p
-                    class="text-2xl font-bold text-gray-900"
-                    id="pending-bills"
-                  >
-                    0
-                  </p>
-                </div>
+            <div class="bg-white rounded-lg p-4 shadow-sm text-center">
+              <div
+                class="w-10 h-10 mx-auto rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mb-2"
+              >
+                <i class="fa fa-clock"></i>
               </div>
+              <p class="text-xs text-gray-600 mb-1">待支付</p>
+              <p class="text-2xl font-bold text-gray-900" id="pending-bills">
+                0
+              </p>
             </div>
 
-            <div class="bg-white rounded-lg p-6 shadow-sm">
-              <div class="flex items-center">
-                <div class="p-3 rounded-full bg-green-100 text-green-600">
-                  <i class="fa fa-check-circle text-xl"></i>
-                </div>
-                <div class="ml-4 flex-1">
-                  <p class="text-sm font-medium text-gray-600">已支付</p>
-                  <p class="text-2xl font-bold text-gray-900" id="paid-bills">
-                    0
-                  </p>
-                </div>
+            <div class="bg-white rounded-lg p-4 shadow-sm text-center">
+              <div
+                class="w-10 h-10 mx-auto rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-2"
+              >
+                <i class="fa fa-check-circle"></i>
               </div>
+              <p class="text-xs text-gray-600 mb-1">已支付</p>
+              <p class="text-2xl font-bold text-gray-900" id="paid-bills">0</p>
+            </div>
+
+            <div class="bg-white rounded-lg p-4 shadow-sm text-center">
+              <div
+                class="w-10 h-10 mx-auto rounded-full bg-purple-100 text-purple-600 flex items-center justify-center mb-2"
+              >
+                <i class="fa fa-hourglass"></i>
+              </div>
+              <p class="text-xs text-gray-600 mb-1">應收款</p>
+              <p
+                class="text-2xl font-bold text-gray-900"
+                id="receivables-pending-count"
+              >
+                0
+              </p>
+            </div>
+
+            <div class="bg-white rounded-lg p-4 shadow-sm text-center">
+              <div
+                class="w-10 h-10 mx-auto rounded-full bg-teal-100 text-teal-600 flex items-center justify-center mb-2"
+              >
+                <i class="fa fa-check"></i>
+              </div>
+              <p class="text-xs text-gray-600 mb-1">已收款</p>
+              <p
+                class="text-2xl font-bold text-gray-900"
+                id="receivables-paid-count"
+              >
+                0
+              </p>
             </div>
           </div>
 
-          <!-- 第二行：應收款、應付款 -->
+          <!-- 第二行：待支付總額、應收款總額 -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="bg-white rounded-lg p-6 shadow-sm">
-              <div class="flex items-center">
-                <div class="p-3 rounded-full bg-purple-100 text-purple-600">
-                  <i class="fa fa-arrow-up text-xl"></i>
-                </div>
-                <div class="ml-4 flex-1">
-                  <p class="text-sm font-medium text-gray-600">應收款</p>
-                  <p class="text-2xl font-bold text-gray-900" id="receivables">
-                    $0.00
-                  </p>
-                  <p class="text-xs text-gray-500" id="receivables-count">
-                    0筆
-                  </p>
-                </div>
-              </div>
-            </div>
-
             <div class="bg-white rounded-lg p-6 shadow-sm">
               <div class="flex items-center">
                 <div class="p-3 rounded-full bg-red-100 text-red-600">
                   <i class="fa fa-arrow-down text-xl"></i>
                 </div>
                 <div class="ml-4 flex-1">
-                  <p class="text-sm font-medium text-gray-600">應付款</p>
+                  <p class="text-sm font-medium text-gray-600">待支付總額</p>
                   <p class="text-2xl font-bold text-gray-900" id="payables">
                     $0.00
                   </p>
                   <p class="text-xs text-gray-500" id="payables-count">0筆</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-white rounded-lg p-6 shadow-sm">
+              <div class="flex items-center">
+                <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                  <i class="fa fa-arrow-up text-xl"></i>
+                </div>
+                <div class="ml-4 flex-1">
+                  <p class="text-sm font-medium text-gray-600">應收款總額</p>
+                  <p
+                    class="text-2xl font-bold text-gray-900"
+                    id="receivables-total"
+                  >
+                    $0.00
+                  </p>
+                  <p class="text-xs text-gray-500">
+                    待收 <span id="receivables-pending-amount">$0</span> · 已收
+                    <span id="receivables-paid-amount">$0</span>
+                  </p>
                 </div>
               </div>
             </div>
@@ -213,9 +234,11 @@
                 id="status-filter"
                 class="px-4 py-2 border border-gray-300 rounded-lg input-focus"
               >
-                <option value="">所有狀態</option>
-                <option value="pending">待支付</option>
-                <option value="paid">已支付</option>
+                <option value="">所有賬單</option>
+                <option value="my-pending">待支付</option>
+                <option value="my-paid">已支付</option>
+                <option value="receivable-pending">應收款</option>
+                <option value="receivable-paid">已收款</option>
               </select>
               <select
                 id="date-filter"
@@ -493,8 +516,12 @@
             console.log(`創建賬單 ${index + 1}:`, bill.name);
             try {
               const billElement = createBillElement(bill);
-              billsContainer.appendChild(billElement);
-              console.log(`賬單 ${index + 1} 已添加到DOM`);
+              if (billElement) {
+                billsContainer.appendChild(billElement);
+                console.log(`賬單 ${index + 1} 已添加到DOM`);
+              } else {
+                console.log(`賬單 ${index + 1} 被跳過（用戶未參與）`);
+              }
             } catch (error) {
               console.error(`創建賬單 ${index + 1} 失敗:`, error);
             }
@@ -520,13 +547,21 @@
             (p) => p.name === currentUser.username
           );
 
+          // 如果找不到用戶參與者，跳過此賬單
+          if (!userParticipant) {
+            console.warn(
+              `賬單 ${bill.id} (${bill.name}) 中找不到用戶 ${currentUser.username}`
+            );
+            return null;
+          }
+
           const userResult = userParticipant
             ? participantStatuses.find(
                 (r) => r.participantId === userParticipant.id
               )
             : null;
 
-          const userStatus = userResult ? userResult.paymentStatus : "pending";
+          const userStatus = userResult?.paymentStatus || "pending";
 
           // 檢查是否為付款人（通過參與者ID匹配）
           const isPayer = bill.payerId === userParticipant?.id;
@@ -536,11 +571,42 @@
           );
           const userAmount = userResult ? userResult.amount : 0;
 
-          const statusClass =
-            userStatus === "paid" ? "status-paid" : "status-pending";
-          const statusText = userStatus === "paid" ? "已支付" : "待支付";
-          const statusIcon =
-            userStatus === "paid" ? "fa-check-circle" : "fa-clock";
+          // 根據角色顯示不同的狀態
+          let statusClass, statusText, statusIcon;
+
+          if (isPayer) {
+            // 付款人：顯示應收款狀態
+            const otherResults =
+              bill.results?.filter(
+                (r) => r.participantId !== userParticipant.id
+              ) || [];
+            const allPaid =
+              otherResults.length > 0 &&
+              otherResults.every((r) => r.paymentStatus === "paid");
+            const somePending = otherResults.some(
+              (r) => r.paymentStatus === "pending"
+            );
+
+            if (allPaid) {
+              statusClass = "status-paid";
+              statusText = "全部已收";
+              statusIcon = "fa-check-circle";
+            } else if (somePending) {
+              statusClass = "status-pending";
+              statusText = "待收款";
+              statusIcon = "fa-clock";
+            } else {
+              statusClass = "status-paid";
+              statusText = "部分已收";
+              statusIcon = "fa-check-circle";
+            }
+          } else {
+            // 參與者：顯示自己的支付狀態
+            statusClass =
+              userStatus === "paid" ? "status-paid" : "status-pending";
+            statusText = userStatus === "paid" ? "已支付" : "待支付";
+            statusIcon = userStatus === "paid" ? "fa-check-circle" : "fa-clock";
+          }
 
           // 計算應收款和應付款
           let receivablesAmount = 0;
@@ -594,10 +660,39 @@
                  ${
                    isPayer
                      ? `
-                   <div class="text-sm text-purple-600">
-                     <i class="fa fa-arrow-up mr-1"></i>應收款: $${receivablesAmount.toFixed(
-                       2
-                     )} (${receivablesCount}筆)
+                   <div class="text-sm">
+                     <span class="text-purple-600">
+                       <i class="fa fa-arrow-up mr-1"></i>應收款: $${receivablesAmount.toFixed(
+                         2
+                       )} (${receivablesCount}筆)
+                     </span>
+                     ${(() => {
+                       const otherResults =
+                         bill.results?.filter(
+                           (r) => r.participantId !== userParticipant.id
+                         ) || [];
+                       const paidCount = otherResults.filter(
+                         (r) => r.paymentStatus === "paid"
+                       ).length;
+                       const pendingCount = otherResults.filter(
+                         (r) => r.paymentStatus === "pending"
+                       ).length;
+                       return `
+                         <span class="ml-2 text-xs text-gray-500">
+                           ${
+                             paidCount > 0
+                               ? `<span class="text-green-600">已收${paidCount}筆</span>`
+                               : ""
+                           }
+                           ${paidCount > 0 && pendingCount > 0 ? " · " : ""}
+                           ${
+                             pendingCount > 0
+                               ? `<span class="text-orange-600">待收${pendingCount}筆</span>`
+                               : ""
+                           }
+                         </span>
+                       `;
+                     })()}
                    </div>
                  `
                      : `
@@ -615,15 +710,15 @@
                  }')">
                    <i class="fa fa-eye mr-1"></i>查看詳情
                  </button>
-                 ${
-                   userStatus === "pending"
-                     ? `
-                   <button class="btn-primary text-sm" onclick="openPaymentModal('${bill.id}', '${currentUser.id}')">
-                     <i class="fa fa-credit-card mr-1"></i>標記已支付
-                   </button>
-                 `
-                     : ""
-                 }
+                ${
+                  userStatus === "pending" && userParticipant && !isPayer
+                    ? `
+                  <button class="btn-primary text-sm" onclick="openPaymentModal('${bill.id}', '${userParticipant.id}')">
+                    <i class="fa fa-credit-card mr-1"></i>標記已支付
+                  </button>
+                `
+                    : ""
+                }
                  ${
                    isPayer
                      ? `
@@ -645,11 +740,13 @@
           const total = billsToShow.length;
           const currentUser = window.authManager.getCurrentUser();
 
-          let pending = 0;
-          let paid = 0;
-          let totalReceivables = 0;
-          let totalPayables = 0;
-          let receivablesCount = 0;
+          let myPending = 0; // 我的待支付
+          let myPaid = 0; // 我的已支付
+          let receivablesPending = 0; // 應收款-待收（金額）
+          let receivablesPaid = 0; // 應收款-已收（金額）
+          let receivablesPendingCount = 0; // 待收筆數
+          let receivablesPaidCount = 0; // 已收筆數
+          let totalPayables = 0; // 應付款總額
           let payablesCount = 0;
 
           billsToShow.forEach((bill) => {
@@ -658,47 +755,74 @@
               (p) => p.name === currentUser.username
             );
 
-            const userResult = userParticipant
-              ? (bill.results || []).find(
-                  (r) => r.participantId === userParticipant.id
-                )
-              : null;
+            // 如果找不到用戶參與者，跳過此賬單
+            if (!userParticipant) return;
 
-            const userStatus = userResult
-              ? userResult.paymentStatus
-              : "pending";
-            const isPayer = bill.payerId === userParticipant?.id;
+            const userResult = (bill.results || []).find(
+              (r) => r.participantId === userParticipant.id
+            );
+
+            const isPayer = bill.payerId === userParticipant.id;
             const totalAmount = bill.items.reduce(
               (sum, item) => sum + item.amount,
               0
             );
             const userAmount = userResult ? userResult.amount : 0;
 
-            if (userStatus === "pending") {
-              pending++;
-            } else {
-              paid++;
-            }
-
             if (isPayer) {
-              // 付款人：應收款 = 總金額 - 自己的分攤
-              const receivablesAmount = totalAmount - userAmount;
-              totalReceivables += receivablesAmount;
-              receivablesCount += bill.participants.length - 1;
+              // 付款人角色：計算應收款
+              const otherResults =
+                bill.results?.filter(
+                  (r) => r.participantId !== userParticipant.id
+                ) || [];
+
+              otherResults.forEach((r) => {
+                if (r.paymentStatus === "pending") {
+                  receivablesPending += r.amount || 0;
+                  receivablesPendingCount++;
+                } else if (r.paymentStatus === "paid") {
+                  receivablesPaid += r.amount || 0;
+                  receivablesPaidCount++;
+                }
+              });
             } else {
-              // 非付款人：應付款 = 自己的分攤
-              totalPayables += userAmount;
-              payablesCount++;
+              // 參與者角色：計算應付款和我的支付狀態
+              if (userResult) {
+                if (userResult.paymentStatus === "pending") {
+                  myPending++;
+                } else {
+                  myPaid++;
+                }
+                totalPayables += userAmount;
+                payablesCount++;
+              }
             }
           });
 
+          // 更新統計卡片
+          // 第一行：總數、待支付、已支付、應收款筆數、已收款筆數
           totalBillsEl.textContent = total;
-          pendingBillsEl.textContent = pending;
-          paidBillsEl.textContent = paid;
-          receivablesEl.textContent = `$${totalReceivables.toFixed(2)}`;
-          receivablesCountEl.textContent = `${receivablesCount}筆`;
+          pendingBillsEl.textContent = myPending;
+          paidBillsEl.textContent = myPaid;
+          document.getElementById("receivables-pending-count").textContent =
+            receivablesPendingCount;
+          document.getElementById("receivables-paid-count").textContent =
+            receivablesPaidCount;
+
+          // 第二行：待支付總額、應收款總額
           payablesEl.textContent = `$${totalPayables.toFixed(2)}`;
           payablesCountEl.textContent = `${payablesCount}筆`;
+
+          const totalReceivables = receivablesPending + receivablesPaid;
+          document.getElementById(
+            "receivables-total"
+          ).textContent = `$${totalReceivables.toFixed(2)}`;
+          document.getElementById(
+            "receivables-pending-amount"
+          ).textContent = `$${receivablesPending.toFixed(2)}`;
+          document.getElementById(
+            "receivables-paid-amount"
+          ).textContent = `$${receivablesPaid.toFixed(2)}`;
         }
 
         // 篩選賬單
@@ -719,14 +843,60 @@
 
             // 狀態篩選
             const currentUser = window.authManager.getCurrentUser();
-            const userResult = (bill.results || []).find(
-              (r) => r.participantId === currentUser.id
+            const userParticipant = bill.participants.find(
+              (p) => p.name === currentUser.username
             );
-            const userStatus = userResult
-              ? userResult.paymentStatus
-              : "pending";
-            const matchesStatus =
-              !statusFilterValue || userStatus === statusFilterValue;
+            const userResult = userParticipant
+              ? (bill.results || []).find(
+                  (r) => r.participantId === userParticipant.id
+                )
+              : null;
+            const isPayer = bill.payerId === userParticipant?.id;
+            const userStatus = userResult?.paymentStatus || "pending";
+
+            let matchesStatus = true;
+            if (statusFilterValue) {
+              switch (statusFilterValue) {
+                case "my-pending":
+                  // 我的待支付（作為參與者，尚未支付）
+                  matchesStatus = !isPayer && userStatus === "pending";
+                  break;
+                case "my-paid":
+                  // 我的已支付（作為參與者，已支付）
+                  matchesStatus = !isPayer && userStatus === "paid";
+                  break;
+                case "receivable-pending":
+                  // 應收款-待收（作為付款人，有人還沒付）
+                  if (!isPayer || !userParticipant) {
+                    matchesStatus = false;
+                  } else {
+                    const otherResults =
+                      bill.results?.filter(
+                        (r) => r.participantId !== userParticipant.id
+                      ) || [];
+                    matchesStatus = otherResults.some(
+                      (r) => r.paymentStatus === "pending"
+                    );
+                  }
+                  break;
+                case "receivable-paid":
+                  // 應收款-已收（作為付款人，有人已付）
+                  if (!isPayer || !userParticipant) {
+                    matchesStatus = false;
+                  } else {
+                    const otherResults =
+                      bill.results?.filter(
+                        (r) => r.participantId !== userParticipant.id
+                      ) || [];
+                    matchesStatus = otherResults.some(
+                      (r) => r.paymentStatus === "paid"
+                    );
+                  }
+                  break;
+                default:
+                  matchesStatus = true;
+              }
+            }
 
             // 日期篩選
             const billDate = new Date(bill.date);
@@ -819,10 +989,23 @@
 
         // 保存支付狀態
         async function savePaymentStatus() {
-          if (!currentBillId || !currentParticipantId) return;
+          if (!currentBillId || !currentParticipantId) {
+            console.error("缺少必要參數:", {
+              currentBillId,
+              currentParticipantId,
+            });
+            return;
+          }
 
           const paymentStatus = paymentStatusSelect.value;
           const receiptFile = document.getElementById("receipt-file").files[0];
+
+          console.log("準備更新支付狀態:", {
+            billId: currentBillId,
+            participantId: currentParticipantId,
+            paymentStatus,
+            hasReceipt: !!receiptFile,
+          });
 
           try {
             const formData = new FormData();
@@ -831,9 +1014,11 @@
             formData.append("paymentStatus", paymentStatus);
 
             if (receiptFile) {
+              console.log("收據文件:", receiptFile.name, receiptFile.size);
               formData.append("receipt", receiptFile);
             }
 
+            console.log("發送請求到 /api/bill/payment-status");
             const response = await authenticatedFetch(
               "/api/bill/payment-status",
               {
@@ -842,83 +1027,335 @@
               }
             );
 
-            if (!response) return; // 認證失敗，已重定向
+            if (!response) {
+              console.log("認證失敗，已重定向");
+              return;
+            }
+
+            console.log("API響應狀態:", response.status);
 
             if (response.ok) {
+              const result = await response.json();
+              console.log("API響應數據:", result);
               alert("支付狀態已更新");
               closePaymentModal();
+              console.log("開始重新加載賬單列表");
               await loadBills(); // 重新加載賬單列表
+              console.log("賬單列表已重新加載");
             } else {
-              const error = await response.json();
-              alert(`更新失敗: ${error.error}`);
+              const errorText = await response.text();
+              console.error("API錯誤響應:", errorText);
+              try {
+                const error = JSON.parse(errorText);
+                alert(`更新失敗: ${error.error}`);
+              } catch {
+                alert(`更新失敗: ${response.status} ${response.statusText}`);
+              }
             }
           } catch (error) {
             console.error("更新支付狀態時出錯:", error);
-            alert("更新支付狀態時出錯");
+            alert(`更新支付狀態時出錯: ${error.message}`);
           }
         }
 
         // 查看賬單詳情
         function viewBillDetails(billId) {
-          // 這裡可以實現查看詳情的功能
-          alert("查看詳情功能即將推出");
+          const bill = bills.find((b) => b.id === billId);
+          if (!bill) return;
+
+          const currentUser = window.authManager.getCurrentUser();
+          const userParticipant = bill.participants.find(
+            (p) => p.name === currentUser.username
+          );
+          const userResult = bill.results?.find(
+            (r) => r.participantId === userParticipant?.id
+          );
+          const isPayer = bill.payerId === userParticipant?.id;
+          const totalAmount = bill.items.reduce(
+            (sum, item) => sum + item.amount,
+            0
+          );
+
+          // 構建項目列表
+          let itemsHTML = bill.items
+            .map((item) => {
+              const participants = item.participantsIds
+                ?.map((pid) => {
+                  const p = bill.participants.find((x) => x.id === pid);
+                  return p?.name || "未知";
+                })
+                .join(", ");
+
+              return `
+              <div class="flex justify-between items-start py-2 border-b">
+                <div class="flex-1">
+                  <div class="font-medium">${item.name}</div>
+                  <div class="text-sm text-gray-500">
+                    ${
+                      item.isShared
+                        ? `共享: ${participants}`
+                        : `個人: ${participants}`
+                    }
+                  </div>
+                </div>
+                <div class="font-semibold">$${item.amount.toFixed(2)}</div>
+              </div>
+            `;
+            })
+            .join("");
+
+          // 構建參與者列表
+          let participantsHTML = bill.results
+            .map((result) => {
+              const participant = bill.participants.find(
+                (p) => p.id === result.participantId
+              );
+              const status =
+                result.paymentStatus === "paid" ? "已支付" : "待支付";
+              const statusClass =
+                result.paymentStatus === "paid"
+                  ? "text-green-600"
+                  : "text-orange-600";
+
+              return `
+              <div class="flex justify-between items-center py-2 border-b">
+                <div class="flex items-center gap-2">
+                  <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                    <i class="fa fa-user text-blue-600"></i>
+                  </div>
+                  <span class="font-medium">${
+                    participant?.name || "未知"
+                  }</span>
+                  ${
+                    result.participantId === bill.payerId
+                      ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded ml-1">付款人</span>'
+                      : ""
+                  }
+                </div>
+                <div class="text-right">
+                  <div class="font-semibold">$${
+                    result.amount?.toFixed(2) || "0.00"
+                  }</div>
+                  <div class="text-xs ${statusClass}">${status}</div>
+                </div>
+              </div>
+            `;
+            })
+            .join("");
+
+          const content = `
+            <div class="space-y-4">
+              <!-- 基本信息 -->
+              <div class="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded">
+                <div>
+                  <div class="text-sm text-gray-600">賬單名稱</div>
+                  <div class="font-semibold">${bill.name || "(無名稱)"}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">日期</div>
+                  <div class="font-semibold">${bill.date}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">地點</div>
+                  <div class="font-semibold">${bill.location || "未指定"}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">小費比例</div>
+                  <div class="font-semibold">${bill.tipPercentage}%</div>
+                </div>
+              </div>
+
+              <!-- 您的狀態 -->
+              <div class="p-4 ${
+                isPayer ? "bg-purple-50" : "bg-blue-50"
+              } rounded">
+                <h4 class="font-bold mb-2">您的狀態</h4>
+                <div class="space-y-1">
+                  <div>角色: ${isPayer ? "💰 付款人" : "👤 參與者"}</div>
+                  <div>您的金額: <span class="font-bold">${
+                    userResult?.amount?.toFixed(2) || "0.00"
+                  }</span></div>
+                  <div>支付狀態: ${
+                    userResult?.paymentStatus === "paid"
+                      ? "✅ 已支付"
+                      : "⏰ 待支付"
+                  }</div>
+                  ${
+                    isPayer
+                      ? `<div class="mt-2 text-sm text-purple-700">您已支付全部賬單，等待其他人付款</div>`
+                      : ""
+                  }
+                </div>
+              </div>
+
+              <!-- 消費項目 -->
+              <div>
+                <h4 class="font-bold mb-2 flex items-center">
+                  <i class="fa fa-shopping-basket mr-2"></i>消費項目
+                </h4>
+                <div class="space-y-1">
+                  ${itemsHTML}
+                  <div class="flex justify-between items-center py-2 font-bold text-lg">
+                    <span>總計</span>
+                    <span>$${totalAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 參與者分攤 -->
+              <div>
+                <h4 class="font-bold mb-2 flex items-center">
+                  <i class="fa fa-users mr-2"></i>參與者分攤
+                </h4>
+                <div class="space-y-1">
+                  ${participantsHTML}
+                </div>
+              </div>
+            </div>
+          `;
+
+          showDetailsModal("賬單詳情", content);
         }
 
-        // 查看應收款詳情
+        // 查看應收款詳情（互動模態框）
         function viewReceivables(billId) {
           const bill = bills.find((b) => b.id === billId);
           if (!bill) return;
 
           const currentUser = window.authManager.getCurrentUser();
-          const unpaidParticipants = bill.participants.filter(
-            (p) => p.id !== currentUser.id
+          const userParticipant = bill.participants.find(
+            (p) => p.name === currentUser.username
           );
-          const paidParticipants = (bill.results || []).filter(
-            (r) =>
-              r.participantId !== currentUser.id && r.paymentStatus === "paid"
-          );
-          const pendingParticipants = unpaidParticipants.filter(
-            (p) => !paidParticipants.some((paid) => paid.participantId === p.id)
+          const userResult = bill.results?.find(
+            (r) => r.participantId === userParticipant?.id
           );
 
-          let message = `賬單：${bill.name}\n\n`;
-          message += `總金額：$${bill.items
-            .reduce((sum, item) => sum + item.amount, 0)
-            .toFixed(2)}\n`;
-          message += `您的分攤：$${
-            (bill.results || [])
-              .find((r) => r.participantId === currentUser.id)
-              ?.amount.toFixed(2) || "0.00"
-          }\n\n`;
+          const totalAmount = bill.items.reduce(
+            (sum, item) => sum + item.amount,
+            0
+          );
+          const otherParticipants =
+            bill.results?.filter(
+              (r) => r.participantId !== userParticipant?.id
+            ) || [];
 
-          if (paidParticipants.length > 0) {
-            message += `已支付 (${paidParticipants.length}人)：\n`;
-            paidParticipants.forEach((paid) => {
-              const participant = bill.participants.find(
-                (p) => p.id === paid.participantId
-              );
-              message += `• ${
-                participant?.name || "未知"
-              }: $${paid.amount.toFixed(2)}\n`;
-            });
-            message += "\n";
-          }
+          // 構建參與者列表 HTML
+          let participantsHTML = "";
+          otherParticipants.forEach((result) => {
+            const participant = bill.participants.find(
+              (p) => p.id === result.participantId
+            );
+            const isPaid = result.paymentStatus === "paid";
+            const isConfirmed = result.confirmedByPayer || false;
+            const receiptUrl = result.receiptImageUrl;
 
-          if (pendingParticipants.length > 0) {
-            message += `待支付 (${pendingParticipants.length}人)：\n`;
-            pendingParticipants.forEach((participant) => {
-              const result = (bill.results || []).find(
-                (r) => r.participantId === participant.id
-              );
-              message += `• ${participant.name}: $${
-                result?.amount.toFixed(2) || "0.00"
-              }\n`;
-            });
-          } else {
-            message += "所有參與者已支付！";
-          }
+            participantsHTML += `
+              <div class="border-b pb-4 mb-4">
+                <div class="flex items-center justify-between">
+                  <div class="flex-1">
+                    <div class="font-semibold text-lg">${
+                      participant?.name || "未知"
+                    }</div>
+                    <div class="text-gray-600">應付金額: $${
+                      result.amount?.toFixed(2) || "0.00"
+                    }</div>
+                  </div>
+                  <div class="text-right">
+                    ${
+                      isPaid
+                        ? `<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                          <i class="fa fa-check-circle mr-1"></i>已支付
+                          ${
+                            isConfirmed
+                              ? '<i class="fa fa-check text-green-600 ml-1" title="已確認"></i>'
+                              : ""
+                          }
+                         </span>`
+                        : `<span class="px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm">
+                          <i class="fa fa-clock mr-1"></i>待支付
+                         </span>`
+                    }
+                  </div>
+                </div>
+                ${
+                  isPaid
+                    ? `
+                  <div class="mt-3 flex gap-2">
+                    ${
+                      receiptUrl
+                        ? `
+                      <button 
+                        onclick="viewReceipt('${receiptUrl}')" 
+                        class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-sm">
+                        <i class="fa fa-image mr-1"></i>查看收據
+                      </button>
+                    `
+                        : '<span class="text-gray-400 text-sm">無收據</span>'
+                    }
+                    ${
+                      !isConfirmed
+                        ? `
+                      <button 
+                        onclick="confirmPayment('${billId}', '${result.participantId}')" 
+                        class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm">
+                        <i class="fa fa-check mr-1"></i>確認收款
+                      </button>
+                      <button 
+                        onclick="rejectPayment('${billId}', '${result.participantId}', 'not_received')" 
+                        class="px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm">
+                        <i class="fa fa-times mr-1"></i>未收到款
+                      </button>
+                      <button 
+                        onclick="rejectPayment('${billId}', '${result.participantId}', 'wrong_receipt')" 
+                        class="px-3 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200 text-sm">
+                        <i class="fa fa-exclamation mr-1"></i>錯誤單據
+                      </button>
+                    `
+                        : '<span class="text-green-600 text-sm"><i class="fa fa-check-circle mr-1"></i>已確認收款</span>'
+                    }
+                  </div>
+                `
+                    : ""
+                }
+              </div>
+            `;
+          });
 
-          alert(message);
+          const content = `
+            <div class="mb-4">
+              <div class="grid grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded">
+                <div>
+                  <div class="text-sm text-gray-600">賬單名稱</div>
+                  <div class="font-semibold">${bill.name || "(無名稱)"}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">日期</div>
+                  <div class="font-semibold">${bill.date}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">總金額</div>
+                  <div class="font-semibold text-blue-600">$${totalAmount.toFixed(
+                    2
+                  )}</div>
+                </div>
+                <div>
+                  <div class="text-sm text-gray-600">您的分攤</div>
+                  <div class="font-semibold">$${
+                    userResult?.amount?.toFixed(2) || "0.00"
+                  }</div>
+                </div>
+              </div>
+              
+              <h4 class="font-bold text-lg mb-3 flex items-center">
+                <i class="fa fa-users mr-2"></i>其他參與者 (${
+                  otherParticipants.length
+                }人)
+              </h4>
+              ${participantsHTML || '<p class="text-gray-500">無其他參與者</p>'}
+            </div>
+          `;
+
+          showDetailsModal("應收款詳情", content);
         }
 
         // 顯示詳情模態框
@@ -1009,12 +1446,51 @@
           }
         }
 
+        // 拒絕收款(付款人標記問題)
+        async function rejectPayment(billId, participantId, reason) {
+          const reasonText =
+            reason === "not_received" ? "未收到款項" : "收據有誤";
+          const confirmText = `確認標記為「${reasonText}」？\n\n此操作將:\n1. 將支付狀態改回「待支付」\n2. 通知參與者重新處理`;
+
+          if (!confirm(confirmText)) return;
+
+          try {
+            const response = await authenticatedFetch(
+              "/api/bill/reject-payment",
+              {
+                method: "POST",
+                body: JSON.stringify({
+                  billId,
+                  participantId,
+                  reason,
+                  rejectedAt: new Date().toISOString(),
+                }),
+              }
+            );
+
+            if (response.ok) {
+              alert(`已標記為「${reasonText}」，該筆款項已退回待支付狀態`);
+              // 關閉當前模態框
+              document.querySelector(".fixed.inset-0")?.remove();
+              // 重新加載賬單列表
+              loadBills();
+            } else {
+              const error = await response.json();
+              alert(error.message || "拒絕收款失敗");
+            }
+          } catch (error) {
+            console.error("Error rejecting payment:", error);
+            alert("拒絕收款時出錯");
+          }
+        }
+
         // 全局函數，供HTML調用
         window.openPaymentModal = openPaymentModal;
         window.viewBillDetails = viewBillDetails;
         window.viewReceivables = viewReceivables;
         window.viewReceipt = viewReceipt;
         window.confirmPayment = confirmPayment;
+        window.rejectPayment = rejectPayment;
         window.showDetailsModal = showDetailsModal;
       });
     </script>
