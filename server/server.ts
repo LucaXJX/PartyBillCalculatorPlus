@@ -6,7 +6,9 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 import fs from "fs";
-import { DataManager, BillCalculator } from "./core.js";
+import multer from "multer";
+import { DataManager } from "./dataManager.js";
+import { BillCalculator } from "./billCalculator.js";
 import { dataStorage, User, BillRecord } from "./storage.js";
 
 // 解決 ES6 模塊中的 __dirname 問題
@@ -18,6 +20,35 @@ const PORT = process.env.PORT || 3000;
 
 // 初始化計算器 (這將在服務器內存中維護狀態)
 const calculator = new BillCalculator();
+
+// 配置multer用於文件上傳
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, "../public/uploads/receipts");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB限制
+  },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("只允許上傳圖片文件"));
+    }
+  },
+});
 
 // 用戶會話管理器 - 為每個用戶維護獨立的數據管理器
 const userDataManagers = new Map<string, DataManager>();
@@ -186,8 +217,14 @@ app.post("/api/bill/reset", authenticateUser, (req: any, res) => {
 
 // 2. 更新賬單基本信息
 app.post("/api/bill/info", authenticateUser, (req: any, res) => {
-  const { name, date, location, tipPercentage } = req.body;
-  req.userDataManager.updateBillInfo(name, date, location, tipPercentage);
+  const { name, date, location, tipPercentage, payerId } = req.body;
+  req.userDataManager.updateBillInfo(
+    name,
+    date,
+    location,
+    tipPercentage,
+    payerId
+  );
   res.status(200).json({ message: "賬單信息已更新" });
 });
 
@@ -207,17 +244,102 @@ app.get("/api/participants", authenticateUser, (req: any, res) => {
   res.status(200).json(participants);
 });
 
+// 獲取用戶的賬單列表
+app.get("/api/bills", authenticateUser, async (req: any, res) => {
+  try {
+    const bills = await dataStorage.getUserBills(req.userId);
+    res.status(200).json(bills);
+  } catch (error) {
+    console.error("獲取賬單列表失敗:", error);
+    res.status(500).json({ error: "獲取賬單列表失敗" });
+  }
+});
+
+// 更新支付狀態
+app.post(
+  "/api/bill/payment-status",
+  authenticateUser,
+  upload.single("receipt"),
+  async (req: any, res) => {
+    try {
+      const { billId, participantId, paymentStatus } = req.body;
+
+      if (!billId || !participantId || !paymentStatus) {
+        return res.status(400).json({ error: "缺少必要參數" });
+      }
+
+      // 處理文件上傳
+      let receiptImageUrl = null;
+      if (req.file) {
+        receiptImageUrl = `/uploads/receipts/${req.file.filename}`;
+      }
+
+      await dataStorage.updatePaymentStatus(
+        billId,
+        participantId,
+        paymentStatus,
+        receiptImageUrl || undefined
+      );
+      res.status(200).json({ message: "支付狀態已更新" });
+    } catch (error) {
+      console.error("更新支付狀態失敗:", error);
+      res.status(500).json({ error: "更新支付狀態失敗" });
+    }
+  }
+);
+
+// 確認收款（付款人確認收到其他人的付款）
+app.post(
+  "/api/bill/confirm-payment",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { billId, participantId, confirmed } = req.body;
+
+      if (!billId || !participantId || confirmed === undefined) {
+        return res.status(400).json({ error: "缺少必要參數" });
+      }
+
+      // 這裡可以添加確認收款的邏輯
+      // 例如：更新收款確認狀態，發送通知等
+      console.log(
+        `用戶 ${req.userId} 確認${
+          confirmed ? "收到" : "未收到"
+        } 參與者 ${participantId} 的付款`
+      );
+
+      res.status(200).json({ message: "收款確認已更新" });
+    } catch (error) {
+      console.error("確認收款失敗:", error);
+      res.status(500).json({ error: "確認收款失敗" });
+    }
+  }
+);
+
 // 4. 添加消費項目
 app.post("/api/item", authenticateUser, (req: any, res) => {
   const { name, amount, isShared, participantIds } = req.body;
-  if (!name || !amount || !participantIds || participantIds.length === 0) {
-    return res.status(400).json({ error: "項目信息不完整" });
+  if (!name || !amount) {
+    return res.status(400).json({ error: "項目名稱和金額不能為空" });
   }
+
+  let finalParticipantIds = participantIds || [];
+
+  // 如果是共享項目且沒有指定參與者，自動包含所有參與者
+  if (isShared && finalParticipantIds.length === 0) {
+    const currentBill = req.userDataManager.getCurrentBill();
+    finalParticipantIds = currentBill.participants.map((p) => p.id);
+  }
+
+  if (finalParticipantIds.length === 0) {
+    return res.status(400).json({ error: "項目必須至少包含一個參與者" });
+  }
+
   const item = req.userDataManager.addItem(
     name,
     amount,
     isShared,
-    participantIds
+    finalParticipantIds
   );
   res.status(201).json(item);
 });

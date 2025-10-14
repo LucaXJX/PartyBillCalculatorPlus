@@ -81,6 +81,8 @@ export class BillCalculator {
       participantId: participant.id,
       amount: Math.round(resultMap[participant.id].amount * 100) / 100, // 再次确保精度
       breakdown: resultMap[participant.id].breakdown.join(" + "),
+      paymentStatus: 'pending' as const,
+      receiptImageUrl: undefined
     }));
   }
 }

@@ -27,6 +27,8 @@ export interface CalculationResult {
   participantId: string;
   amount: number;
   breakdown: string; // 费用明细的文本描述，如 "汉堡套餐 (60.00) + 小费 (6.90)"
+  paymentStatus: "pending" | "paid"; // 支付状态
+  receiptImageUrl?: string; // 支付凭证图片URL
 }
 
 /**
@@ -40,5 +42,6 @@ export interface Bill {
   tipPercentage: number;
   participants: Participant[];
   items: Item[];
+  payerId?: string; // 付款人ID，可选
   // 计算结果可以是动态计算的，不一定需要存储
 }

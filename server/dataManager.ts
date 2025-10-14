@@ -1,6 +1,6 @@
 // src/dataManager.ts
 import { Bill, Participant, Item } from "./types.js";
-import { saveBill, getBill, updateBill } from "./persistence.js"; // 假设的持久化模块
+// 持久化功能已整合到 storage.ts 中
 
 // 生成唯一ID的简单工具函数
 const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -50,12 +50,16 @@ export class DataManager {
     name: string,
     date: string,
     location: string,
-    tipPercentage: number
+    tipPercentage: number,
+    payerId?: string
   ): void {
     this.currentBill.name = name;
     this.currentBill.date = date;
     this.currentBill.location = location;
     this.currentBill.tipPercentage = tipPercentage;
+    if (payerId) {
+      this.currentBill.payerId = payerId;
+    }
   }
 
   // --- 参与者操作 ---
@@ -119,7 +123,8 @@ export class DataManager {
 
   // --- 数据持久化 ---
   saveAsDraft(): void {
-    saveBill(this.currentBill);
+    // 持久化功能已移至 storage.ts，此方法保留用於未來擴展
+    console.log("保存草稿功能已移至 storage.ts");
   }
 
   // --- 获取当前账单 ---

@@ -226,6 +226,64 @@ export class DataStorage {
     );
   }
 
+  // 獲取用戶的賬單列表
+  async getUserBills(userId: string): Promise<BillRecord[]> {
+    ensureDataDir();
+    if (!fs.existsSync(BILLS_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(BILLS_FILE, "utf8");
+    const allBills: BillRecord[] = JSON.parse(data);
+
+    // 返回該用戶創建或參與的賬單
+    return allBills.filter(
+      (bill) =>
+        bill.createdBy === userId ||
+        bill.participants.some((p) => p.id === userId)
+    );
+  }
+
+  // 更新支付狀態
+  async updatePaymentStatus(
+    billId: string,
+    participantId: string,
+    paymentStatus: "pending" | "paid",
+    receiptImageUrl?: string
+  ): Promise<void> {
+    ensureDataDir();
+    if (!fs.existsSync(BILLS_FILE)) {
+      throw new Error("賬單文件不存在");
+    }
+
+    const data = fs.readFileSync(BILLS_FILE, "utf8");
+    const bills: BillRecord[] = JSON.parse(data);
+
+    const billIndex = bills.findIndex((bill) => bill.id === billId);
+    if (billIndex === -1) {
+      throw new Error("找不到指定的賬單");
+    }
+
+    const bill = bills[billIndex];
+
+    // 更新結果中的支付狀態
+    if (bill.results) {
+      const resultIndex = bill.results.findIndex(
+        (r) => r.participantId === participantId
+      );
+      if (resultIndex !== -1) {
+        bill.results[resultIndex].paymentStatus = paymentStatus;
+        if (receiptImageUrl) {
+          bill.results[resultIndex].receiptImageUrl = receiptImageUrl;
+        }
+      }
+    }
+
+    bill.updatedAt = new Date().toISOString();
+
+    // 保存更新後的數據
+    fs.writeFileSync(BILLS_FILE, JSON.stringify(bills, null, 2));
+  }
+
   // === 工具函數 ===
 
   private generateId(): string {
