@@ -137,7 +137,30 @@ export class DataStorage {
 
   async getBillsByUser(userId: string): Promise<BillRecord[]> {
     const bills = await this.loadBills();
-    return bills.filter((b) => b.createdBy === userId);
+    const users = await this.loadUsers();
+
+    // 查找用戶信息
+    const user = users.find((u) => u.id === userId);
+    if (!user) {
+      return [];
+    }
+
+    // 返回用戶創建的或參與的所有賬單
+    return bills.filter((bill) => {
+      // 檢查是否是創建者
+      if (bill.createdBy === userId) {
+        return true;
+      }
+
+      // 檢查是否是參與者（通過用戶名匹配）
+      if (bill.participants && bill.participants.length > 0) {
+        return bill.participants.some((participant) => {
+          return participant.name === user.username;
+        });
+      }
+
+      return false;
+    });
   }
 
   async deleteBill(id: string): Promise<boolean> {

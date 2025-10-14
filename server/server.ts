@@ -245,16 +245,6 @@ app.get("/api/participants", authenticateUser, (req: any, res) => {
 });
 
 // 獲取用戶的賬單列表
-app.get("/api/bills", authenticateUser, async (req: any, res) => {
-  try {
-    const bills = await dataStorage.getUserBills(req.userId);
-    res.status(200).json(bills);
-  } catch (error) {
-    console.error("獲取賬單列表失敗:", error);
-    res.status(500).json({ error: "獲取賬單列表失敗" });
-  }
-});
-
 // 更新支付狀態
 app.post(
   "/api/bill/payment-status",

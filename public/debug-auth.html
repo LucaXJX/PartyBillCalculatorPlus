@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>認證調試頁面</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto bg-white rounded-lg shadow p-6">
+      <h1 class="text-2xl font-bold mb-6">認證狀態調試</h1>
+
+      <div id="auth-status" class="space-y-4"></div>
+
+      <div class="mt-6">
+        <button
+          id="test-api"
+          class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+        >
+          測試 /api/bills
+        </button>
+        <button
+          id="clear-storage"
+          class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 ml-2"
+        >
+          清除 LocalStorage
+        </button>
+      </div>
+
+      <div id="api-result" class="mt-6 p-4 bg-gray-50 rounded hidden">
+        <h3 class="font-bold mb-2">API 響應：</h3>
+        <pre id="api-response" class="text-sm overflow-auto"></pre>
+      </div>
+    </div>
+
+    <script type="module">
+      // 檢查認證狀態
+      function checkAuthStatus() {
+        const statusDiv = document.getElementById("auth-status");
+        const sessionId = localStorage.getItem("sessionId");
+        const userStr = localStorage.getItem("user");
+        let user = null;
+
+        try {
+          user = userStr ? JSON.parse(userStr) : null;
+        } catch (e) {
+          console.error("解析用戶數據失敗:", e);
+        }
+
+        const info = [
+          {
+            label: "SessionID 存在",
+            value: sessionId ? "✅ 是" : "❌ 否",
+            detail: sessionId || "未設置",
+            color: sessionId ? "text-green-600" : "text-red-600",
+          },
+          {
+            label: "SessionID 值",
+            value: sessionId ? sessionId.substring(0, 20) + "..." : "N/A",
+            detail: sessionId || "未設置",
+            color: "text-blue-600",
+          },
+          {
+            label: "用戶數據存在",
+            value: user ? "✅ 是" : "❌ 否",
+            detail: user ? JSON.stringify(user, null, 2) : "未設置",
+            color: user ? "text-green-600" : "text-red-600",
+          },
+          {
+            label: "用戶名",
+            value: user?.username || "N/A",
+            detail: user?.email || "無郵箱",
+            color: "text-blue-600",
+          },
+          {
+            label: "用戶ID",
+            value: user?.id || "N/A",
+            detail: user?.id || "未設置",
+            color: "text-blue-600",
+          },
+        ];
+
+        statusDiv.innerHTML = info
+          .map(
+            (item) => `
+          <div class="border-b pb-3">
+            <div class="font-semibold ${item.color}">${item.label}: ${item.value}</div>
+            <div class="text-sm text-gray-600 mt-1 font-mono">${item.detail}</div>
+          </div>
+        `
+          )
+          .join("");
+      }
+
+      // 測試 API
+      document
+        .getElementById("test-api")
+        .addEventListener("click", async () => {
+          const resultDiv = document.getElementById("api-result");
+          const responseEl = document.getElementById("api-response");
+          const sessionId = localStorage.getItem("sessionId");
+
+          resultDiv.classList.remove("hidden");
+          responseEl.textContent = "正在請求...";
+
+          try {
+            const response = await fetch("/api/bills", {
+              headers: {
+                Authorization: `Bearer ${sessionId}`,
+                "Content-Type": "application/json",
+              },
+            });
+
+            const data = await response.json();
+            const result = {
+              status: response.status,
+              statusText: response.statusText,
+              ok: response.ok,
+              headers: Object.fromEntries(response.headers.entries()),
+              data: data,
+            };
+
+            responseEl.textContent = JSON.stringify(result, null, 2);
+
+            if (response.ok) {
+              responseEl.parentElement.classList.remove("bg-red-50");
+              responseEl.parentElement.classList.add("bg-green-50");
+            } else {
+              responseEl.parentElement.classList.remove("bg-green-50");
+              responseEl.parentElement.classList.add("bg-red-50");
+            }
+          } catch (error) {
+            responseEl.textContent = `錯誤: ${error.message}\n${error.stack}`;
+            responseEl.parentElement.classList.add("bg-red-50");
+          }
+        });
+
+      // 清除 LocalStorage
+      document.getElementById("clear-storage").addEventListener("click", () => {
+        localStorage.clear();
+        alert("LocalStorage 已清除");
+        checkAuthStatus();
+      });
+
+      // 初始檢查
+      checkAuthStatus();
+
+      // 每秒更新狀態
+      setInterval(checkAuthStatus, 1000);
+    </script>
+  </body>
+</html>
