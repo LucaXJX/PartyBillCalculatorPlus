@@ -576,5 +576,71 @@
         });
       });
     </script>
+
+    <!-- 引入認證管理器 -->
+    <script src="/js/auth.js"></script>
+    <script>
+      // 主頁認證檢查
+      document.addEventListener("DOMContentLoaded", function () {
+        // 檢查用戶認證狀態
+        if (window.authManager.isAuthenticated()) {
+          console.log("用戶已登入，顯示登入狀態");
+          // 更新導航欄顯示登入用戶
+          updateNavigationForLoggedInUser();
+        } else {
+          console.log("用戶未登入，顯示登入/註冊按鈕");
+          // 顯示登入/註冊按鈕
+          updateNavigationForGuest();
+        }
+      });
+
+      function updateNavigationForLoggedInUser() {
+        const user = window.authManager.getCurrentUser();
+        if (user) {
+          // 更新導航欄
+          const loginBtn = document.querySelector('a[href="/login-page.html"]');
+          const registerBtn = document.querySelector(
+            'a[href="/registration-page.html"]'
+          );
+
+          if (loginBtn && registerBtn) {
+            // 隱藏登入/註冊按鈕
+            loginBtn.style.display = "none";
+            registerBtn.style.display = "none";
+
+            // 添加用戶信息顯示
+            const userInfo = document.createElement("div");
+            userInfo.className = "flex items-center space-x-4";
+            userInfo.innerHTML = `
+              <span class="text-gray-700">歡迎，${user.username}</span>
+              <a href="/calculator.html" class="btn-primary">開始計算</a>
+              <button onclick="logout()" class="text-gray-600 hover:text-primary">登出</button>
+            `;
+
+            // 插入到導航欄
+            const navContainer = loginBtn.parentElement;
+            navContainer.appendChild(userInfo);
+          }
+        }
+      }
+
+      function updateNavigationForGuest() {
+        // 確保登入/註冊按鈕可見
+        const loginBtn = document.querySelector('a[href="/login-page.html"]');
+        const registerBtn = document.querySelector(
+          'a[href="/registration-page.html"]'
+        );
+
+        if (loginBtn && registerBtn) {
+          loginBtn.style.display = "inline-block";
+          registerBtn.style.display = "inline-block";
+        }
+      }
+
+      // 登出函數
+      async function logout() {
+        await window.authManager.logout();
+      }
+    </script>
   </body>
 </html>

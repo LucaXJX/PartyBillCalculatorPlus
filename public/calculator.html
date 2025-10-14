@@ -105,7 +105,10 @@
                   alt="用戶頭像"
                   class="w-10 h-10 rounded-full object-cover border-2 border-primary/20"
                 />
-                <span class="hidden sm:inline-block font-medium">陳小明</span>
+                <span
+                  class="hidden sm:inline-block font-medium user-name-display"
+                  >陳小明</span
+                >
                 <i
                   class="fa fa-angle-down text-gray-500 group-hover:text-primary transition-colors"
                 ></i>
@@ -423,6 +426,49 @@
       </div>
     </footer>
 
+    <!-- 用戶搜尋模態框 -->
+    <div
+      id="user-search-modal"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 transition-all duration-300 opacity-0 invisible"
+    >
+      <div
+        class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 transform transition-all duration-300 scale-95"
+      >
+        <div
+          class="bg-gradient-to-r from-primary to-primary/80 p-6 text-white flex justify-between items-center"
+        >
+          <h3 class="text-xl font-bold">搜尋用戶</h3>
+          <button
+            id="close-user-search-btn"
+            class="text-white hover:text-white/80 transition-colors"
+          >
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        <div class="p-6">
+          <div class="mb-4">
+            <input
+              type="text"
+              id="user-search-input"
+              placeholder="輸入用戶名或郵箱..."
+              class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus transition-all duration-300"
+            />
+          </div>
+          <div class="mb-4">
+            <button
+              id="add-self-btn"
+              class="w-full bg-primary text-white py-2 px-4 rounded-lg hover:bg-primary/80 transition-colors"
+            >
+              <i class="fa fa-user-plus mr-2"></i>加入自己
+            </button>
+          </div>
+          <div id="user-search-results" class="max-h-60 overflow-y-auto">
+            <!-- 搜尋結果將在這裡顯示 -->
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 計算結果模態框 -->
     <div
       id="result-modal"
@@ -502,12 +548,18 @@
           <div
             class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 pt-6 border-t border-gray-200"
           >
-            <button class="btn-secondary w-full sm:w-auto">
+            <button
+              class="btn-secondary w-full sm:w-auto"
+              id="print-to-jpg-btn"
+            >
               <i class="fa fa-print mr-2"></i> 列印報告
             </button>
             <div class="flex space-x-4 w-full sm:w-auto">
-              <button class="btn-secondary w-full sm:w-auto">
-                <i class="fa fa-share-alt mr-2"></i> 分享結果
+              <button
+                class="btn-secondary w-full sm:w-auto"
+                onclick="alert('上傳功能即將推出')"
+              >
+                <i class="fa fa-upload mr-2"></i> 上傳賬單
               </button>
               <button id="save-result-btn" class="btn-primary w-full sm:w-auto">
                 <i class="fa fa-save mr-2"></i> 保存賬單
@@ -518,59 +570,34 @@
       </div>
     </div>
 
+    <!-- 引入認證管理器 -->
+    <script src="/js/auth.js"></script>
+    <!-- 引入html2canvas -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
     <script type="module">
       // 移除所有 import 語句
 
-      // 用戶認證和會話管理
-      let currentUser = null;
-      let sessionId = null;
+      // 使用全局認證管理器
+      const authManager = window.authManager;
+      let currentUser = authManager.getCurrentUser();
+      let sessionId = authManager.getSessionId();
 
       // 檢查用戶認證狀態
       const checkAuth = () => {
-        sessionId = localStorage.getItem("sessionId");
-        const userData = localStorage.getItem("user");
-
-        if (!sessionId || !userData) {
+        if (!authManager.isAuthenticated()) {
           // 未登入，重定向到登入頁面
-          window.location.href = "/login-page.html";
+          authManager.redirectToLogin();
           return false;
         }
 
-        try {
-          currentUser = JSON.parse(userData);
-          return true;
-        } catch (error) {
-          console.error("Error parsing user data:", error);
-          localStorage.removeItem("sessionId");
-          localStorage.removeItem("user");
-          window.location.href = "/login-page.html";
-          return false;
-        }
+        currentUser = authManager.getCurrentUser();
+        sessionId = authManager.getSessionId();
+        return true;
       };
 
-      // 創建帶認證的fetch請求
-      const authenticatedFetch = async (url, options = {}) => {
-        const headers = {
-          ...options.headers,
-          Authorization: `Bearer ${sessionId}`,
-          "Content-Type": "application/json",
-        };
-
-        const response = await fetch(url, {
-          ...options,
-          headers,
-        });
-
-        // 如果認證失敗，重定向到登入頁面
-        if (response.status === 401) {
-          localStorage.removeItem("sessionId");
-          localStorage.removeItem("user");
-          window.location.href = "/login-page.html";
-          return null;
-        }
-
-        return response;
-      };
+      // 使用認證管理器的fetch方法
+      const authenticatedFetch =
+        authManager.authenticatedFetch.bind(authManager);
 
       // DOM元素
       const billNameInput = document.getElementById("bill-name");
@@ -596,23 +623,7 @@
         // 在模塊中不能使用return，改用條件執行
       } else {
         // 更新用戶信息顯示
-        const userAvatar = document.querySelector('img[alt="用戶頭像"]');
-        // 使用更簡單的選擇器
-        const userName = document.querySelector("span.font-medium");
-        if (userAvatar && userName) {
-          userName.textContent = currentUser.username;
-          console.log("用戶名已更新為:", currentUser.username);
-        } else {
-          console.log("找不到用戶名元素，嘗試其他選擇器");
-          // 嘗試更簡單的選擇器
-          const userNameAlt = document.querySelector("span");
-          if (userNameAlt && userNameAlt.textContent === "陳小明") {
-            userNameAlt.textContent = currentUser.username;
-            console.log("使用備用選擇器更新用戶名:", currentUser.username);
-          } else {
-            console.log("仍然找不到用戶名元素");
-          }
-        }
+        authManager.updateUserDisplay();
 
         // 初始化日期為今天
         billDateInput.value = new Date().toISOString().split("T")[0];
@@ -663,7 +674,7 @@
           newParticipant.className =
             "participant-item flex items-center p-4 bg-light rounded-lg transform transition-all duration-300 opacity-0 translate-y-2";
           newParticipant.innerHTML = `
-            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4">
+            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4 cursor-pointer hover:bg-primary/20 transition-colors user-avatar-btn">
                 <i class="fa fa-user"></i>
             </div>
             <input type="text" placeholder="參與者姓名" 
@@ -739,16 +750,49 @@
                 const input = item.querySelector("input");
                 const name = item.dataset.participantName || input.value.trim();
                 const id = item.dataset.participantId;
-                // 確保名稱不為空且有效，如果沒有ID但有名字，暫時使用名字作為標識
-                if (!name || name.length === 0) return null;
-                return { name, id: id || `temp_${name}` };
+                // 嚴格要求：必須同時有ID和名稱，否則忽略
+                if (!name || name.length === 0 || !id) return null;
+                return { name, id };
               })
               .filter((p) => p !== null);
+
+            // 先從服務器獲取最新的參與者信息，確保ID匹配
+            let serverParticipants = [];
+            try {
+              const billInfoResponse = await authenticatedFetch(
+                "/api/bill/info",
+                {
+                  method: "POST",
+                  body: JSON.stringify({
+                    name: billNameInput.value,
+                    date: billDateInput.value,
+                    location: billLocationInput.value,
+                    tipPercentage: parseInt(billTipInput.value) || 0,
+                  }),
+                }
+              );
+
+              if (billInfoResponse && billInfoResponse.ok) {
+                // 重新獲取服務器端的參與者信息
+                const participantsResponse = await authenticatedFetch(
+                  "/api/participants"
+                );
+                if (participantsResponse && participantsResponse.ok) {
+                  serverParticipants = await participantsResponse.json();
+                }
+              }
+            } catch (error) {
+              console.error("獲取服務器參與者信息失敗:", error);
+            }
 
             if (participants.length === 0) {
               alert("請至少添加一個參與者");
               return;
             }
+
+            // 使用服務器端的參與者信息，確保ID匹配
+            const finalParticipants =
+              serverParticipants.length > 0 ? serverParticipants : participants;
 
             // 收集並上傳項目信息
             const items = Array.from(
@@ -763,7 +807,7 @@
                 let participantIds = [];
                 if (isShared) {
                   // 如果是共享項目，所有參與者都參與
-                  participantIds = participants.map((p) => p.id);
+                  participantIds = finalParticipants.map((p) => p.id);
                 } else {
                   // 如果不是共享項目，只包含選中的參與者
                   participantIds = Array.from(
@@ -1026,7 +1070,19 @@
         // 保存結果功能
         saveResultBtn.addEventListener("click", async () => {
           try {
-            alert("賬單已保存");
+            const response = await authenticatedFetch("/api/bill/save", {
+              method: "POST",
+            });
+
+            if (!response) return; // 認證失敗，已重定向
+
+            if (response.ok) {
+              const data = await response.json();
+              alert(`賬單已保存，ID: ${data.billId}`);
+            } else {
+              const errorData = await response.json();
+              alert(`保存失敗: ${errorData.error}`);
+            }
           } catch (error) {
             console.error("Error saving result:", error);
             alert("保存賬單時出錯");
@@ -1116,9 +1172,9 @@
               const input = item.querySelector("input");
               const name = item.dataset.participantName || input.value.trim();
               const id = item.dataset.participantId;
-              // 確保名稱不為空且有效，如果沒有ID但有名字，暫時使用名字作為標識
-              if (!name || name.length === 0) return null;
-              return { name, id: id || `temp_${name}` };
+              // 嚴格要求：必須同時有ID和名稱
+              if (!name || name.length === 0 || !id) return null;
+              return { name, id };
             })
             .filter((p) => p !== null);
 
@@ -1259,31 +1315,193 @@
           });
         });
 
-        // 登出功能
-        const logoutBtn = document.getElementById("logout-btn");
-        if (logoutBtn) {
-          logoutBtn.addEventListener("click", async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log("登出按鈕被點擊");
+        // 設置登出功能
+        authManager.setupLogoutButton();
 
+        // 用戶搜尋功能
+        let currentParticipantItem = null;
+        const userSearchModal = document.getElementById("user-search-modal");
+        const closeUserSearchBtn = document.getElementById(
+          "close-user-search-btn"
+        );
+        const userSearchInput = document.getElementById("user-search-input");
+        const userSearchResults = document.getElementById(
+          "user-search-results"
+        );
+        const addSelfBtn = document.getElementById("add-self-btn");
+
+        // 打開用戶搜尋彈窗
+        function openUserSearch(participantItem) {
+          currentParticipantItem = participantItem;
+          userSearchModal.classList.remove("opacity-0", "invisible");
+          userSearchModal
+            .querySelector(".bg-white")
+            .classList.remove("scale-95");
+          userSearchModal.querySelector(".bg-white").classList.add("scale-100");
+          userSearchInput.focus();
+          userSearchInput.value = "";
+          userSearchResults.innerHTML = "";
+        }
+
+        // 關閉用戶搜尋彈窗
+        function closeUserSearch() {
+          userSearchModal.classList.add("opacity-0", "invisible");
+          userSearchModal.querySelector(".bg-white").classList.add("scale-95");
+          userSearchModal
+            .querySelector(".bg-white")
+            .classList.remove("scale-100");
+          currentParticipantItem = null;
+        }
+
+        // 搜尋用戶
+        async function searchUsers(query) {
+          if (!query || query.length < 1) {
+            userSearchResults.innerHTML = "";
+            return;
+          }
+
+          try {
+            const response = await authenticatedFetch(
+              `/api/users/search?query=${encodeURIComponent(query)}`
+            );
+            if (!response) return;
+
+            const data = await response.json();
+            displaySearchResults(data.users);
+          } catch (error) {
+            console.error("搜尋用戶失敗:", error);
+          }
+        }
+
+        // 顯示搜尋結果
+        function displaySearchResults(users) {
+          userSearchResults.innerHTML = "";
+
+          if (users.length === 0) {
+            userSearchResults.innerHTML =
+              '<div class="text-gray-500 text-center py-4">沒有找到匹配的用戶</div>';
+            return;
+          }
+
+          users.forEach((user) => {
+            const userItem = document.createElement("div");
+            userItem.className =
+              "flex items-center justify-between p-3 border border-gray-200 rounded-lg mb-2 hover:bg-gray-50 cursor-pointer";
+            userItem.innerHTML = `
+            <div>
+              <div class="font-medium">${user.username}</div>
+              <div class="text-sm text-gray-500">${user.email}</div>
+            </div>
+            <button class="add-user-btn text-primary hover:text-primary/80" data-user-id="${user.id}" data-user-name="${user.username}">
+              <i class="fa fa-plus"></i>
+            </button>
+          `;
+            userSearchResults.appendChild(userItem);
+          });
+        }
+
+        // 添加用戶為參與者
+        async function addUserAsParticipant(userId, userName) {
+          try {
+            const response = await authenticatedFetch("/api/participant", {
+              method: "POST",
+              body: JSON.stringify({ name: userName }),
+            });
+
+            if (!response) return;
+
+            if (response.ok) {
+              const participant = await response.json();
+
+              // 更新當前參與者項目的數據
+              if (currentParticipantItem) {
+                const input = currentParticipantItem.querySelector("input");
+                currentParticipantItem.dataset.participantId = participant.id;
+                currentParticipantItem.dataset.participantName =
+                  participant.name;
+                input.value = participant.name;
+              }
+
+              // 更新所有項目的參與者標籤
+              updateParticipantTags();
+              closeUserSearch();
+            }
+          } catch (error) {
+            console.error("添加參與者失敗:", error);
+          }
+        }
+
+        // 添加自己為參與者
+        async function addSelfAsParticipant() {
+          const currentUser = authManager.getCurrentUser();
+          if (currentUser) {
+            await addUserAsParticipant(currentUser.id, currentUser.username);
+          }
+        }
+
+        // 事件監聽器
+        closeUserSearchBtn.addEventListener("click", closeUserSearch);
+
+        userSearchModal.addEventListener("click", (e) => {
+          if (e.target === userSearchModal) {
+            closeUserSearch();
+          }
+        });
+
+        userSearchInput.addEventListener("input", (e) => {
+          searchUsers(e.target.value);
+        });
+
+        addSelfBtn.addEventListener("click", addSelfAsParticipant);
+
+        userSearchResults.addEventListener("click", (e) => {
+          if (e.target.closest(".add-user-btn")) {
+            const btn = e.target.closest(".add-user-btn");
+            const userId = btn.dataset.userId;
+            const userName = btn.dataset.userName;
+            addUserAsParticipant(userId, userName);
+          }
+        });
+
+        // 為所有參與者頭像添加點擊事件
+        document.addEventListener("click", (e) => {
+          if (e.target.closest(".user-avatar-btn")) {
+            const participantItem = e.target.closest(".participant-item");
+            openUserSearch(participantItem);
+          }
+        });
+
+        // 列印為JPG功能
+        const printToJpgBtn = document.getElementById("print-to-jpg-btn");
+        if (printToJpgBtn) {
+          printToJpgBtn.addEventListener("click", async () => {
             try {
-              await authenticatedFetch("/api/auth/logout", { method: "POST" });
-              console.log("登出請求已發送");
+              const modalContent = resultModal.querySelector(".bg-white");
+              if (!modalContent) {
+                alert("沒有找到要列印的內容");
+                return;
+              }
+
+              // 使用html2canvas截圖
+              const canvas = await html2canvas(modalContent, {
+                backgroundColor: "#ffffff",
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+              });
+
+              // 轉換為JPG並下載
+              const link = document.createElement("a");
+              link.download = `賬單報告_${
+                new Date().toISOString().split("T")[0]
+              }.jpg`;
+              link.href = canvas.toDataURL("image/jpeg", 0.9);
+              link.click();
             } catch (error) {
-              console.error("Logout error:", error);
-            } finally {
-              // 清除本地存儲
-              localStorage.removeItem("sessionId");
-              localStorage.removeItem("user");
-              console.log("本地存儲已清除，重定向到主頁");
-              // 重定向到主頁
-              window.location.href = "/index.html";
+              console.error("列印失敗:", error);
+              alert("列印失敗，請稍後再試");
             }
           });
-          console.log("登出按鈕事件監聽器已綁定");
-        } else {
-          console.log("找不到登出按鈕");
         }
 
         // 初始化時添加一個參與者和一個項目輸入框

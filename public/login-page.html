@@ -142,7 +142,17 @@
       </p>
     </div>
 
+    <!-- 引入認證管理器 -->
+    <script src="/js/auth.js"></script>
     <script>
+      // 頁面加載時檢查認證狀態
+      document.addEventListener("DOMContentLoaded", function () {
+        // 如果已登入，重定向到計算器頁面
+        if (window.authManager.isAuthenticated()) {
+          window.authManager.redirectToCalculator();
+        }
+      });
+
       document
         .getElementById("loginForm")
         .addEventListener("submit", async (e) => {
@@ -173,12 +183,11 @@
             const data = await response.json();
 
             if (response.ok) {
-              // 登入成功，保存會話信息
-              localStorage.setItem("sessionId", data.sessionId);
-              localStorage.setItem("user", JSON.stringify(data.user));
+              // 登入成功，使用認證管理器保存會話信息
+              window.authManager.setAuth(data.user, data.sessionId);
 
               // 重定向到計算器頁面
-              window.location.href = "/calculator.html";
+              window.authManager.redirectToCalculator();
             } else {
               // 顯示錯誤信息
               errorMessage.textContent = data.error || "登入失敗";

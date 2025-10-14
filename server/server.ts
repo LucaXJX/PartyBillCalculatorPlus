@@ -160,6 +160,22 @@ app.get("/api/auth/me", authenticateUser, (req: any, res) => {
   });
 });
 
+// 搜尋用戶
+app.get("/api/users/search", authenticateUser, async (req: any, res) => {
+  try {
+    const { query } = req.query;
+    if (!query || query.length < 1) {
+      return res.status(400).json({ error: "搜尋關鍵字不能為空" });
+    }
+
+    const users = await dataStorage.searchUsers(query);
+    res.status(200).json({ users });
+  } catch (error) {
+    console.error("Search users error:", error);
+    res.status(500).json({ error: "搜尋用戶失敗" });
+  }
+});
+
 // === 賬單管理相關 ===
 
 // 1. 重置或創建新賬單
@@ -183,6 +199,12 @@ app.post("/api/participant", authenticateUser, (req: any, res) => {
   }
   const participant = req.userDataManager.addParticipant(name);
   res.status(201).json(participant);
+});
+
+// 獲取參與者列表
+app.get("/api/participants", authenticateUser, (req: any, res) => {
+  const participants = req.userDataManager.getCurrentBill().participants;
+  res.status(200).json(participants);
 });
 
 // 4. 添加消費項目
@@ -294,8 +316,64 @@ app.delete("/api/bill/:id", authenticateUser, async (req: any, res) => {
 
 // --- 靜態文件服務和SPA路由支持 ---
 
+// 頁面保護中間件
+const protectPage = (pageType: "public" | "protected" | "auth") => {
+  return async (req: any, res: any, next: any) => {
+    const sessionId =
+      req.headers.authorization?.replace("Bearer ", "") ||
+      req.cookies?.sessionId;
+    const user = sessionId
+      ? await dataStorage.validateSession(sessionId)
+      : null;
+    const isAuthenticated = !!user;
+
+    // 將認證信息附加到請求對象
+    req.user = user;
+    req.isAuthenticated = isAuthenticated;
+
+    switch (pageType) {
+      case "public":
+        // 公開頁面，不需要認證
+        break;
+      case "protected":
+        // 受保護頁面，需要認證
+        if (!isAuthenticated) {
+          // 如果是API請求，返回401
+          if (req.path.startsWith("/api/")) {
+            return res.status(401).json({ error: "需要登入" });
+          }
+          // 如果是頁面請求，重定向到登入頁面
+          return res.redirect("/login-page.html");
+        }
+        break;
+      case "auth":
+        // 認證頁面，如果已登入則重定向到計算器
+        if (isAuthenticated) {
+          return res.redirect("/calculator.html");
+        }
+        break;
+    }
+
+    next();
+  };
+};
+
 // 設置靜態文件目錄，只暴露 public 目錄
 app.use(express.static(path.join(__dirname, "../public")));
+
+// 受保護的頁面路由
+app.get("/calculator.html", protectPage("protected"), (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/calculator.html"));
+});
+
+// 認證頁面路由
+app.get("/login-page.html", protectPage("auth"), (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/login-page.html"));
+});
+
+app.get("/registration-page.html", protectPage("auth"), (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/registration-page.html"));
+});
 
 // 處理所有其他路由，返回 index.html 支持 SPA
 // 但排除 API 路由

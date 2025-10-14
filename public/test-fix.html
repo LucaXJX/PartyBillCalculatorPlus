@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>修復測試</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="p-8">
+    <h1 class="text-2xl font-bold mb-4">修復測試頁面</h1>
+
+    <div class="mb-4">
+      <h2 class="text-lg font-semibold mb-2">測試用戶名顯示</h2>
+      <p>
+        當前用戶名應該顯示為：<span
+          id="current-username"
+          class="font-medium text-blue-600"
+          >未設置</span
+        >
+      </p>
+    </div>
+
+    <div class="mb-4">
+      <h2 class="text-lg font-semibold mb-2">測試登出功能</h2>
+      <button
+        id="test-logout"
+        class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+      >
+        測試登出
+      </button>
+    </div>
+
+    <div class="mb-4">
+      <h2 class="text-lg font-semibold mb-2">控制台日誌</h2>
+      <div
+        id="console-log"
+        class="bg-gray-100 p-4 rounded text-sm font-mono h-32 overflow-y-auto"
+      ></div>
+    </div>
+
+    <script type="module">
+      // 模擬用戶數據
+      const currentUser = {
+        id: "test123",
+        username: "alice_wong",
+        email: "alice.wong@email.com",
+      };
+
+      // 模擬認證檢查
+      const checkAuth = () => {
+        const sessionId = localStorage.getItem("sessionId");
+        const userData = localStorage.getItem("user");
+
+        if (!sessionId || !userData) {
+          console.log("用戶未認證");
+          return false;
+        }
+
+        try {
+          const user = JSON.parse(userData);
+          console.log("用戶已認證:", user.username);
+          return true;
+        } catch (error) {
+          console.error("解析用戶數據失敗:", error);
+          return false;
+        }
+      };
+
+      // 模擬認證fetch
+      const authenticatedFetch = async (url, options = {}) => {
+        console.log("發送請求到:", url);
+        return { ok: true, json: () => Promise.resolve({ message: "成功" }) };
+      };
+
+      // 重定向控制台輸出到頁面
+      const originalLog = console.log;
+      const originalError = console.error;
+      const logDiv = document.getElementById("console-log");
+
+      console.log = (...args) => {
+        originalLog(...args);
+        logDiv.innerHTML += `<div class="text-green-600">[LOG] ${args.join(
+          " "
+        )}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+      };
+
+      console.error = (...args) => {
+        originalError(...args);
+        logDiv.innerHTML += `<div class="text-red-600">[ERROR] ${args.join(
+          " "
+        )}</div>`;
+        logDiv.scrollTop = logDiv.scrollHeight;
+      };
+
+      // 初始化
+      if (!checkAuth()) {
+        console.log("用戶未認證，頁面將重定向");
+      } else {
+        // 更新用戶名顯示
+        const userName = document.getElementById("current-username");
+        if (userName) {
+          userName.textContent = currentUser.username;
+          console.log("用戶名已更新為:", currentUser.username);
+        }
+
+        // 測試登出功能
+        const logoutBtn = document.getElementById("test-logout");
+        if (logoutBtn) {
+          logoutBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            console.log("登出按鈕被點擊");
+
+            try {
+              await authenticatedFetch("/api/auth/logout", { method: "POST" });
+              console.log("登出請求已發送");
+            } catch (error) {
+              console.error("Logout error:", error);
+            } finally {
+              localStorage.removeItem("sessionId");
+              localStorage.removeItem("user");
+              console.log("本地存儲已清除，重定向到主頁");
+              // 模擬重定向
+              setTimeout(() => {
+                window.location.href = "/index.html";
+              }, 1000);
+            }
+          });
+          console.log("登出按鈕事件監聽器已綁定");
+        }
+      }
+    </script>
+  </body>
+</html>

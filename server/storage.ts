@@ -203,6 +203,29 @@ export class DataStorage {
     this.sessions.delete(sessionId);
   }
 
+  // 獲取所有用戶
+  async getAllUsers(): Promise<User[]> {
+    ensureDataDir();
+    if (!fs.existsSync(USERS_FILE)) {
+      return [];
+    }
+    const data = fs.readFileSync(USERS_FILE, "utf8");
+    return JSON.parse(data);
+  }
+
+  // 搜尋用戶
+  async searchUsers(query: string): Promise<User[]> {
+    const users = await this.getAllUsers();
+    const lowercaseQuery = query.toLowerCase();
+
+    return users.filter(
+      (user: User) =>
+        user.username.toLowerCase().includes(lowercaseQuery) ||
+        user.email.toLowerCase().includes(lowercaseQuery) ||
+        user.email.split("@")[0].toLowerCase().includes(lowercaseQuery)
+    );
+  }
+
   // === 工具函數 ===
 
   private generateId(): string {
