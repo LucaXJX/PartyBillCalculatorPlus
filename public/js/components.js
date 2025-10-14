@@ -61,7 +61,9 @@ class ComponentManager {
                   currentPage === "calculator"
                     ? "text-primary font-medium"
                     : "text-gray-600 hover:text-primary transition-colors"
-                }">智能計算</a>
+                }">
+                  <i class="fa fa-calculator mr-1"></i>智能計算
+                </a>
               `
                   : ""
               }
@@ -72,14 +74,22 @@ class ComponentManager {
                   currentPage === "my-bills"
                     ? "text-primary font-medium"
                     : "text-gray-600 hover:text-primary transition-colors"
-                }">我的賬單</a>
+                }">
+                  <i class="fa fa-file-text mr-1"></i>我的賬單
+                </a>
               `
                   : ""
               }
               ${
                 showContact
                   ? `
-                <a href="#" class="text-gray-600 hover:text-primary transition-colors">聯絡我們</a>
+                <a href="/messages.html" class="${
+                  currentPage === "messages"
+                    ? "text-primary font-medium"
+                    : "text-gray-600 hover:text-primary transition-colors"
+                }">
+                  <i class="fa fa-envelope mr-1"></i>我的消息
+                </a>
               `
                   : ""
               }
