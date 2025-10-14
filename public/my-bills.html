@@ -1104,39 +1104,57 @@
             })
             .join("");
 
-          // 構建參與者列表
+          // 構建參與者列表（包含收據）
           let participantsHTML = bill.results
             .map((result) => {
               const participant = bill.participants.find(
                 (p) => p.id === result.participantId
               );
-              const status =
-                result.paymentStatus === "paid" ? "已支付" : "待支付";
-              const statusClass =
-                result.paymentStatus === "paid"
-                  ? "text-green-600"
-                  : "text-orange-600";
+              const isPaid = result.paymentStatus === "paid";
+              const status = isPaid ? "已支付" : "待支付";
+              const statusClass = isPaid ? "text-green-600" : "text-orange-600";
+              const isThisPayer = result.participantId === bill.payerId;
+              const hasReceipt = result.receiptImageUrl;
+              const shouldShowReceipt = hasReceipt && !isThisPayer && isPaid;
 
               return `
-              <div class="flex justify-between items-center py-2 border-b">
-                <div class="flex items-center gap-2">
-                  <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
-                    <i class="fa fa-user text-blue-600"></i>
+              <div class="py-3 border-b">
+                <div class="flex justify-between items-start">
+                  <div class="flex items-center gap-2 flex-1">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                      <i class="fa fa-user text-blue-600"></i>
+                    </div>
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-medium">${
+                          participant?.name || "未知"
+                        }</span>
+                        ${
+                          isThisPayer
+                            ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">付款人</span>'
+                            : ""
+                        }
+                      </div>
+                      <div class="text-xs text-gray-500 mt-1">
+                        金額: $${result.amount?.toFixed(2) || "0.00"}
+                        <span class="ml-2 ${statusClass}">${status}</span>
+                      </div>
+                    </div>
                   </div>
-                  <span class="font-medium">${
-                    participant?.name || "未知"
-                  }</span>
-                  ${
-                    result.participantId === bill.payerId
-                      ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded ml-1">付款人</span>'
-                      : ""
-                  }
-                </div>
-                <div class="text-right">
-                  <div class="font-semibold">$${
-                    result.amount?.toFixed(2) || "0.00"
-                  }</div>
-                  <div class="text-xs ${statusClass}">${status}</div>
+                  <div class="flex items-center gap-2">
+                    ${
+                      shouldShowReceipt
+                        ? `
+                      <button 
+                        onclick="viewReceipt('${result.receiptImageUrl}')" 
+                        class="px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 text-xs flex items-center gap-1">
+                        <i class="fa fa-image"></i>
+                        <span>付款憑證</span>
+                      </button>
+                    `
+                        : ""
+                    }
+                  </div>
                 </div>
               </div>
             `;
@@ -1172,7 +1190,7 @@
                 <h4 class="font-bold mb-2">您的狀態</h4>
                 <div class="space-y-1">
                   <div>角色: ${isPayer ? "💰 付款人" : "👤 參與者"}</div>
-                  <div>您的金額: <span class="font-bold">${
+                  <div>您的金額: <span class="font-bold">$${
                     userResult?.amount?.toFixed(2) || "0.00"
                   }</span></div>
                   <div>支付狀態: ${
@@ -1187,6 +1205,25 @@
                   }
                 </div>
               </div>
+
+              <!-- 總賬單收據 -->
+              ${
+                bill.payerReceiptUrl
+                  ? `
+              <div class="p-4 bg-yellow-50 border-l-4 border-yellow-500 rounded">
+                <h4 class="font-bold mb-2 flex items-center">
+                  <i class="fa fa-file-text text-yellow-600 mr-2"></i>總賬單收據
+                </h4>
+                <p class="text-sm text-gray-600 mb-3">付款人支付給商家的總賬單憑證</p>
+                <button 
+                  onclick="viewReceipt('${bill.payerReceiptUrl}')" 
+                  class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm">
+                  <i class="fa fa-image mr-1"></i>查看總賬單收據
+                </button>
+              </div>
+              `
+                  : ""
+              }
 
               <!-- 消費項目 -->
               <div>
@@ -1387,7 +1424,7 @@
         }
 
         // 查看收據圖片
-        function viewReceipt(receiptUrl) {
+        async function viewReceipt(receiptUrl) {
           const modal = document.createElement("div");
           modal.className =
             "fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4";
@@ -1400,7 +1437,9 @@
                     <i class="fa fa-times text-xl"></i>
                   </button>
                 </div>
-                <img src="${receiptUrl}" class="max-w-full h-auto rounded-lg" />
+                <div class="flex justify-center items-center min-h-[200px]">
+                  <i class="fa fa-spinner fa-spin text-4xl text-primary"></i>
+                </div>
               </div>
             </div>
           `;
@@ -1412,6 +1451,41 @@
               modal.remove();
             }
           });
+
+          // 使用認證的 fetch 請求獲取圖片
+          try {
+            const sessionId = localStorage.getItem("sessionId");
+            const response = await fetch(receiptUrl, {
+              headers: {
+                "X-Session-ID": sessionId,
+              },
+            });
+
+            if (!response.ok) {
+              throw new Error("無法加載收據圖片");
+            }
+
+            // 獲取圖片 blob
+            const blob = await response.blob();
+            const imageUrl = URL.createObjectURL(blob);
+
+            // 更新 modal 內容
+            const contentDiv = modal.querySelector(".min-h-\\[200px\\]");
+            if (contentDiv) {
+              contentDiv.innerHTML = `<img src="${imageUrl}" class="max-w-full h-auto rounded-lg" />`;
+            }
+          } catch (error) {
+            console.error("加載收據失敗:", error);
+            const contentDiv = modal.querySelector(".min-h-\\[200px\\]");
+            if (contentDiv) {
+              contentDiv.innerHTML = `
+                <div class="text-center text-red-600">
+                  <i class="fa fa-exclamation-circle text-4xl mb-2"></i>
+                  <p>無法加載收據圖片</p>
+                </div>
+              `;
+            }
+          }
         }
 
         // 確認收款（付款人確認收到其他人的付款）

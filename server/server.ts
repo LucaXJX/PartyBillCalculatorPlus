@@ -69,7 +69,9 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // 中間件：用戶認證
 const authenticateUser = async (req: any, res: any, next: any) => {
   const sessionId =
-    req.headers.authorization?.replace("Bearer ", "") || req.cookies?.sessionId;
+    req.headers.authorization?.replace("Bearer ", "") ||
+    req.headers["x-session-id"] ||
+    req.cookies?.sessionId;
 
   if (!sessionId) {
     return res.status(401).json({ error: "未授權訪問" });
