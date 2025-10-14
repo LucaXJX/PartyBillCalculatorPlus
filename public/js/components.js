@@ -96,12 +96,10 @@ class ComponentManager {
                 </button>
                 <!-- 下拉菜單 -->
                 <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
-                  <a href="#" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
-                    <i class="fa fa-user-o mr-2"></i>個人資料
-                  </a>
-                  <a href="#" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
+                  <a href="/settings.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
                     <i class="fa fa-cog mr-2"></i>設置
                   </a>
+                  <div class="text-xs text-gray-500 px-4 py-1">修改密碼、用戶名、郵箱</div>
                   <div class="border-t border-gray-100 my-1"></div>
                   <a href="#" id="logout-btn" class="block px-4 py-2 text-red-500 hover:bg-red-50 transition-colors">
                     <i class="fa fa-sign-out mr-2"></i>退出登入
