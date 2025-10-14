@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Footer 測試 - PBC聚賬通</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --primary: #4f46e5;
+        --primary-light: #e0e7ff;
+        --dark: #1f2937;
+        --light: #f8fafc;
+      }
+
+      .text-primary {
+        color: var(--primary);
+      }
+
+      .bg-primary {
+        background-color: var(--primary);
+      }
+
+      .bg-light {
+        background-color: var(--light);
+      }
+
+      .text-dark {
+        color: var(--dark);
+      }
+    </style>
+  </head>
+
+  <body
+    class="font-sans text-dark bg-gray-50 min-h-screen"
+    style="background-color: #f9fafb"
+  >
+    <!-- Header 將由 JavaScript 動態插入 -->
+
+    <!-- 主要內容 -->
+    <main class="pt-24 pb-20">
+      <section class="container mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+          <h1 class="text-3xl font-bold mb-4 text-dark">
+            Footer <span class="text-primary">測試</span>
+          </h1>
+          <p class="text-gray-600 max-w-2xl mx-auto text-lg">
+            測試 Footer 的深色背景是否正確顯示
+          </p>
+        </div>
+
+        <div class="max-w-4xl mx-auto">
+          <div class="bg-white rounded-2xl shadow-xl p-8">
+            <h2 class="text-2xl font-bold mb-6">測試內容</h2>
+
+            <div class="space-y-4">
+              <div class="bg-gray-50 rounded-lg p-4">
+                <h3 class="text-lg font-semibold mb-2">背景色測試</h3>
+                <p>如果您能看到這段文字，說明頁面的主要內容是正常的。</p>
+                <p class="mt-2 text-sm text-gray-600">
+                  Body 背景色：<code class="bg-gray-200 px-2 py-1 rounded"
+                    >#f9fafb</code
+                  >
+                </p>
+              </div>
+
+              <div class="bg-blue-50 rounded-lg p-4">
+                <h3 class="text-lg font-semibold mb-2">Footer 預期效果</h3>
+                <p>
+                  Footer 應該顯示深色背景：<code
+                    class="bg-gray-200 px-2 py-1 rounded"
+                    >#1f2937</code
+                  >
+                </p>
+                <p class="mt-2 text-sm text-gray-600">
+                  如果 Footer 背景是深色的，說明修復成功！
+                </p>
+              </div>
+
+              <div class="bg-green-50 rounded-lg p-4">
+                <h3 class="text-lg font-semibold mb-2">對比測試</h3>
+                <div class="flex space-x-4">
+                  <div class="bg-gray-200 p-4 rounded">
+                    <p class="text-sm">淺色背景</p>
+                    <p class="text-xs text-gray-600">#f3f4f6</p>
+                  </div>
+                  <div class="bg-gray-800 text-white p-4 rounded">
+                    <p class="text-sm">深色背景</p>
+                    <p class="text-xs text-gray-300">#1f2937</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer 將由 JavaScript 動態插入 -->
+
+    <!-- 引入必要的腳本 -->
+    <script src="/js/auth.js"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/page-setup.js"></script>
+
+    <script type="module">
+      // 頁面初始化
+      document.addEventListener("DOMContentLoaded", async () => {
+        try {
+          // 設置頁面組件（不需要認證）
+          const pageInitialized = await window.pageSetup.init({
+            currentPage: "test-footer",
+            requireAuth: false,
+            showHeader: true,
+            showFooter: true,
+          });
+
+          if (pageInitialized) {
+            console.log("Footer 測試頁面初始化成功");
+
+            // 設置頁面特定功能
+            window.pageSetup.setupPageFeatures({
+              updateUserDisplay: false,
+              setupLogout: false,
+              setupAuthCheck: false,
+            });
+
+            console.log("Footer 測試頁面功能設置完成");
+          } else {
+            console.log("Footer 測試頁面初始化失敗");
+          }
+        } catch (error) {
+          console.error("Footer 測試頁面初始化錯誤:", error);
+        }
+      });
+    </script>
+  </body>
+</html>

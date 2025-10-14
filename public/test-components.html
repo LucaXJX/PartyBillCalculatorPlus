@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>組件系統測試 - PBC聚賬通</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --primary: #4f46e5;
+        --primary-light: #e0e7ff;
+        --dark: #1f2937;
+        --light: #f8fafc;
+      }
+
+      .text-primary {
+        color: var(--primary);
+      }
+
+      .bg-primary {
+        background-color: var(--primary);
+      }
+
+      .bg-light {
+        background-color: var(--light);
+      }
+
+      .text-dark {
+        color: var(--dark);
+      }
+
+      .input-focus:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+      }
+
+      .btn-primary {
+        background-color: var(--primary);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+      }
+
+      .btn-primary:hover {
+        background-color: #3730a3;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+      }
+
+      .btn-secondary {
+        background-color: #f3f4f6;
+        color: var(--dark);
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: 1px solid #d1d5db;
+        cursor: pointer;
+      }
+
+      .btn-secondary:hover {
+        background-color: #e5e7eb;
+        transform: translateY(-1px);
+      }
+    </style>
+  </head>
+
+  <body class="font-sans text-dark bg-gray-50 min-h-screen">
+    <!-- Header 將由 JavaScript 動態插入 -->
+
+    <!-- 主要內容 -->
+    <main class="pt-24 pb-20">
+      <section class="container mx-auto px-4 sm:px-6 lg:px-8">
+        <!-- 頁面標題 -->
+        <div class="text-center mb-12">
+          <h1 class="text-[clamp(1.8rem,4vw,2.5rem)] font-bold mb-4 text-dark">
+            組件系統<span class="text-primary">測試</span>
+          </h1>
+          <p class="text-gray-600 max-w-2xl mx-auto text-lg">
+            測試統一的 Header 和 Footer 組件系統
+          </p>
+        </div>
+
+        <!-- 測試內容 -->
+        <div class="max-w-4xl mx-auto">
+          <div class="bg-white rounded-2xl shadow-xl p-8">
+            <h2 class="text-2xl font-bold mb-6">組件系統狀態</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div class="bg-gray-50 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4">認證狀態</h3>
+                <div id="auth-status" class="space-y-2">
+                  <p>檢查中...</p>
+                </div>
+              </div>
+
+              <div class="bg-gray-50 rounded-lg p-6">
+                <h3 class="text-lg font-semibold mb-4">組件狀態</h3>
+                <div id="component-status" class="space-y-2">
+                  <p>檢查中...</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-lg p-6">
+              <h3 class="text-lg font-semibold mb-4">測試功能</h3>
+              <div class="flex flex-wrap gap-4">
+                <button id="test-header" class="btn-primary">
+                  <i class="fa fa-header mr-2"></i>測試 Header
+                </button>
+                <button id="test-footer" class="btn-primary">
+                  <i class="fa fa-footer mr-2"></i>測試 Footer
+                </button>
+                <button id="test-auth" class="btn-secondary">
+                  <i class="fa fa-user mr-2"></i>測試認證
+                </button>
+                <button id="test-navigation" class="btn-secondary">
+                  <i class="fa fa-navicon mr-2"></i>測試導航
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-8">
+              <h3 class="text-lg font-semibold mb-4">日誌輸出</h3>
+              <div
+                id="log-output"
+                class="bg-black text-green-400 p-4 rounded-lg font-mono text-sm h-48 overflow-y-auto"
+              >
+                <p>等待日誌輸出...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer 將由 JavaScript 動態插入 -->
+
+    <!-- 引入必要的腳本 -->
+    <script src="/js/auth.js"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/page-setup.js"></script>
+
+    <script type="module">
+      // 日誌函數
+      function log(message) {
+        const logOutput = document.getElementById("log-output");
+        const timestamp = new Date().toLocaleTimeString();
+        logOutput.innerHTML += `<p>[${timestamp}] ${message}</p>`;
+        logOutput.scrollTop = logOutput.scrollHeight;
+      }
+
+      // 頁面初始化
+      document.addEventListener("DOMContentLoaded", async () => {
+        log("開始頁面初始化...");
+
+        try {
+          // 設置頁面組件
+          const pageInitialized = await window.pageSetup.init({
+            currentPage: "test",
+            requireAuth: false, // 測試頁面不需要認證
+            showHeader: true,
+            showFooter: true,
+          });
+
+          if (pageInitialized) {
+            log("頁面組件初始化成功");
+
+            // 設置頁面特定功能
+            window.pageSetup.setupPageFeatures({
+              updateUserDisplay: true,
+              setupLogout: true,
+              setupAuthCheck: false, // 測試頁面不需要認證檢查
+            });
+
+            log("頁面功能設置完成");
+
+            // 更新狀態顯示
+            updateStatusDisplay();
+
+            // 設置測試按鈕
+            setupTestButtons();
+          } else {
+            log("頁面組件初始化失敗");
+          }
+        } catch (error) {
+          log(`初始化錯誤: ${error.message}`);
+          console.error("頁面初始化錯誤:", error);
+        }
+      });
+
+      // 更新狀態顯示
+      function updateStatusDisplay() {
+        // 認證狀態
+        const authStatus = document.getElementById("auth-status");
+        if (window.authManager) {
+          const isAuth = window.authManager.isAuthenticated();
+          const user = window.authManager.getCurrentUser();
+          authStatus.innerHTML = `
+            <p><strong>認證狀態:</strong> ${isAuth ? "已認證" : "未認證"}</p>
+            <p><strong>用戶:</strong> ${user ? user.username : "無"}</p>
+            <p><strong>會話ID:</strong> ${
+              window.authManager.getSessionId() || "無"
+            }</p>
+          `;
+        } else {
+          authStatus.innerHTML = '<p class="text-red-600">認證管理器未加載</p>';
+        }
+
+        // 組件狀態
+        const componentStatus = document.getElementById("component-status");
+        if (window.componentManager) {
+          const components = Array.from(
+            window.componentManager.components.keys()
+          );
+          componentStatus.innerHTML = `
+            <p><strong>已加載組件:</strong> ${components.join(", ")}</p>
+            <p><strong>組件數量:</strong> ${components.length}</p>
+            <p><strong>認證管理器:</strong> ${
+              window.componentManager.authManager ? "已連接" : "未連接"
+            }</p>
+          `;
+        } else {
+          componentStatus.innerHTML =
+            '<p class="text-red-600">組件管理器未加載</p>';
+        }
+      }
+
+      // 設置測試按鈕
+      function setupTestButtons() {
+        // 測試 Header
+        document.getElementById("test-header").addEventListener("click", () => {
+          log("測試 Header 組件...");
+          try {
+            window.componentManager.render("header", "body", {
+              currentPage: "test",
+              showCalculator: true,
+              showMyBills: true,
+              showContact: true,
+            });
+            log("Header 組件重新渲染成功");
+            updateStatusDisplay();
+          } catch (error) {
+            log(`Header 測試失敗: ${error.message}`);
+          }
+        });
+
+        // 測試 Footer
+        document.getElementById("test-footer").addEventListener("click", () => {
+          log("測試 Footer 組件...");
+          try {
+            window.componentManager.render("footer", "body");
+            log("Footer 組件重新渲染成功");
+            updateStatusDisplay();
+          } catch (error) {
+            log(`Footer 測試失敗: ${error.message}`);
+          }
+        });
+
+        // 測試認證
+        document.getElementById("test-auth").addEventListener("click", () => {
+          log("測試認證功能...");
+          if (window.authManager) {
+            const isAuth = window.authManager.isAuthenticated();
+            log(`當前認證狀態: ${isAuth ? "已認證" : "未認證"}`);
+
+            if (isAuth) {
+              const user = window.authManager.getCurrentUser();
+              log(`當前用戶: ${user.username} (${user.email})`);
+            }
+          } else {
+            log("認證管理器不可用");
+          }
+        });
+
+        // 測試導航
+        document
+          .getElementById("test-navigation")
+          .addEventListener("click", () => {
+            log("測試導航功能...");
+            const navLinks = document.querySelectorAll("nav a");
+            log(`找到 ${navLinks.length} 個導航鏈接`);
+
+            navLinks.forEach((link, index) => {
+              log(
+                `導航鏈接 ${index + 1}: ${link.textContent.trim()} -> ${
+                  link.href
+                }`
+              );
+            });
+          });
+      }
+    </script>
+  </body>
+</html>
