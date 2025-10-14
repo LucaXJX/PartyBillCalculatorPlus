@@ -181,6 +181,17 @@ app.post("/api/auth/logout", async (req, res) => {
 });
 
 // 獲取當前用戶信息
+app.get("/api/me", authenticateUser, (req: any, res) => {
+  res.status(200).json({
+    user: {
+      id: req.user.id,
+      username: req.user.username,
+      email: req.user.email,
+    },
+  });
+});
+
+// 獲取當前用戶信息
 app.get("/api/auth/me", authenticateUser, (req: any, res) => {
   res.status(200).json({
     user: {
