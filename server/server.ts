@@ -328,7 +328,7 @@ app.post("/api/item", authenticateUser, (req: any, res) => {
   // 如果是共享項目且沒有指定參與者，自動包含所有參與者
   if (isShared && finalParticipantIds.length === 0) {
     const currentBill = req.userDataManager.getCurrentBill();
-    finalParticipantIds = currentBill.participants.map((p) => p.id);
+    finalParticipantIds = currentBill.participants.map((p: any) => p.id);
   }
 
   if (finalParticipantIds.length === 0) {
