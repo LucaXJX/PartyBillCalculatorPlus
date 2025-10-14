@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>登錄測試 - PBC聚賬通</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <style>
+      :root {
+        --primary: #4f46e5;
+        --primary-light: #e0e7ff;
+        --dark: #1f2937;
+        --light: #f8fafc;
+      }
+
+      .text-primary {
+        color: var(--primary);
+      }
+
+      .bg-primary {
+        background-color: var(--primary);
+      }
+
+      .bg-light {
+        background-color: var(--light);
+      }
+
+      .text-dark {
+        color: var(--dark);
+      }
+
+      .input-focus:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+      }
+
+      .btn-primary {
+        background-color: var(--primary);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+      }
+
+      .btn-primary:hover {
+        background-color: #3730a3;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+      }
+    </style>
+  </head>
+
+  <body class="font-sans text-dark bg-gray-50 min-h-screen">
+    <div class="min-h-screen flex items-center justify-center">
+      <div class="max-w-md w-full space-y-8">
+        <div>
+          <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            登錄測試
+          </h2>
+          <p class="mt-2 text-center text-sm text-gray-600">
+            使用測試用戶登錄以測試組件系統
+          </p>
+        </div>
+
+        <div class="bg-white p-8 rounded-lg shadow-md">
+          <div class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >郵箱</label
+              >
+              <input
+                type="email"
+                id="email"
+                value="test@example.com"
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                placeholder="輸入郵箱"
+              />
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-gray-700"
+                >密碼</label
+              >
+              <input
+                type="password"
+                id="password"
+                value="123456"
+                class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md input-focus"
+                placeholder="輸入密碼"
+              />
+            </div>
+
+            <div>
+              <button id="login-btn" class="w-full btn-primary">登錄</button>
+            </div>
+
+            <div id="login-status" class="text-center text-sm"></div>
+          </div>
+        </div>
+
+        <div class="text-center">
+          <a href="/test-simple.html" class="text-primary hover:underline">
+            訪問簡單測試頁面（無需登錄）
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document
+        .getElementById("login-btn")
+        .addEventListener("click", async () => {
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+          const statusDiv = document.getElementById("login-status");
+
+          try {
+            const response = await fetch("/api/auth/login", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ email, password }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+              statusDiv.innerHTML =
+                '<span class="text-green-600">登錄成功！</span>';
+
+              // 保存用戶信息到 localStorage
+              localStorage.setItem("sessionId", data.sessionId);
+              localStorage.setItem("user", JSON.stringify(data.user));
+
+              // 延遲跳轉到 calculator 頁面
+              setTimeout(() => {
+                window.location.href = "/calculator.html";
+              }, 1000);
+            } else {
+              statusDiv.innerHTML = `<span class="text-red-600">登錄失敗: ${data.error}</span>`;
+            }
+          } catch (error) {
+            statusDiv.innerHTML = `<span class="text-red-600">登錄錯誤: ${error.message}</span>`;
+          }
+        });
+    </script>
+  </body>
+</html>

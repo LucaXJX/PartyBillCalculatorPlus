@@ -1,148 +1,89 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/img/icon32x32.png" sizes="16x16" />
-    <title>智能賬單計算 - PBC聚賬通</title>
-    <!-- 引入Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入Font Awesome -->
+    <title>智能計算 - PBC聚賬通</title>
     <link
-      href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"
+      href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
       rel="stylesheet"
     />
-    <!-- 使用Tailwind中的颜色和字体 -->
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              primary: "#4F46E5", // 靛藍色
-              secondary: "#EC4899", // 粉紅色
-              accent: "#F59E0B", // 琥珀色
-              light: "#F3F4F6",
-              dark: "#1F2937",
-            },
-            fontFamily: {
-              sans: ["Inter", "system-ui", "sans-serif"],
-            },
-          },
-        },
-      };
-    </script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
-    <!-- 自定義系列工具類 -->
-    <style type="text/tailwindcss">
-      @layer utilities {
-        .content-auto {
-          content-visibility: auto;
-        }
-        .text-shadow {
-          text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        .card-hover {
-          @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
-        }
-        .btn-primary {
-          @apply bg-accent text-white font-semibold py-3 px-6 rounded-full shadow-md hover:shadow-lg hover:bg-amber-600 transition-all duration-300 transform hover:-translate-y-0.5;
-        }
-        .btn-secondary {
-          @apply bg-white text-primary border border-primary font-semibold py-3 px-6 rounded-full shadow-sm hover:shadow-md hover:bg-primary/5 transition-all duration-300;
-        }
-        .input-focus {
-          @apply focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none;
-        }
+    <style>
+      :root {
+        --primary: #4f46e5;
+        --primary-light: #e0e7ff;
+        --dark: #1f2937;
+        --light: #f8fafc;
+      }
+
+      .text-primary {
+        color: var(--primary);
+      }
+
+      .bg-primary {
+        background-color: var(--primary);
+      }
+
+      .bg-light {
+        background-color: var(--light);
+      }
+
+      .text-dark {
+        color: var(--dark);
+      }
+
+      .input-focus:focus {
+        outline: none;
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+      }
+
+      .btn-primary {
+        background-color: var(--primary);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: none;
+        cursor: pointer;
+      }
+
+      .btn-primary:hover {
+        background-color: #3730a3;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+      }
+
+      .btn-secondary {
+        background-color: #f3f4f6;
+        color: var(--dark);
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+        border: 1px solid #d1d5db;
+        cursor: pointer;
+      }
+
+      .btn-secondary:hover {
+        background-color: #e5e7eb;
+        transform: translateY(-1px);
       }
     </style>
   </head>
-  <body class="font-sans text-dark bg-gray-50 min-h-screen">
-    <!-- 頂部導航欄 -->
-    <header
-      id="navbar"
-      class="fixed w-full bg-white shadow-sm z-50 transition-all duration-300"
-    >
-      <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center h-16 md:h-20">
-          <!-- 網站標誌 -->
-          <div class="flex items-center">
-            <a
-              href="/index.html"
-              id="logo-link"
-              class="flex items-center space-x-2"
-            >
-              <img
-                src="/img/icon499x499.png"
-                alt="PBC聚賬通標誌"
-                class="h-10 w-10 md:h-12 md:w-12 object-contain"
-              />
-              <span class="text-xl font-bold text-primary">PBC聚賬通</span>
-            </a>
-          </div>
-
-          <!-- 導航鏈接 - 桌面版 -->
-          <nav class="hidden md:flex items-center space-x-8">
-            <a href="#" class="text-primary font-medium">智能計算</a>
-            <a
-              href="#"
-              class="text-gray-600 hover:text-primary transition-colors"
-              >我的賬單</a
-            >
-            <a
-              href="#"
-              class="text-gray-600 hover:text-primary transition-colors"
-              >聯絡我們</a
-            >
-          </nav>
-
-          <!-- 登入/用戶信息 -->
-          <div class="flex items-center space-x-4">
-            <!-- 用戶頭像和下拉菜單 -->
-            <div class="relative group">
-              <button class="flex items-center space-x-2 focus:outline-none">
-                <img
-                  src="https://picsum.photos/100/100?random=user"
-                  alt="用戶頭像"
-                  class="w-10 h-10 rounded-full object-cover border-2 border-primary/20"
-                />
-                <span
-                  class="hidden sm:inline-block font-medium user-name-display"
-                  >陳小明</span
-                >
-                <i
-                  class="fa fa-angle-down text-gray-500 group-hover:text-primary transition-colors"
-                ></i>
-              </button>
-              <!-- 下拉菜單 -->
-              <div
-                class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2"
-              >
-                <a
-                  href="#"
-                  class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors"
-                >
-                  <i class="fa fa-user-o mr-2"></i>個人資料
-                </a>
-                <a
-                  href="#"
-                  class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors"
-                >
-                  <i class="fa fa-cog mr-2"></i>設置
-                </a>
-                <div class="border-t border-gray-100 my-1"></div>
-                <a
-                  href="#"
-                  id="logout-btn"
-                  class="block px-4 py-2 text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  <i class="fa fa-sign-out mr-2"></i>退出登入
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </header>
+  <body
+    class="font-sans text-dark bg-gray-50 min-h-screen"
+    style="background-color: #f9fafb"
+  >
+    <!-- Header 將由 JavaScript 動態插入 -->
 
     <!-- 主要內容 -->
     <main class="pt-24 pb-20">
@@ -264,6 +205,22 @@
                       class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus transition-all duration-300"
                     />
                   </div>
+                  <div class="md:col-span-2">
+                    <label
+                      for="bill-payer"
+                      class="block text-gray-700 font-medium mb-2"
+                      >付款人</label
+                    >
+                    <select
+                      id="bill-payer"
+                      class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus transition-all duration-300"
+                    >
+                      <option value="">請選擇付款人（可稍後選擇）</option>
+                    </select>
+                    <p class="text-sm text-gray-500 mt-1">
+                      選擇誰先付錢，其他人需要向此人支付相應金額
+                    </p>
+                  </div>
                 </div>
               </div>
 
@@ -310,12 +267,14 @@
               <div
                 class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 pt-6 border-t border-gray-200"
               >
+                <!-- 保存草稿按鈕已暫時移除
                 <button
                   id="save-draft-btn"
                   class="btn-secondary w-full sm:w-auto"
                 >
                   <i class="fa fa-save mr-2"></i> 保存草稿
                 </button>
+                -->
                 <button id="calculate-btn" class="btn-primary w-full sm:w-auto">
                   <i class="fa fa-calculator mr-2"></i> 開始計算
                 </button>
@@ -326,105 +285,7 @@
       </section>
     </main>
 
-    <!-- 頁腳 -->
-    <footer class="bg-dark text-white pt-12 pb-8">
-      <div class="container mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <!-- web info -->
-          <div>
-            <div class="flex items-center space-x-2 mb-4">
-              <i class="fa fa-calculator text-primary text-2xl"></i>
-              <span class="text-xl font-bold">PBC聚賬通</span>
-            </div>
-            <p class="text-gray-400 mb-4">
-              讓聚會帳單分攤變得簡單公平，提升社交體驗的必備工具。
-            </p>
-          </div>
-
-          <!-- 快速連結 -->
-          <div>
-            <h4 class="text-lg font-semibold mb-4">快速連結</h4>
-            <ul class="space-y-2">
-              <li>
-                <a
-                  href="/index.html"
-                  class="text-gray-400 hover:text-white transition-colors"
-                  >首頁</a
-                >
-              </li>
-              <li>
-                <a
-                  href="#"
-                  class="text-gray-400 hover:text-white transition-colors"
-                  >智能計算</a
-                >
-              </li>
-              <li>
-                <a
-                  href="#"
-                  class="text-gray-400 hover:text-white transition-colors"
-                  >我的賬單</a
-                >
-              </li>
-              <li>
-                <a
-                  href="#"
-                  class="text-gray-400 hover:text-white transition-colors"
-                  >聯絡我們</a
-                >
-              </li>
-            </ul>
-          </div>
-
-          <!-- 法律信息 -->
-          <div>
-            <h4 class="text-lg font-semibold mb-4">法律信息</h4>
-            <ul class="space-y-2">
-              <li>
-                <a
-                  href="/privacy-policy.html"
-                  class="text-gray-400 hover:text-white transition-colors"
-                  >個人資料私隱政策</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/disclaimer.html"
-                  class="text-gray-400 hover:text-white transition-colors"
-                  >免責條例</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/copyright.html"
-                  class="text-gray-400 hover:text-white transition-colors"
-                  >版權聲明</a
-                >
-              </li>
-            </ul>
-          </div>
-
-          <!-- 聯絡我們 -->
-          <div>
-            <h4 class="text-lg font-semibold mb-4">聯絡我們</h4>
-            <ul class="space-y-2">
-              <li class="flex items-start">
-                <i class="fa fa-envelope-o text-gray-400 mt-1 mr-3"></i>
-                <span class="text-gray-400">support@pbcapp.com</span>
-              </li>
-              <li class="flex items-start">
-                <i class="fa fa-phone text-gray-400 mt-1 mr-3"></i>
-                <span class="text-gray-400">852-1234-5678</span>
-              </li>
-            </ul>
-          </div>
-        </div>
-
-        <div class="border-t border-gray-800 pt-6 text-center text-gray-500">
-          <p>&copy; 2025 PBC聚賬通. 保留所有權利</p>
-        </div>
-      </div>
-    </footer>
+    <!-- Footer 將由 JavaScript 動態插入 -->
 
     <!-- 用戶搜尋模態框 -->
     <div
@@ -510,6 +371,12 @@
                 <i class="fa fa-users text-primary mr-3 w-5 text-center"></i>
                 <span id="result-bill-participants">2位參與者</span>
               </div>
+              <div class="flex items-center">
+                <i
+                  class="fa fa-credit-card text-primary mr-3 w-5 text-center"
+                ></i>
+                <span id="result-bill-payer">未指定付款人</span>
+              </div>
             </div>
           </div>
 
@@ -570,60 +437,59 @@
       </div>
     </div>
 
-    <!-- 引入認證管理器 -->
+    <!-- 引入必要的腳本 -->
     <script src="/js/auth.js"></script>
-    <!-- 引入html2canvas -->
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/page-setup.js"></script>
+
     <script type="module">
-      // 移除所有 import 語句
+      // 頁面初始化
+      document.addEventListener("DOMContentLoaded", async () => {
+        // 設置頁面組件
+        const pageInitialized = await window.pageSetup.init({
+          currentPage: "calculator",
+          requireAuth: true,
+          showHeader: true,
+          showFooter: true,
+        });
 
-      // 使用全局認證管理器
-      const authManager = window.authManager;
-      let currentUser = authManager.getCurrentUser();
-      let sessionId = authManager.getSessionId();
-
-      // 檢查用戶認證狀態
-      const checkAuth = () => {
-        if (!authManager.isAuthenticated()) {
-          // 未登入，重定向到登入頁面
-          authManager.redirectToLogin();
-          return false;
+        if (!pageInitialized) {
+          return; // 認證失敗，頁面會重定向
         }
 
-        currentUser = authManager.getCurrentUser();
-        sessionId = authManager.getSessionId();
-        return true;
-      };
+        // 設置頁面特定功能
+        window.pageSetup.setupPageFeatures({
+          updateUserDisplay: true,
+          setupLogout: true,
+          setupAuthCheck: true,
+        });
 
-      // 使用認證管理器的fetch方法
-      const authenticatedFetch =
-        authManager.authenticatedFetch.bind(authManager);
+        // 使用全局認證管理器
+        const authManager = window.authManager;
+        let currentUser = authManager.getCurrentUser();
+        let sessionId = authManager.getSessionId();
 
-      // DOM元素
-      const billNameInput = document.getElementById("bill-name");
-      const billDateInput = document.getElementById("bill-date");
-      const billLocationInput = document.getElementById("bill-location");
-      const billTipInput = document.getElementById("bill-tip");
-      const participantsContainer = document.getElementById(
-        "participants-container"
-      );
-      const itemsContainer = document.getElementById("items-container");
-      const addPersonBtn = document.getElementById("add-person-btn");
-      const addItemBtn = document.getElementById("add-item-btn");
-      const calculateBtn = document.getElementById("calculate-btn");
-      const saveDraftBtn = document.getElementById("save-draft-btn");
-      const resultModal = document.getElementById("result-modal");
-      const closeModalBtn = document.getElementById("close-modal-btn");
-      const saveResultBtn = document.getElementById("save-result-btn");
+        // 使用認證管理器的fetch方法
+        const authenticatedFetch =
+          authManager.authenticatedFetch.bind(authManager);
 
-      // 初始化
-      if (!checkAuth()) {
-        // 如果未認證，頁面會重定向，不需要繼續執行
-        console.log("用戶未認證，頁面將重定向");
-        // 在模塊中不能使用return，改用條件執行
-      } else {
-        // 更新用戶信息顯示
-        authManager.updateUserDisplay();
+        // DOM元素
+        const billNameInput = document.getElementById("bill-name");
+        const billDateInput = document.getElementById("bill-date");
+        const billLocationInput = document.getElementById("bill-location");
+        const billTipInput = document.getElementById("bill-tip");
+        const billPayerSelect = document.getElementById("bill-payer");
+        const participantsContainer = document.getElementById(
+          "participants-container"
+        );
+        const itemsContainer = document.getElementById("items-container");
+        const addPersonBtn = document.getElementById("add-person-btn");
+        const addItemBtn = document.getElementById("add-item-btn");
+        const calculateBtn = document.getElementById("calculate-btn");
+        // const saveDraftBtn = document.getElementById("save-draft-btn"); // 已暫時移除
+        const resultModal = document.getElementById("result-modal");
+        const closeModalBtn = document.getElementById("close-modal-btn");
+        const saveResultBtn = document.getElementById("save-result-btn");
 
         // 初始化日期為今天
         billDateInput.value = new Date().toISOString().split("T")[0];
@@ -643,6 +509,7 @@
             date: billDateInput.value,
             location: billLocationInput.value,
             tipPercentage: parseInt(billTipInput.value) || 0,
+            payerId: billPayerSelect.value || undefined,
           };
           try {
             const response = await authenticatedFetch("/api/bill/info", {
@@ -699,6 +566,7 @@
                 newParticipant.remove();
                 // 刪除參與者後，更新所有項目的參與者標籤
                 updateParticipantTags();
+                updatePayerSelect();
               }, 300);
             });
 
@@ -728,6 +596,7 @@
                 inputField.value = participant.name;
                 // 更新所有項目的參與者標籤
                 updateParticipantTags();
+                updatePayerSelect();
               } catch (error) {
                 console.error("Error adding participant:", error);
                 alert("添加參與者時出錯，請查看控制台");
@@ -887,6 +756,19 @@
             "result-bill-participants"
           ).textContent = `${bill.participants.length}位參與者`;
 
+          // 顯示付款人信息
+          const payerInfo = document.getElementById("result-bill-payer");
+          if (payerInfo) {
+            if (bill.payerId) {
+              const payer = bill.participants.find(
+                (p) => p.id === bill.payerId
+              );
+              payerInfo.textContent = payer ? payer.name : "未知付款人";
+            } else {
+              payerInfo.textContent = "未指定付款人";
+            }
+          }
+
           // 更新費用明細表格
           const itemsTableBody = document.getElementById("result-items-table");
           itemsTableBody.innerHTML = "";
@@ -941,18 +823,45 @@
             if (participant && participant.name && participant.name.trim()) {
               const participantCard = document.createElement("div");
               participantCard.className = "bg-light rounded-lg p-4";
+              const isPayer = bill.payerId === participant.id;
+              const paymentStatus = result.paymentStatus || "pending";
+              const statusColor =
+                paymentStatus === "paid" ? "text-green-600" : "text-orange-600";
+              const statusText = paymentStatus === "paid" ? "已支付" : "待支付";
+              const statusIcon =
+                paymentStatus === "paid" ? "fa-check-circle" : "fa-clock";
+
               participantCard.innerHTML = `
               <div class="flex justify-between items-center">
                 <div>
-                  <h5 class="font-semibold text-gray-800">${participant.name.trim()}</h5>
+                  <div class="flex items-center gap-2">
+                    <h5 class="font-semibold text-gray-800">${participant.name.trim()}</h5>
+                    ${
+                      isPayer
+                        ? '<span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">付款人</span>'
+                        : ""
+                    }
+                  </div>
                   <p class="text-sm text-gray-600">${
                     result.breakdown || "無明細"
                   }</p>
+                  <div class="flex items-center gap-1 mt-1">
+                    <i class="fa ${statusIcon} ${statusColor} text-xs"></i>
+                    <span class="text-xs ${statusColor}">${statusText}</span>
+                  </div>
                 </div>
                 <div class="text-right">
                   <span class="text-xl font-bold text-primary">$${result.amount.toFixed(
                     2
                   )}</span>
+                  ${
+                    !isPayer
+                      ? `<p class="text-xs text-gray-500 mt-1">需支付給 ${
+                          bill.participants.find((p) => p.id === bill.payerId)
+                            ?.name || "付款人"
+                        }</p>`
+                      : ""
+                  }
                 </div>
               </div>
             `;
@@ -1056,7 +965,8 @@
           }
         });
 
-        // 保存草稿功能
+        // 保存草稿功能已暫時移除
+        /*
         saveDraftBtn.addEventListener("click", async () => {
           try {
             await updateBillInfo();
@@ -1066,6 +976,7 @@
             alert("保存草稿時出錯");
           }
         });
+        */
 
         // 保存結果功能
         saveResultBtn.addEventListener("click", async () => {
@@ -1162,6 +1073,38 @@
             }
           });
         });
+
+        // 更新付款人選擇框
+        function updatePayerSelect() {
+          const participantItems =
+            participantsContainer.querySelectorAll(".participant-item");
+          const participants = Array.from(participantItems)
+            .map((item) => {
+              const input = item.querySelector("input");
+              const name = item.dataset.participantName || input.value.trim();
+              const id = item.dataset.participantId;
+              if (!name || name.length === 0 || !id) return null;
+              return { name, id };
+            })
+            .filter((p) => p !== null);
+
+          // 保存當前選擇
+          const currentPayerId = billPayerSelect.value;
+
+          // 清空並重新填充選項
+          billPayerSelect.innerHTML =
+            '<option value="">請選擇付款人（可稍後選擇）</option>';
+
+          participants.forEach((participant) => {
+            const option = document.createElement("option");
+            option.value = participant.id;
+            option.textContent = participant.name;
+            if (participant.id === currentPayerId) {
+              option.selected = true;
+            }
+            billPayerSelect.appendChild(option);
+          });
+        }
 
         // 更新參與者選擇標籤的函數
         function updateParticipantTags() {
@@ -1284,6 +1227,7 @@
                 // 更新輸入框的值為服務器返回的完整名稱
                 input.value = participant.name;
                 updateParticipantTags();
+                updatePayerSelect();
               }
             } catch (error) {
               console.error("Error creating participant:", error);
@@ -1293,12 +1237,14 @@
             participantItem.dataset.participantId = "";
             participantItem.dataset.participantName = "";
             updateParticipantTags();
+            updatePayerSelect();
           } else {
             // 更新名字 - 只有在沒有ID的情況下才更新dataset
             if (!participantItem.dataset.participantId) {
               participantItem.dataset.participantName = name;
             }
             updateParticipantTags();
+            updatePayerSelect();
           }
         });
 
@@ -1311,12 +1257,10 @@
               participantItem.remove();
               // 刪除參與者後，更新所有項目的參與者標籤
               updateParticipantTags();
+              updatePayerSelect();
             }, 300);
           });
         });
-
-        // 設置登出功能
-        authManager.setupLogoutButton();
 
         // 用戶搜尋功能
         let currentParticipantItem = null;
@@ -1424,6 +1368,8 @@
 
               // 更新所有項目的參與者標籤
               updateParticipantTags();
+              // 更新付款人選擇框
+              updatePayerSelect();
               closeUserSearch();
             }
           } catch (error) {
@@ -1511,7 +1457,7 @@
           // 添加初始項目
           addItemBtn.click();
         }, 100);
-      } // 結束 else 塊
+      });
     </script>
   </body>
 </html>
