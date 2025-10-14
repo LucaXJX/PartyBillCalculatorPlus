@@ -21,10 +21,10 @@ const PORT = process.env.PORT || 3000;
 // 初始化計算器 (這將在服務器內存中維護狀態)
 const calculator = new BillCalculator();
 
-// 配置multer用於文件上傳
+// 配置multer用於文件上傳（存儲在私有目錄）
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, "../public/uploads/receipts");
+    const uploadDir = path.join(__dirname, "../data/receipts");
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -268,10 +268,10 @@ app.post(
         return res.status(400).json({ error: "缺少必要參數" });
       }
 
-      // 處理文件上傳
+      // 處理文件上傳（保存相對路徑，不暴露在public目錄）
       let receiptImageUrl = null;
       if (req.file) {
-        receiptImageUrl = `/uploads/receipts/${req.file.filename}`;
+        receiptImageUrl = `/receipts/${req.file.filename}`;
       }
 
       await dataStorage.updatePaymentStatus(
@@ -288,6 +288,38 @@ app.post(
   }
 );
 
+// 上傳收據圖片（付款人上傳付款憑證或其他參與者上傳付款憑證）
+app.post(
+  "/api/receipt/upload",
+  authenticateUser,
+  upload.single("receipt"),
+  async (req: any, res) => {
+    try {
+      const { billId, type } = req.body;
+
+      if (!billId || !req.file) {
+        return res.status(400).json({ error: "缺少必要參數或文件" });
+      }
+
+      const receiptImageUrl = `/receipts/${req.file.filename}`;
+
+      // 根據類型處理不同的邏輯
+      if (type === "payer") {
+        // 付款人上傳付款憑證
+        await dataStorage.updateBillReceipt(billId, receiptImageUrl);
+      }
+
+      res.status(200).json({
+        message: "收據已上傳",
+        receiptUrl: receiptImageUrl,
+      });
+    } catch (error) {
+      console.error("上傳收據失敗:", error);
+      res.status(500).json({ error: "上傳收據失敗" });
+    }
+  }
+);
+
 // 確認收款（付款人確認收到其他人的付款）
 app.post(
   "/api/bill/confirm-payment",
@@ -300,8 +332,9 @@ app.post(
         return res.status(400).json({ error: "缺少必要參數" });
       }
 
-      // 這裡可以添加確認收款的邏輯
-      // 例如：更新收款確認狀態，發送通知等
+      // 更新收款確認狀態
+      await dataStorage.confirmPayment(billId, participantId, confirmed);
+
       console.log(
         `用戶 ${req.userId} 確認${
           confirmed ? "收到" : "未收到"
@@ -361,6 +394,15 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
   try {
     const bill = req.userDataManager.getCurrentBill();
     const results = calculator.calculate(bill);
+
+    // 如果有付款人，自動將付款人的狀態設置為已付款
+    if (bill.payerId) {
+      const payerResult = results.find((r) => r.participantId === bill.payerId);
+      if (payerResult) {
+        payerResult.paymentStatus = "paid";
+        payerResult.paidAt = new Date().toISOString();
+      }
+    }
 
     const billRecord: BillRecord = {
       ...bill,
@@ -479,6 +521,19 @@ const protectPage = (pageType: "public" | "protected" | "auth") => {
     next();
   };
 };
+
+// 受保護的收據圖片訪問路由（需要認證）
+app.get("/receipts/:filename", authenticateUser, (req: any, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, "../data/receipts", filename);
+
+  // 檢查文件是否存在
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ error: "收據不存在" });
+  }
+});
 
 // 設置靜態文件目錄，只暴露 public 目錄
 app.use(express.static(path.join(__dirname, "../public")));

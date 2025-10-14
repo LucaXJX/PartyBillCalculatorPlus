@@ -8,6 +8,11 @@ dist/
 package-lock.json
 pnpm-lock.yaml
 data*/
+data/receipts/
+
+# 測試文件
+test-api.js
+test-api.cjs
 
 # 文檔目錄 - 保留文檔文件
 !docs/

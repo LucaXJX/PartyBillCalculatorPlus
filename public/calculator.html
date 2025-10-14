@@ -412,6 +412,46 @@
             </div>
           </div>
 
+          <!-- 付款人上傳收據區域 -->
+          <div
+            id="payer-receipt-section"
+            class="mb-6 p-4 bg-blue-50 rounded-lg"
+            style="display: none"
+          >
+            <h4 class="text-lg font-semibold mb-3 text-blue-800">
+              <i class="fa fa-camera mr-2"></i>付款憑證上傳（付款人專用）
+            </h4>
+            <p class="text-sm text-gray-600 mb-3">
+              作為付款人，您可以上傳付款憑證（如收據、發票照片），最多6張圖片。
+            </p>
+            <div class="flex items-center space-x-4">
+              <input
+                type="file"
+                id="payer-receipt-input"
+                accept="image/*"
+                multiple
+                class="hidden"
+              />
+              <button
+                id="upload-payer-receipt-btn"
+                class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                <i class="fa fa-camera mr-2"></i>選擇圖片（最多6張）
+              </button>
+              <span
+                id="receipt-file-count"
+                class="text-sm text-gray-600"
+              ></span>
+            </div>
+            <div
+              id="receipt-preview-container"
+              class="mt-3 grid grid-cols-3 gap-3"
+              style="display: none"
+            >
+              <!-- 圖片預覽將在這裡顯示 -->
+            </div>
+          </div>
+
           <div
             class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 pt-6 border-t border-gray-200"
           >
@@ -422,12 +462,14 @@
               <i class="fa fa-print mr-2"></i> 列印報告
             </button>
             <div class="flex space-x-4 w-full sm:w-auto">
+              <!-- 上傳賬單按鈕已註釋（通過保存賬單自動上傳）
               <button
                 class="btn-secondary w-full sm:w-auto"
-                onclick="alert('上傳功能即將推出')"
+                id="upload-bill-btn"
               >
                 <i class="fa fa-upload mr-2"></i> 上傳賬單
               </button>
+              -->
               <button id="save-result-btn" class="btn-primary w-full sm:w-auto">
                 <i class="fa fa-save mr-2"></i> 保存賬單
               </button>
@@ -494,11 +536,71 @@
         // 初始化日期為今天
         billDateInput.value = new Date().toISOString().split("T")[0];
 
-        // 當頁面加載時，重置服務器上的賬單狀態
+        // 當頁面加載時，重置服務器上的賬單狀態並初始化默認值
         authenticatedFetch("/api/bill/reset", { method: "POST" })
           .then((response) => (response ? response.json() : null))
-          .then((data) => (data ? console.log(data.message) : null))
+          .then((data) => {
+            if (data) {
+              console.log(data.message);
+              // 初始化默認設置
+              initializeDefaults();
+            }
+          })
           .catch((error) => console.error("Error resetting bill:", error));
+
+        // 初始化默認設置
+        async function initializeDefaults() {
+          try {
+            const currentUser = window.authManager.getCurrentUser();
+            if (!currentUser) return;
+
+            // 1. 添加當前用戶為第一個參與者
+            const response1 = await authenticatedFetch("/api/participant", {
+              method: "POST",
+              body: JSON.stringify({ name: currentUser.username }),
+            });
+
+            if (response1 && response1.ok) {
+              const participant1 = await response1.json();
+
+              // 創建第一個參與者UI（當前用戶）
+              const participant1Div = document.createElement("div");
+              participant1Div.className =
+                "participant-item flex items-center p-4 bg-light rounded-lg";
+              participant1Div.dataset.participantId = participant1.id;
+              participant1Div.dataset.participantName = participant1.name;
+              participant1Div.innerHTML = `
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4 cursor-pointer hover:bg-primary/20 transition-colors user-avatar-btn" title="點擊搜索用戶">
+                  <i class="fa fa-user"></i>
+                </div>
+                <input type="text" placeholder="點擊左方按鈕搜索用戶，或直接輸入用戶名" value="${participant1.name}"
+                  class="flex-grow px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300">
+                <button class="remove-person-btn ml-4 text-gray-400 hover:text-red-500 transition-colors">
+                  <i class="fa fa-times-circle text-xl"></i>
+                </button>
+              `;
+              participantsContainer.appendChild(participant1Div);
+
+              // 設置默認付款人為當前用戶
+              billPayerSelect.innerHTML = `
+                <option value="">請選擇付款人（可稍後選擇）</option>
+                <option value="${participant1.id}" selected>${participant1.name}</option>
+              `;
+
+              // 綁定第一個參與者的事件
+              bindParticipantEvents(participant1Div);
+            }
+
+            // 2. 添加第二個空參與者（通過點擊按鈕）
+            setTimeout(() => {
+              addPersonBtn.click();
+            }, 300);
+
+            console.log("默認參與者已初始化");
+          } catch (error) {
+            console.error("初始化默認設置失敗:", error);
+          }
+        }
 
         // --- 所有與數據相關的函數都需要修改 ---
 
@@ -528,6 +630,103 @@
           }
         }
 
+        // 綁定參與者事件（重用邏輯）
+        function bindParticipantEvents(participantDiv) {
+          const inputField = participantDiv.querySelector("input");
+          const avatarBtn = participantDiv.querySelector(".user-avatar-btn");
+          const removeBtn = participantDiv.querySelector(".remove-person-btn");
+
+          // 綁定刪除按鈕事件
+          if (removeBtn) {
+            removeBtn.addEventListener("click", async function () {
+              const participantId = participantDiv.dataset.participantId;
+
+              participantDiv.classList.add("opacity-0", "translate-y-2");
+              setTimeout(async () => {
+                // 如果參與者已經有ID，從服務器刪除
+                if (participantId) {
+                  try {
+                    await authenticatedFetch(
+                      `/api/participant/${participantId}`,
+                      {
+                        method: "DELETE",
+                      }
+                    );
+                  } catch (error) {
+                    console.error("刪除參與者失敗:", error);
+                  }
+                }
+
+                participantDiv.remove();
+                // 刪除參與者後，更新所有項目的參與者標籤
+                updateParticipantTags();
+                updatePayerSelect();
+              }, 300);
+            });
+          }
+
+          // 點擊頭像或輸入框打開用戶搜索
+          const openSearch = () => {
+            openUserSearch(participantDiv);
+          };
+
+          if (avatarBtn) {
+            avatarBtn.addEventListener("click", openSearch);
+          }
+
+          if (inputField) {
+            // 點擊輸入框打開搜索
+            inputField.addEventListener("click", (e) => {
+              // 只有用戶主動點擊時才打開搜索
+              openSearch();
+            });
+
+            // 移除自動打開搜索的focus事件，避免刷新時自動彈窗
+            // 用戶可以通過點擊輸入框或頭像來打開搜索
+
+            // 當用戶按下回車時，發送請求
+            inputField.addEventListener("keydown", async (e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                inputField.blur(); // 觸發blur事件
+              }
+            });
+
+            // 當用戶輸入完成後（例如，按下回車或失去焦點），發送請求
+            inputField.addEventListener("blur", async () => {
+              const name = inputField.value.trim();
+              if (name && !participantDiv.dataset.participantId) {
+                try {
+                  const response = await authenticatedFetch(
+                    "/api/participant",
+                    {
+                      method: "POST",
+                      body: JSON.stringify({ name: name }),
+                    }
+                  );
+                  if (!response) return; // 認證失敗，已重定向
+                  if (!response.ok) {
+                    throw new Error("添加參與者失敗");
+                  }
+                  const participant = await response.json();
+                  console.log("參與者已添加:", participant);
+                  // 將返回的ID存儲在DOM元素上，用於後續操作
+                  participantDiv.dataset.participantId = participant.id;
+                  participantDiv.dataset.participantName = participant.name;
+                  // 更新輸入框的值為服務器返回的完整名稱
+                  inputField.value = participant.name;
+                  // 更新所有項目的參與者標籤
+                  updateParticipantTags();
+                  updatePayerSelect();
+                } catch (error) {
+                  console.error("Error adding participant:", error);
+                  alert("添加參與者時出錯，請查看控制台");
+                }
+              }
+            });
+          }
+        }
+
         // 添加參與者
         addPersonBtn.addEventListener("click", async () => {
           const newParticipantInput = document.createElement("input");
@@ -541,11 +740,11 @@
           newParticipant.className =
             "participant-item flex items-center p-4 bg-light rounded-lg transform transition-all duration-300 opacity-0 translate-y-2";
           newParticipant.innerHTML = `
-            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4 cursor-pointer hover:bg-primary/20 transition-colors user-avatar-btn">
+            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold mr-4 cursor-pointer hover:bg-primary/20 transition-colors user-avatar-btn" title="點擊搜索用戶">
                 <i class="fa fa-user"></i>
             </div>
-            <input type="text" placeholder="參與者姓名" 
-                class="flex-grow px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300">
+            <input type="text" placeholder="點擊左方按鈕搜索用戶，或直接輸入用戶名" 
+                class="flex-grow px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300 participant-name-input">
             <button class="remove-person-btn ml-4 text-gray-400 hover:text-red-500 transition-colors">
                 <i class="fa fa-times-circle text-xl"></i>
             </button>
@@ -557,52 +756,11 @@
             newParticipant.classList.remove("opacity-0", "translate-y-2");
           }, 10);
 
-          // 綁定刪除按鈕事件
-          newParticipant
-            .querySelector(".remove-person-btn")
-            .addEventListener("click", function () {
-              newParticipant.classList.add("opacity-0", "translate-y-2");
-              setTimeout(() => {
-                newParticipant.remove();
-                // 刪除參與者後，更新所有項目的參與者標籤
-                updateParticipantTags();
-                updatePayerSelect();
-              }, 300);
-            });
+          // 綁定事件
+          bindParticipantEvents(newParticipant);
 
-          // 自動聚焦新輸入框
-          const inputField = newParticipant.querySelector("input");
-          inputField.focus();
-
-          // 當用戶輸入完成後（例如，按下回車或失去焦點），發送請求
-          inputField.addEventListener("blur", async () => {
-            const name = inputField.value.trim();
-            if (name) {
-              try {
-                const response = await authenticatedFetch("/api/participant", {
-                  method: "POST",
-                  body: JSON.stringify({ name: name }),
-                });
-                if (!response) return; // 認證失敗，已重定向
-                if (!response.ok) {
-                  throw new Error("添加參與者失敗");
-                }
-                const participant = await response.json();
-                console.log("參與者已添加:", participant);
-                // 將返回的ID存儲在DOM元素上，用於後續操作
-                newParticipant.dataset.participantId = participant.id;
-                newParticipant.dataset.participantName = participant.name;
-                // 更新輸入框的值為服務器返回的完整名稱
-                inputField.value = participant.name;
-                // 更新所有項目的參與者標籤
-                updateParticipantTags();
-                updatePayerSelect();
-              } catch (error) {
-                console.error("Error adding participant:", error);
-                alert("添加參與者時出錯，請查看控制台");
-              }
-            }
-          });
+          // 不自動聚焦，避免自動打開搜索窗口
+          // 用戶可以手動點擊輸入框或頭像來打開搜索
         });
 
         // 計算按鈕點擊事件
@@ -758,14 +916,27 @@
 
           // 顯示付款人信息
           const payerInfo = document.getElementById("result-bill-payer");
+          const payerReceiptSection = document.getElementById(
+            "payer-receipt-section"
+          );
+          const currentUser = window.authManager.getCurrentUser();
+
           if (payerInfo) {
             if (bill.payerId) {
               const payer = bill.participants.find(
                 (p) => p.id === bill.payerId
               );
               payerInfo.textContent = payer ? payer.name : "未知付款人";
+
+              // 如果當前用戶是付款人，顯示上傳收據區域
+              if (currentUser && payer && payer.name === currentUser.username) {
+                payerReceiptSection.style.display = "block";
+              } else {
+                payerReceiptSection.style.display = "none";
+              }
             } else {
               payerInfo.textContent = "未指定付款人";
+              payerReceiptSection.style.display = "none";
             }
           }
 
@@ -978,9 +1149,130 @@
         });
         */
 
+        // 付款人上傳收據功能（支持多張圖片，最多6張）
+        let payerReceiptFiles = [];
+
+        const uploadPayerReceiptBtn = document.getElementById(
+          "upload-payer-receipt-btn"
+        );
+        const payerReceiptInput = document.getElementById(
+          "payer-receipt-input"
+        );
+        const receiptFileCount = document.getElementById("receipt-file-count");
+        const receiptPreviewContainer = document.getElementById(
+          "receipt-preview-container"
+        );
+
+        uploadPayerReceiptBtn.addEventListener("click", () => {
+          payerReceiptInput.click();
+        });
+
+        payerReceiptInput.addEventListener("change", (e) => {
+          const newFiles = Array.from(e.target.files);
+
+          // 合併新文件到現有文件列表
+          const combinedFiles = [...payerReceiptFiles, ...newFiles];
+
+          // 限制最多6張圖片
+          if (combinedFiles.length > 6) {
+            alert(
+              `最多只能上傳6張圖片，已選擇${payerReceiptFiles.length}張，再選擇${newFiles.length}張將超過限制`
+            );
+            payerReceiptInput.value = "";
+            return;
+          }
+
+          payerReceiptFiles = combinedFiles;
+          receiptFileCount.textContent = `已選擇 ${payerReceiptFiles.length} 張圖片`;
+
+          // 清空預覽容器
+          receiptPreviewContainer.innerHTML = "";
+          receiptPreviewContainer.style.display =
+            payerReceiptFiles.length > 0 ? "grid" : "none";
+
+          // 預覽所有圖片
+          payerReceiptFiles.forEach((file, index) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const previewDiv = document.createElement("div");
+              previewDiv.className = "relative group";
+              previewDiv.innerHTML = `
+                <img src="${
+                  e.target.result
+                }" class="w-full h-32 object-cover rounded-lg shadow-md" />
+                <button 
+                  onclick="removeReceiptImage(${index})" 
+                  class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="刪除此圖片"
+                >
+                  <i class="fa fa-times"></i>
+                </button>
+                <div class="text-xs text-gray-600 mt-1 text-center">${
+                  index + 1
+                }/${payerReceiptFiles.length}</div>
+              `;
+              receiptPreviewContainer.appendChild(previewDiv);
+            };
+            reader.readAsDataURL(file);
+          });
+        });
+
+        // 刪除指定的收據圖片
+        window.removeReceiptImage = function (index) {
+          // 從數組中移除指定的圖片
+          payerReceiptFiles.splice(index, 1);
+
+          // 更新顯示
+          receiptFileCount.textContent =
+            payerReceiptFiles.length > 0
+              ? `已選擇 ${payerReceiptFiles.length} 張圖片`
+              : "";
+
+          // 重新渲染預覽
+          receiptPreviewContainer.innerHTML = "";
+          receiptPreviewContainer.style.display =
+            payerReceiptFiles.length > 0 ? "grid" : "none";
+
+          payerReceiptFiles.forEach((file, idx) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const previewDiv = document.createElement("div");
+              previewDiv.className = "relative group";
+              previewDiv.innerHTML = `
+                <img src="${
+                  e.target.result
+                }" class="w-full h-32 object-cover rounded-lg shadow-md" />
+                <button 
+                  onclick="removeReceiptImage(${idx})" 
+                  class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="刪除此圖片"
+                >
+                  <i class="fa fa-times"></i>
+                </button>
+                <div class="text-xs text-gray-600 mt-1 text-center">${
+                  idx + 1
+                }/${payerReceiptFiles.length}</div>
+              `;
+              receiptPreviewContainer.appendChild(previewDiv);
+            };
+            reader.readAsDataURL(file);
+          });
+        };
+
+        // 上傳賬單功能已註釋（通過保存賬單自動上傳收據）
+        /*
+        const uploadBillBtn = document.getElementById("upload-bill-btn");
+        if (uploadBillBtn) {
+          uploadBillBtn.addEventListener("click", () => {
+            alert("上傳賬單功能即將推出");
+          });
+        }
+        */
+
         // 保存結果功能
         saveResultBtn.addEventListener("click", async () => {
           try {
+            // 首先保存賬單
             const response = await authenticatedFetch("/api/bill/save", {
               method: "POST",
             });
@@ -989,7 +1281,68 @@
 
             if (response.ok) {
               const data = await response.json();
-              alert(`賬單已保存，ID: ${data.billId}`);
+              const billId = data.billId;
+
+              // 如果付款人上傳了收據，上傳收據圖片
+              if (payerReceiptFiles.length > 0 && billId) {
+                let uploadedCount = 0;
+                let failedCount = 0;
+
+                for (let i = 0; i < payerReceiptFiles.length; i++) {
+                  const file = payerReceiptFiles[i];
+                  const formData = new FormData();
+                  formData.append("receipt", file);
+                  formData.append("billId", billId);
+                  formData.append("type", "payer");
+                  formData.append("index", i.toString());
+
+                  try {
+                    const uploadResponse = await fetch("/api/receipt/upload", {
+                      method: "POST",
+                      headers: {
+                        Authorization: `Bearer ${localStorage.getItem(
+                          "sessionId"
+                        )}`,
+                      },
+                      body: formData,
+                    });
+
+                    if (uploadResponse.ok) {
+                      uploadedCount++;
+                    } else {
+                      failedCount++;
+                      console.error(
+                        `圖片 ${i + 1} 上傳失敗:`,
+                        await uploadResponse.text()
+                      );
+                    }
+                  } catch (error) {
+                    failedCount++;
+                    console.error(`圖片 ${i + 1} 上傳錯誤:`, error);
+                  }
+                }
+
+                if (uploadedCount > 0 && failedCount === 0) {
+                  alert(
+                    `賬單已保存（ID: ${billId}），${uploadedCount}張付款憑證已上傳`
+                  );
+                } else if (uploadedCount > 0 && failedCount > 0) {
+                  alert(
+                    `賬單已保存（ID: ${billId}），${uploadedCount}張上傳成功，${failedCount}張失敗`
+                  );
+                } else {
+                  alert(`賬單已保存（ID: ${billId}），但所有付款憑證上傳失敗`);
+                }
+
+                // 清空上傳狀態
+                payerReceiptFiles = [];
+                payerReceiptInput.value = "";
+                receiptFileCount.textContent = "";
+                receiptPreviewContainer.innerHTML = "";
+                receiptPreviewContainer.style.display = "none";
+              } else {
+                alert(`賬單已保存，ID: ${billId}`);
+              }
             } else {
               const errorData = await response.json();
               alert(`保存失敗: ${errorData.error}`);
@@ -1330,15 +1683,17 @@
           users.forEach((user) => {
             const userItem = document.createElement("div");
             userItem.className =
-              "flex items-center justify-between p-3 border border-gray-200 rounded-lg mb-2 hover:bg-gray-50 cursor-pointer";
+              "user-result-item flex items-center justify-between p-3 border border-gray-200 rounded-lg mb-2 hover:bg-primary/5 hover:border-primary cursor-pointer transition-all";
+            userItem.dataset.userId = user.id;
+            userItem.dataset.userName = user.username;
             userItem.innerHTML = `
-            <div>
+            <div class="flex-1">
               <div class="font-medium">${user.username}</div>
               <div class="text-sm text-gray-500">${user.email}</div>
             </div>
-            <button class="add-user-btn text-primary hover:text-primary/80" data-user-id="${user.id}" data-user-name="${user.username}">
-              <i class="fa fa-plus"></i>
-            </button>
+            <div class="text-primary">
+              <i class="fa fa-plus-circle text-xl"></i>
+            </div>
           `;
             userSearchResults.appendChild(userItem);
           });
@@ -1401,10 +1756,10 @@
         addSelfBtn.addEventListener("click", addSelfAsParticipant);
 
         userSearchResults.addEventListener("click", (e) => {
-          if (e.target.closest(".add-user-btn")) {
-            const btn = e.target.closest(".add-user-btn");
-            const userId = btn.dataset.userId;
-            const userName = btn.dataset.userName;
+          const userItem = e.target.closest(".user-result-item");
+          if (userItem) {
+            const userId = userItem.dataset.userId;
+            const userName = userItem.dataset.userName;
             addUserAsParticipant(userId, userName);
           }
         });
@@ -1450,13 +1805,11 @@
           });
         }
 
-        // 初始化時添加一個參與者和一個項目輸入框
+        // 初始化時添加一個項目輸入框
         setTimeout(() => {
-          // 添加初始參與者
-          addPersonBtn.click();
           // 添加初始項目
           addItemBtn.click();
-        }, 100);
+        }, 500); // 延遲以確保默認參與者已加載
       });
     </script>
   </body>

@@ -284,6 +284,71 @@ export class DataStorage {
     fs.writeFileSync(BILLS_FILE, JSON.stringify(bills, null, 2));
   }
 
+  // 更新賬單收據（付款人上傳付款憑證）
+  async updateBillReceipt(
+    billId: string,
+    receiptImageUrl: string
+  ): Promise<void> {
+    ensureDataDir();
+    if (!fs.existsSync(BILLS_FILE)) {
+      throw new Error("賬單文件不存在");
+    }
+
+    const data = fs.readFileSync(BILLS_FILE, "utf8");
+    const bills: BillRecord[] = JSON.parse(data);
+
+    const billIndex = bills.findIndex((bill) => bill.id === billId);
+    if (billIndex === -1) {
+      throw new Error("找不到指定的賬單");
+    }
+
+    const bill = bills[billIndex];
+
+    // 保存付款人的收據
+    (bill as any).payerReceiptUrl = receiptImageUrl;
+    bill.updatedAt = new Date().toISOString();
+
+    // 保存更新後的數據
+    fs.writeFileSync(BILLS_FILE, JSON.stringify(bills, null, 2));
+  }
+
+  // 確認收款（付款人確認收到其他人的付款）
+  async confirmPayment(
+    billId: string,
+    participantId: string,
+    confirmed: boolean
+  ): Promise<void> {
+    ensureDataDir();
+    if (!fs.existsSync(BILLS_FILE)) {
+      throw new Error("賬單文件不存在");
+    }
+
+    const data = fs.readFileSync(BILLS_FILE, "utf8");
+    const bills: BillRecord[] = JSON.parse(data);
+
+    const billIndex = bills.findIndex((bill) => bill.id === billId);
+    if (billIndex === -1) {
+      throw new Error("找不到指定的賬單");
+    }
+
+    const bill = bills[billIndex];
+
+    // 更新結果中的確認狀態
+    if (bill.results) {
+      const resultIndex = bill.results.findIndex(
+        (r) => r.participantId === participantId
+      );
+      if (resultIndex !== -1) {
+        bill.results[resultIndex].confirmedByPayer = confirmed;
+      }
+    }
+
+    bill.updatedAt = new Date().toISOString();
+
+    // 保存更新後的數據
+    fs.writeFileSync(BILLS_FILE, JSON.stringify(bills, null, 2));
+  }
+
   // === 工具函數 ===
 
   private generateId(): string {

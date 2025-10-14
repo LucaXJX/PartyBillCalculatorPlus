@@ -29,6 +29,8 @@ export interface CalculationResult {
   breakdown: string; // 费用明细的文本描述，如 "汉堡套餐 (60.00) + 小费 (6.90)"
   paymentStatus: "pending" | "paid"; // 支付状态
   receiptImageUrl?: string; // 支付凭证图片URL
+  paidAt?: string; // 支付時間
+  confirmedByPayer?: boolean; // 付款人確認收款
 }
 
 /**

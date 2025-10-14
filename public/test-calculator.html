@@ -771,6 +771,9 @@
           },
           { path: "/api/participants", method: "GET", name: "獲取參與者" },
           { path: "/api/bill/info", method: "POST", name: "更新賬單信息" },
+          { path: "/api/receipt/upload", method: "POST", name: "上傳收據" },
+          { path: "/api/bill/payment-status", method: "POST", name: "更新支付狀態" },
+          { path: "/api/bill/confirm-payment", method: "POST", name: "確認收款" },
         ];
 
         for (const endpoint of endpoints) {
