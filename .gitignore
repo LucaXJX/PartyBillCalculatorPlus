@@ -4,6 +4,19 @@ thumbs.db
 data*.txt
 node_modules
 dist/
+*.js.map
 package-lock.json
 pnpm-lock.yaml
 data*/
+
+# 文檔目錄 - 保留文檔文件
+!docs/
+!docs/*.md
+
+# 配置目錄 - 保留文檔，忽略字體文件
+!config/
+!config/*.md
+
+# 數據庫目錄 - 保留架構文件
+!database/
+!database/*.sql
