@@ -87,8 +87,9 @@ class ComponentManager {
                   currentPage === "messages"
                     ? "text-primary font-medium"
                     : "text-gray-600 hover:text-primary transition-colors"
-                }">
+                } relative">
                   <i class="fa fa-envelope mr-1"></i>我的消息
+                  <span id="message-badge" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center" style="display: none"></span>
                 </a>
               `
                   : ""
@@ -371,6 +372,22 @@ class ComponentManager {
 
     if (showFooter) {
       this.render("footer", "body", footerOptions);
+    }
+  }
+
+  /**
+   * 更新未讀消息數量
+   * @param {number} count - 未讀消息數量
+   */
+  updateUnreadCount(count) {
+    const badge = document.getElementById("message-badge");
+    if (badge) {
+      if (count > 0) {
+        badge.textContent = count > 99 ? "99+" : count;
+        badge.style.display = "flex";
+      } else {
+        badge.style.display = "none";
+      }
     }
   }
 }

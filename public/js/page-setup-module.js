@@ -1,9 +1,9 @@
 /**
- * 頁面設置工具
+ * 頁面設置工具 - ES 模組版本
  * 用於統一設置頁面的 header、footer 和認證功能
  */
 
-class PageSetup {
+export class PageSetup {
   constructor() {
     this.authManager = null;
     this.componentManager = null;
@@ -108,30 +108,6 @@ class PageSetup {
   }
 
   /**
-   * 設置頁面特定的功能
-   * @param {Object} options - 功能選項
-   */
-  setupPageFeatures(options = {}) {
-    const {
-      updateUserDisplay = true,
-      setupLogout = true,
-      setupAuthCheck = true,
-    } = options;
-
-    if (updateUserDisplay && this.authManager) {
-      this.authManager.updateUserDisplay();
-    }
-
-    if (setupLogout && this.authManager) {
-      this.authManager.setupLogoutButton();
-    }
-
-    if (setupAuthCheck && this.authManager) {
-      this.authManager.setupAuthCheck();
-    }
-  }
-
-  /**
    * 加載未讀消息數量
    */
   async loadUnreadMessageCount() {
@@ -187,15 +163,4 @@ class PageSetup {
       console.log("⏸️ 已停止未讀消息輪詢");
     }
   }
-}
-
-// 創建全局實例供非模組使用
-if (typeof window !== "undefined") {
-  window.PageSetup = PageSetup;
-  window.pageSetup = new PageSetup(); // 創建實例
-}
-
-// ES 模組導出（用於支持 import）
-if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
-  module.exports = PageSetup;
 }
