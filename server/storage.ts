@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { Bill, Participant, Item, CalculationResult } from "./types.js";
+import { User, Bill, BillRecord, CalculationResult } from "./types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,28 +20,10 @@ const ensureDataDir = () => {
   }
 };
 
-// 用戶相關接口
-export interface User {
-  id: string;
-  username: string;
-  email: string;
-  password: string; // 實際應用中應該加密
-  createdAt: string;
-  lastLogin?: string;
-}
-
-export interface UserSession {
+interface UserSession {
   userId: string;
   sessionId: string;
   expiresAt: string;
-}
-
-// 完整的賬單記錄（包含計算結果）
-export interface BillRecord extends Bill {
-  results: CalculationResult[];
-  createdAt: string;
-  updatedAt: string;
-  createdBy: string; // 用戶ID
 }
 
 // 數據存儲類

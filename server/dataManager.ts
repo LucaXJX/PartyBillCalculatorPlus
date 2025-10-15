@@ -20,6 +20,7 @@ export class DataManager {
       tipPercentage: 0,
       participants: [],
       items: [],
+      payerId: "", // 初始化為空字串
     };
   }
 
@@ -42,6 +43,7 @@ export class DataManager {
       tipPercentage: 0,
       participants: [],
       items: [],
+      payerId: "", // 初始化為空字串
     };
   }
 

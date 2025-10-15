@@ -9,7 +9,10 @@ import fs from "fs";
 import multer from "multer";
 import { DataManager } from "./dataManager.js";
 import { BillCalculator } from "./billCalculator.js";
-import { dataStorage, User, BillRecord } from "./storage.js";
+import { dataStorage } from "./storage.js";
+import { messageManager } from "./messageManager.js";
+import { MessageHelper } from "./messageHelper.js";
+import type { User, BillRecord } from "./types.js";
 
 // 解決 ES6 模塊中的 __dirname 問題
 // const __filename = fileURLToPath(import.meta.url);
@@ -284,6 +287,19 @@ app.post(
         paymentStatus,
         receiptImageUrl || undefined
       );
+
+      // 如果是提交付款，發送通知給收款人
+      if (paymentStatus === "paid") {
+        const bill = await dataStorage.getBillById(billId);
+        if (bill) {
+          await MessageHelper.sendPaymentSubmittedNotification(
+            bill,
+            participantId,
+            receiptImageUrl || undefined
+          );
+        }
+      }
+
       res.status(200).json({ message: "支付狀態已更新" });
     } catch (error) {
       console.error("更新支付狀態失敗:", error);
@@ -339,6 +355,17 @@ app.post(
       // 更新收款確認狀態
       await dataStorage.confirmPayment(billId, participantId, confirmed);
 
+      // 如果確認收款，發送通知給付款人
+      if (confirmed) {
+        const bill = await dataStorage.getBillById(billId);
+        if (bill) {
+          await MessageHelper.sendPaymentConfirmedNotification(
+            bill,
+            participantId
+          );
+        }
+      }
+
       console.log(
         `用戶 ${req.userId} 確認${
           confirmed ? "收到" : "未收到"
@@ -378,6 +405,16 @@ app.post(
         reason,
         rejectedAt
       );
+
+      // 發送拒絕通知給付款人
+      const bill = await dataStorage.getBillById(billId);
+      if (bill) {
+        await MessageHelper.sendPaymentRejectedNotification(
+          bill,
+          participantId,
+          reason
+        );
+      }
 
       const reasonText = reason === "not_received" ? "未收到款項" : "收據有誤";
       console.log(
@@ -457,6 +494,9 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
 
     await dataStorage.saveBill(billRecord);
 
+    // 發送新建賬單通知給所有參與者
+    await MessageHelper.sendNewBillNotifications(billRecord);
+
     res.status(200).json({
       message: "賬單已保存",
       billId: billRecord.id,
@@ -466,6 +506,180 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
     res.status(500).json({ error: "保存賬單失敗" });
   }
 });
+
+// === 消息相關 API ===
+
+// 獲取用戶的所有消息
+app.get("/api/messages", authenticateUser, async (req: any, res) => {
+  try {
+    const messages = await messageManager.getUserMessages(req.user.id);
+    res.status(200).json({ messages });
+  } catch (error) {
+    console.error("Get messages error:", error);
+    res.status(500).json({ error: "獲取消息失敗" });
+  }
+});
+
+// 獲取未讀消息數量
+app.get(
+  "/api/messages/unread-count",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const count = await messageManager.getUnreadCount(req.user.id);
+      res.status(200).json({ count });
+    } catch (error) {
+      console.error("Get unread count error:", error);
+      res.status(500).json({ error: "獲取未讀數量失敗" });
+    }
+  }
+);
+
+// 標記消息為已讀
+app.post("/api/messages/mark-read", authenticateUser, async (req: any, res) => {
+  try {
+    const { messageId } = req.body;
+
+    if (!messageId) {
+      return res.status(400).json({ error: "缺少消息 ID" });
+    }
+
+    const success = await messageManager.markAsRead(messageId);
+
+    if (success) {
+      res.status(200).json({ message: "已標記為已讀" });
+    } else {
+      res.status(404).json({ error: "消息不存在" });
+    }
+  } catch (error) {
+    console.error("Mark read error:", error);
+    res.status(500).json({ error: "標記已讀失敗" });
+  }
+});
+
+// 標記所有消息為已讀
+app.post(
+  "/api/messages/mark-all-read",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const count = await messageManager.markAllAsRead(req.user.id);
+      res.status(200).json({ message: `已標記 ${count} 條消息為已讀`, count });
+    } catch (error) {
+      console.error("Mark all read error:", error);
+      res.status(500).json({ error: "標記所有已讀失敗" });
+    }
+  }
+);
+
+// 刪除消息
+app.delete("/api/messages/:id", authenticateUser, async (req: any, res) => {
+  try {
+    const success = await messageManager.deleteMessage(req.params.id);
+
+    if (success) {
+      res.status(200).json({ message: "消息已刪除" });
+    } else {
+      res.status(404).json({ error: "消息不存在" });
+    }
+  } catch (error) {
+    console.error("Delete message error:", error);
+    res.status(500).json({ error: "刪除消息失敗" });
+  }
+});
+
+// 從消息中確認收款
+app.post(
+  "/api/messages/confirm-payment",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { messageId, billId, participantId } = req.body;
+
+      if (!messageId || !billId || !participantId) {
+        return res.status(400).json({ error: "缺少必要參數" });
+      }
+
+      // 確認收款
+      await dataStorage.confirmPayment(billId, participantId, true);
+
+      // 標記消息操作已完成
+      await messageManager.markActionCompleted(messageId);
+
+      // 發送確認通知給付款人
+      const bill = await dataStorage.getBillById(billId);
+      if (bill) {
+        await MessageHelper.sendPaymentConfirmedNotification(
+          bill,
+          participantId
+        );
+      }
+
+      console.log(
+        `用戶 ${req.user.id} 通過消息確認收到 參與者 ${participantId} 的付款`
+      );
+
+      res.status(200).json({ message: "收款已確認" });
+    } catch (error) {
+      console.error("確認收款失敗:", error);
+      res.status(500).json({ error: "確認收款失敗" });
+    }
+  }
+);
+
+// 從消息中拒絕收款
+app.post(
+  "/api/messages/reject-payment",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { messageId, billId, participantId, reason } = req.body;
+
+      if (!messageId || !billId || !participantId || !reason) {
+        return res.status(400).json({ error: "缺少必要參數" });
+      }
+
+      // 驗證拒絕原因
+      const validReasons = ["not_received", "wrong_receipt"];
+      if (!validReasons.includes(reason)) {
+        return res.status(400).json({ error: "無效的拒絕原因" });
+      }
+
+      // 拒絕收款
+      await dataStorage.rejectPayment(
+        billId,
+        participantId,
+        reason,
+        new Date().toISOString()
+      );
+
+      // 標記消息操作已完成
+      await messageManager.markActionCompleted(messageId);
+
+      // 發送拒絕通知給付款人
+      const bill = await dataStorage.getBillById(billId);
+      if (bill) {
+        await MessageHelper.sendPaymentRejectedNotification(
+          bill,
+          participantId,
+          reason
+        );
+      }
+
+      const reasonText = reason === "not_received" ? "未收到款項" : "收據有誤";
+      console.log(
+        `用戶 ${req.user.id} 通過消息拒絕參與者 ${participantId} 的付款（原因: ${reasonText}）`
+      );
+
+      res.status(200).json({ message: "已標記問題並退回待支付狀態" });
+    } catch (error) {
+      console.error("拒絕收款失敗:", error);
+      res.status(500).json({ error: "拒絕收款失敗" });
+    }
+  }
+);
+
+// === 賬單相關 API ===
 
 // 獲取用戶的所有賬單
 app.get("/api/bills", authenticateUser, async (req: any, res) => {
