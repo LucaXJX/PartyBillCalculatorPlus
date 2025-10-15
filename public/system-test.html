@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>系統功能測試 - PBC聚賬通</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              primary: "#4F46E5",
+              secondary: "#EC4899",
+              accent: "#F59E0B",
+              light: "#F3F4F6",
+              dark: "#1F2937",
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="font-sans text-dark bg-gray-50">
+    <!-- Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+      <div class="container mx-auto px-4 py-4">
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold text-primary">
+            <i class="fa fa-flask mr-2"></i>系統功能測試
+          </h1>
+          <div class="flex gap-2">
+            <button
+              onclick="runAllTests()"
+              class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+            >
+              <i class="fa fa-play mr-1"></i>運行所有測試
+            </button>
+            <button
+              onclick="clearResults()"
+              class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+            >
+              <i class="fa fa-trash mr-1"></i>清除結果
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+      <!-- 測試統計 -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <div
+          class="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-600 mb-1">總測試數</div>
+              <div class="text-3xl font-bold text-gray-800" id="total-tests">
+                0
+              </div>
+            </div>
+            <i
+              class="fa fa-clipboard-list text-blue-500 text-3xl opacity-20"
+            ></i>
+          </div>
+        </div>
+
+        <div
+          class="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-600 mb-1">通過</div>
+              <div class="text-3xl font-bold text-green-600" id="passed-tests">
+                0
+              </div>
+            </div>
+            <i
+              class="fa fa-check-circle text-green-500 text-3xl opacity-20"
+            ></i>
+          </div>
+        </div>
+
+        <div
+          class="bg-white rounded-lg shadow-md p-6 border-l-4 border-red-500"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-600 mb-1">失敗</div>
+              <div class="text-3xl font-bold text-red-600" id="failed-tests">
+                0
+              </div>
+            </div>
+            <i class="fa fa-times-circle text-red-500 text-3xl opacity-20"></i>
+          </div>
+        </div>
+
+        <div
+          class="bg-white rounded-lg shadow-md p-6 border-l-4 border-yellow-500"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm text-gray-600 mb-1">進行中</div>
+              <div
+                class="text-3xl font-bold text-yellow-600"
+                id="running-tests"
+              >
+                0
+              </div>
+            </div>
+            <i class="fa fa-spinner text-yellow-500 text-3xl opacity-20"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- 測試選項 -->
+      <div class="bg-white rounded-lg shadow-md p-6 mb-8">
+        <h2 class="text-xl font-bold mb-4">測試選項</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" id="test-auth" checked class="mr-2" />
+              <span>認證系統測試</span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" id="test-bills" checked class="mr-2" />
+              <span>賬單功能測試</span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" id="test-messages" checked class="mr-2" />
+              <span>消息系統測試</span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" id="test-payment" checked class="mr-2" />
+              <span>支付流程測試</span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input type="checkbox" id="test-multiuser" checked class="mr-2" />
+              <span>多用戶互檢測試</span>
+            </label>
+          </div>
+          <div>
+            <label class="flex items-center">
+              <input
+                type="checkbox"
+                id="test-data-integrity"
+                checked
+                class="mr-2"
+              />
+              <span>數據完整性測試</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 測試結果 -->
+      <div class="bg-white rounded-lg shadow-md p-6">
+        <h2 class="text-xl font-bold mb-4">測試結果</h2>
+        <div id="test-results" class="space-y-4">
+          <div class="text-gray-500 text-center py-8">
+            點擊「運行所有測試」開始測試
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- 測試腳本 -->
+    <script>
+      // 測試用戶配置
+      const TEST_USERS = [
+        { username: "testuser", email: "test@example.com", password: "123456" },
+        {
+          username: "alice_wong",
+          email: "alice.wong@email.com",
+          password: "password123",
+        },
+        {
+          username: "bob_lee",
+          email: "bob.lee@email.com",
+          password: "password123",
+        },
+      ];
+
+      let testResults = [];
+      let currentTestIndex = 0;
+
+      // 測試結果類
+      class TestResult {
+        constructor(category, name) {
+          this.category = category;
+          this.name = name;
+          this.status = "running"; // running, passed, failed
+          this.message = "";
+          this.details = [];
+          this.startTime = Date.now();
+          this.endTime = null;
+        }
+
+        pass(message = "測試通過") {
+          this.status = "passed";
+          this.message = message;
+          this.endTime = Date.now();
+        }
+
+        fail(message = "測試失敗") {
+          this.status = "failed";
+          this.message = message;
+          this.endTime = Date.now();
+        }
+
+        addDetail(detail) {
+          this.details.push(detail);
+        }
+
+        getDuration() {
+          if (!this.endTime) return "進行中...";
+          return `${this.endTime - this.startTime}ms`;
+        }
+      }
+
+      // API 輔助函數
+      async function apiCall(url, options = {}) {
+        const sessionId = localStorage.getItem("testSessionId");
+        const headers = {
+          "Content-Type": "application/json",
+          ...options.headers,
+        };
+
+        if (sessionId) {
+          headers.Authorization = `Bearer ${sessionId}`;
+        }
+
+        const response = await fetch(url, {
+          ...options,
+          headers,
+        });
+
+        const data = await response.json();
+        return { response, data };
+      }
+
+      // 登入函數
+      async function loginUser(email, password) {
+        const { response, data } = await apiCall("/api/auth/login", {
+          method: "POST",
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (response.ok && data.sessionId) {
+          localStorage.setItem("testSessionId", data.sessionId);
+          return data;
+        }
+        throw new Error(data.error || "登入失敗");
+      }
+
+      // 登出函數
+      async function logoutUser() {
+        try {
+          await apiCall("/api/auth/logout", { method: "POST" });
+        } catch (e) {
+          // 忽略錯誤
+        }
+        localStorage.removeItem("testSessionId");
+      }
+
+      // ==================== 測試套件 ====================
+
+      // 1. 認證系統測試
+      async function testAuthSystem() {
+        const tests = [];
+
+        // 測試登入
+        const loginTest = new TestResult("認證系統", "用戶登入");
+        tests.push(loginTest);
+        try {
+          const result = await loginUser(
+            TEST_USERS[0].email,
+            TEST_USERS[0].password
+          );
+          loginTest.addDetail(`用戶: ${result.user.username}`);
+          loginTest.addDetail(
+            `SessionID: ${result.sessionId.substring(0, 10)}...`
+          );
+          loginTest.pass("登入成功");
+        } catch (e) {
+          loginTest.fail(e.message);
+        }
+
+        // 測試登出
+        const logoutTest = new TestResult("認證系統", "用戶登出");
+        tests.push(logoutTest);
+        try {
+          await logoutUser();
+          logoutTest.pass("登出成功");
+        } catch (e) {
+          logoutTest.fail(e.message);
+        }
+
+        return tests;
+      }
+
+      // 2. 賬單功能測試
+      async function testBillSystem() {
+        const tests = [];
+
+        // 先登入
+        await loginUser(TEST_USERS[0].email, TEST_USERS[0].password);
+
+        // 測試獲取賬單列表
+        const getBillsTest = new TestResult("賬單功能", "獲取賬單列表");
+        tests.push(getBillsTest);
+        try {
+          const { response, data } = await apiCall("/api/bills");
+          if (response.ok) {
+            getBillsTest.addDetail(`找到 ${data.bills.length} 筆賬單`);
+            getBillsTest.pass("成功獲取賬單列表");
+          } else {
+            getBillsTest.fail(data.error);
+          }
+        } catch (e) {
+          getBillsTest.fail(e.message);
+        }
+
+        await logoutUser();
+        return tests;
+      }
+
+      // 3. 消息系統測試
+      async function testMessageSystem() {
+        const tests = [];
+
+        await loginUser(TEST_USERS[0].email, TEST_USERS[0].password);
+
+        // 測試獲取消息
+        const getMessagesTest = new TestResult("消息系統", "獲取消息列表");
+        tests.push(getMessagesTest);
+        try {
+          const { response, data } = await apiCall("/api/messages");
+          if (response.ok) {
+            getMessagesTest.addDetail(`找到 ${data.messages.length} 條消息`);
+            getMessagesTest.pass("成功獲取消息");
+          } else {
+            getMessagesTest.fail(data.error);
+          }
+        } catch (e) {
+          getMessagesTest.fail(e.message);
+        }
+
+        // 測試未讀數量
+        const unreadCountTest = new TestResult("消息系統", "獲取未讀數量");
+        tests.push(unreadCountTest);
+        try {
+          const { response, data } = await apiCall(
+            "/api/messages/unread-count"
+          );
+          if (response.ok) {
+            unreadCountTest.addDetail(`未讀消息: ${data.count} 條`);
+            unreadCountTest.pass("成功獲取未讀數量");
+          } else {
+            unreadCountTest.fail(data.error);
+          }
+        } catch (e) {
+          unreadCountTest.fail(e.message);
+        }
+
+        await logoutUser();
+        return tests;
+      }
+
+      // 4. 多用戶互檢測試
+      async function testMultiUserInteraction() {
+        const tests = [];
+
+        // 測試多用戶登入
+        const multiLoginTest = new TestResult("多用戶互檢", "多用戶登入測試");
+        tests.push(multiLoginTest);
+        try {
+          for (const user of TEST_USERS) {
+            const result = await loginUser(user.email, user.password);
+            multiLoginTest.addDetail(`✓ ${user.username} 登入成功`);
+            await logoutUser();
+          }
+          multiLoginTest.pass(`${TEST_USERS.length} 個用戶全部登入成功`);
+        } catch (e) {
+          multiLoginTest.fail(e.message);
+        }
+
+        // 測試用戶間消息
+        const userMessagesTest = new TestResult("多用戶互檢", "用戶消息檢查");
+        tests.push(userMessagesTest);
+        try {
+          for (const user of TEST_USERS) {
+            await loginUser(user.email, user.password);
+            const { response, data } = await apiCall("/api/messages");
+            if (response.ok) {
+              userMessagesTest.addDetail(
+                `${user.username}: ${data.messages.length} 條消息`
+              );
+            }
+            await logoutUser();
+          }
+          userMessagesTest.pass("所有用戶消息檢查完成");
+        } catch (e) {
+          userMessagesTest.fail(e.message);
+        }
+
+        return tests;
+      }
+
+      // 5. 數據完整性測試
+      async function testDataIntegrity() {
+        const tests = [];
+
+        await loginUser(TEST_USERS[0].email, TEST_USERS[0].password);
+
+        // 測試賬單數據完整性
+        const billIntegrityTest = new TestResult("數據完整性", "賬單數據檢查");
+        tests.push(billIntegrityTest);
+        try {
+          const { response, data } = await apiCall("/api/bills");
+          if (response.ok) {
+            let issues = 0;
+            for (const bill of data.bills) {
+              // 檢查必要字段
+              if (!bill.payerId) {
+                billIntegrityTest.addDetail(
+                  `⚠️ 賬單 ${bill.name} 缺少 payerId`
+                );
+                issues++;
+              }
+              if (!bill.createdBy) {
+                billIntegrityTest.addDetail(
+                  `⚠️ 賬單 ${bill.name} 缺少 createdBy`
+                );
+                issues++;
+              }
+              if (!bill.results || bill.results.length === 0) {
+                billIntegrityTest.addDetail(
+                  `⚠️ 賬單 ${bill.name} 缺少計算結果`
+                );
+                issues++;
+              }
+            }
+
+            if (issues === 0) {
+              billIntegrityTest.pass(
+                `檢查 ${data.bills.length} 筆賬單，無問題`
+              );
+            } else {
+              billIntegrityTest.fail(`發現 ${issues} 個問題`);
+            }
+          } else {
+            billIntegrityTest.fail(data.error);
+          }
+        } catch (e) {
+          billIntegrityTest.fail(e.message);
+        }
+
+        await logoutUser();
+        return tests;
+      }
+
+      // 運行所有測試
+      async function runAllTests() {
+        testResults = [];
+        currentTestIndex = 0;
+        updateStats();
+
+        const resultsContainer = document.getElementById("test-results");
+        resultsContainer.innerHTML =
+          '<div class="text-center py-4"><i class="fa fa-spinner fa-spin text-4xl text-primary"></i><p class="mt-2">正在運行測試...</p></div>';
+
+        const enabledTests = [];
+        if (document.getElementById("test-auth").checked) {
+          enabledTests.push({ name: "認證系統", fn: testAuthSystem });
+        }
+        if (document.getElementById("test-bills").checked) {
+          enabledTests.push({ name: "賬單功能", fn: testBillSystem });
+        }
+        if (document.getElementById("test-messages").checked) {
+          enabledTests.push({ name: "消息系統", fn: testMessageSystem });
+        }
+        if (document.getElementById("test-multiuser").checked) {
+          enabledTests.push({
+            name: "多用戶互檢",
+            fn: testMultiUserInteraction,
+          });
+        }
+        if (document.getElementById("test-data-integrity").checked) {
+          enabledTests.push({ name: "數據完整性", fn: testDataIntegrity });
+        }
+
+        for (const test of enabledTests) {
+          const results = await test.fn();
+          testResults.push(...results);
+          updateStats();
+          renderResults();
+        }
+
+        // 測試完成後登出
+        await logoutUser();
+      }
+
+      // 更新統計
+      function updateStats() {
+        const total = testResults.length;
+        const passed = testResults.filter((t) => t.status === "passed").length;
+        const failed = testResults.filter((t) => t.status === "failed").length;
+        const running = testResults.filter(
+          (t) => t.status === "running"
+        ).length;
+
+        document.getElementById("total-tests").textContent = total;
+        document.getElementById("passed-tests").textContent = passed;
+        document.getElementById("failed-tests").textContent = failed;
+        document.getElementById("running-tests").textContent = running;
+      }
+
+      // 渲染結果
+      function renderResults() {
+        const container = document.getElementById("test-results");
+
+        if (testResults.length === 0) {
+          container.innerHTML =
+            '<div class="text-gray-500 text-center py-8">暫無測試結果</div>';
+          return;
+        }
+
+        const groupedResults = {};
+        testResults.forEach((result) => {
+          if (!groupedResults[result.category]) {
+            groupedResults[result.category] = [];
+          }
+          groupedResults[result.category].push(result);
+        });
+
+        let html = "";
+        for (const [category, results] of Object.entries(groupedResults)) {
+          html += `
+            <div class="mb-6">
+              <h3 class="text-lg font-bold mb-3 flex items-center">
+                <i class="fa fa-folder-open text-primary mr-2"></i>${category}
+              </h3>
+              <div class="space-y-2">
+                ${results.map((r) => renderTestResult(r)).join("")}
+              </div>
+            </div>
+          `;
+        }
+
+        container.innerHTML = html;
+      }
+
+      // 渲染單個測試結果
+      function renderTestResult(result) {
+        const statusIcons = {
+          passed: '<i class="fa fa-check-circle text-green-500"></i>',
+          failed: '<i class="fa fa-times-circle text-red-500"></i>',
+          running: '<i class="fa fa-spinner fa-spin text-yellow-500"></i>',
+        };
+
+        const statusColors = {
+          passed: "bg-green-50 border-green-200",
+          failed: "bg-red-50 border-red-200",
+          running: "bg-yellow-50 border-yellow-200",
+        };
+
+        return `
+          <div class="border ${statusColors[result.status]} rounded-lg p-4">
+            <div class="flex items-start justify-between">
+              <div class="flex-1">
+                <div class="flex items-center gap-2 mb-2">
+                  ${statusIcons[result.status]}
+                  <span class="font-semibold">${result.name}</span>
+                  <span class="text-xs text-gray-500">${result.getDuration()}</span>
+                </div>
+                <div class="text-sm text-gray-600 mb-2">${result.message}</div>
+                ${
+                  result.details.length > 0
+                    ? `
+                  <div class="text-xs text-gray-500 space-y-1 mt-2">
+                    ${result.details.map((d) => `<div>• ${d}</div>`).join("")}
+                  </div>
+                `
+                    : ""
+                }
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      // 清除結果
+      function clearResults() {
+        if (confirm("確定要清除所有測試結果嗎？")) {
+          testResults = [];
+          updateStats();
+          renderResults();
+        }
+      }
+
+      // 初始化
+      updateStats();
+    </script>
+  </body>
+</html>
