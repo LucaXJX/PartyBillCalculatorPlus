@@ -1,230 +1,866 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-TW">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" href="/img/icon32x32.png" sizes="16x16" />
-    <title>PBC聚賬通-註冊</title>
-    <!-- 引入Tailwind CSS -->
+    <title>註冊 - PBC聚賬通</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- 引入Font Awesome -->
     <link
-      href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css"
       rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
+    <!-- 郵箱驗證庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/email-validator@2.0.4/index.min.js"></script>
     <style>
+      @import url("https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap");
+
+      * {
+        font-family: "Noto Sans TC", -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
       body {
-        background-color: #f3f4f6; /* bg-gray-100 */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 100vh;
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-          "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-      }
-      .register-container {
-        background-color: #fff; /* bg-white */
-        padding: 1.5rem; /* p-8 */
-        border-radius: 0.5rem; /* rounded-lg */
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
-          0 4px 6px -4px rgba(0, 0, 0, 0.1); /* shadow-lg */
-        width: 100%;
-        max-width: 28rem; /* max-w-md */
-        margin: 1rem;
-      }
-      @media (min-width: 640px) {
-        .register-container {
-          padding: 2rem;
-          margin: 0;
-        }
-      }
-      .register-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin-bottom: 1.5rem;
-        text-align: center;
-      }
-      @media (min-width: 640px) {
-        .register-title {
-          font-size: 1.5rem;
-        }
-      }
-      .register-form {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
         display: flex;
         flex-direction: column;
-        gap: 1rem;
       }
-      .register-label {
-        display: block;
-        font-size: 0.875rem;
-        font-weight: 500;
-        color: #374151;
+
+      /* 動畫定義 */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(20px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
       }
-      .register-input {
-        margin-top: 0.25rem;
-        display: block;
+
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0px);
+        }
+        50% {
+          transform: translateY(-10px);
+        }
+      }
+
+      .fade-in {
+        animation: fadeIn 0.6s ease-out;
+      }
+
+      .float-animation {
+        animation: float 3s ease-in-out infinite;
+      }
+
+      /* 插畫容器 */
+      .illustration-container {
+        width: 200px;
+        height: 200px;
+        margin: 0 auto 2rem;
+        position: relative;
+      }
+
+      /* 簡單的SVG動畫公仔 */
+      .avatar-illustration {
         width: 100%;
-        padding: 0.75rem;
-        min-height: 48px;
-        font-size: 16px;
-        border: 1px solid #d1d5db;
-        border-radius: 0.375rem;
-        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        outline: none;
-        transition: border-color 0.2s, box-shadow 0.2s;
+        height: 100%;
       }
-      .register-input:focus {
-        border-color: #2563eb;
-        box-shadow: 0 0 0 1px #2563eb;
+
+      .avatar-eyes {
+        transition: opacity 0.3s ease;
       }
-      .register-btn {
+
+      .avatar-eyes-closed {
+        opacity: 0;
+      }
+
+      .avatar-hands {
+        transition: transform 0.3s ease;
+        transform-origin: center;
+      }
+
+      .avatar-hands-cover {
+        transform: translateY(-20px);
+      }
+
+      /* 輸入框樣式 */
+      .input-group {
+        position: relative;
+      }
+
+      .input-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #9ca3af;
+        pointer-events: none;
+      }
+
+      .input-field {
         width: 100%;
-        background-color: #2563eb;
-        color: #fff;
-        padding: 0.75rem 1rem;
-        min-height: 48px;
-        border-radius: 0.375rem;
-        transition: background-color 0.2s;
-        border: none;
+        padding: 0.875rem 1rem 0.875rem 2.75rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 0.75rem;
         font-size: 1rem;
-        font-weight: 500;
+        transition: all 0.3s ease;
+        background: white;
+      }
+
+      .input-field:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+      }
+
+      .input-field::placeholder {
+        color: #9ca3af;
+      }
+
+      /* 按鈕樣式 */
+      .btn-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 0.875rem 2rem;
+        border-radius: 0.75rem;
+        font-weight: 600;
+        font-size: 1rem;
+        border: none;
         cursor: pointer;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 14px 0 rgba(102, 126, 234, 0.4);
+      }
+
+      .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.5);
+      }
+
+      .btn-primary:active {
+        transform: translateY(0);
+      }
+
+      /* 卡片樣式 */
+      .auth-card {
+        background: white;
+        border-radius: 1.5rem;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        padding: 2.5rem;
+        width: 100%;
+        max-width: 440px;
+      }
+
+      @media (max-width: 640px) {
+        .auth-card {
+          padding: 2rem 1.5rem;
+          margin: 1rem;
+          border-radius: 1rem;
+        }
+
+        .illustration-container {
+          width: 150px;
+          height: 150px;
+        }
+      }
+
+      /* Logo 樣式 */
+      .header-logo {
+        transition: transform 0.3s ease;
+      }
+
+      .header-logo:hover {
+        transform: scale(1.05);
+      }
+
+      /* 密碼強度指示器 */
+      .password-strength-bar {
+        height: 4px;
+        border-radius: 2px;
+        margin-top: 0.5rem;
+        transition: all 0.3s ease;
+        background-color: #e5e7eb;
+      }
+
+      .password-strength-fill {
+        height: 100%;
+        border-radius: 2px;
+        transition: all 0.3s ease;
+      }
+
+      .strength-weak {
+        width: 33%;
+        background-color: #ef4444;
+      }
+
+      .strength-medium {
+        width: 66%;
+        background-color: #f59e0b;
+      }
+
+      .strength-strong {
+        width: 100%;
+        background-color: #10b981;
+      }
+
+      .password-tips {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background-color: #f3f4f6;
+        border-radius: 0.5rem;
+        font-size: 0.875rem;
+      }
+
+      .password-requirement {
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.25rem 0;
+        color: #6b7280;
+        transition: color 0.3s ease;
       }
-      .register-btn:hover {
-        background-color: #1d4ed8;
+
+      .password-requirement.met {
+        color: #10b981;
       }
-      .register-footer {
-        margin-top: 1rem;
-        text-align: center;
-        font-size: 0.875rem;
-        color: #4b5563;
+
+      .password-requirement i {
+        width: 16px;
+        font-size: 0.75rem;
       }
-      .register-link {
-        color: #2563eb;
-        text-decoration: none;
-        transition: text-decoration 0.2s;
+
+      /* 郵箱驗證提示 */
+      .email-validation {
+        margin-top: 0.5rem;
+        font-size: 0.75rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
       }
-      .register-link:hover {
-        text-decoration: underline;
+
+      .email-valid {
+        color: #10b981;
+      }
+
+      .email-invalid {
+        color: #ef4444;
+      }
+
+      .input-field.valid {
+        border-color: #10b981;
+      }
+
+      .input-field.invalid {
+        border-color: #ef4444;
       }
     </style>
   </head>
   <body>
-    <div class="register-container">
-      <h2 class="register-title">註冊帳號</h2>
-      <form id="registerForm" class="register-form">
-        <div>
-          <label for="username" class="register-label">用戶名</label>
-          <input
-            type="text"
-            id="username"
-            name="username"
-            required
-            class="register-input"
-            placeholder="請輸入用戶名"
+    <!-- Header -->
+    <header class="py-6 px-4 md:px-8">
+      <div class="container mx-auto">
+        <a href="/" class="flex items-center space-x-3 w-fit header-logo">
+          <img
+            src="/img/icon499x499.png"
+            alt="PBC Logo"
+            class="h-12 w-12 md:h-14 md:w-14"
           />
-        </div>
-        <div>
-          <label for="email" class="register-label">電子郵件</label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            required
-            class="register-input"
-            placeholder="請輸入電子郵件"
-          />
-        </div>
-        <div>
-          <label for="password" class="register-label">密碼</label>
-          <input
-            type="password"
-            id="password"
-            name="password"
-            required
-            class="register-input"
-            placeholder="請輸入密碼"
-          />
-        </div>
-        <div>
-          <label for="confirm-password" class="register-label">確認密碼</label>
-          <input
-            type="password"
-            id="confirm-password"
-            name="confirm-password"
-            required
-            class="register-input"
-            placeholder="請再次輸入密碼"
-          />
-        </div>
-        <button type="submit" class="register-btn" id="registerBtn">
-          <span id="registerBtnText">註冊</span>
-          <span id="registerBtnLoading" style="display: none">註冊中...</span>
-        </button>
-        <div
-          id="errorMessage"
-          style="
-            display: none;
-            color: #dc2626;
-            font-size: 0.875rem;
-            text-align: center;
-            margin-top: 0.5rem;
-          "
-        ></div>
-      </form>
-      <p class="register-footer">
-        已有帳號？<a href="/login-page.html" class="register-link">登入</a>
-      </p>
-    </div>
+          <span class="text-white text-2xl md:text-3xl font-bold"
+            >PBC聚賬通</span
+          >
+        </a>
+      </div>
+    </header>
 
-    <!-- 引入認證管理器 -->
+    <!-- Main Content -->
+    <main class="flex-1 flex items-center justify-center px-4 py-8">
+      <div class="auth-card fade-in">
+        <!-- 插畫 -->
+        <div class="illustration-container float-animation">
+          <svg
+            class="avatar-illustration"
+            viewBox="0 0 200 200"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <!-- 背景裝飾 -->
+            <circle cx="100" cy="100" r="95" fill="#EDE9FE" opacity="0.3" />
+
+            <!-- 棕熊身體 -->
+            <ellipse cx="100" cy="140" rx="65" ry="50" fill="#92400E" />
+            <ellipse cx="100" cy="145" rx="60" ry="45" fill="#B45309" />
+
+            <!-- 棕熊頭部 -->
+            <circle cx="100" cy="85" r="58" fill="#92400E" />
+            <circle cx="100" cy="85" r="54" fill="#B45309" />
+
+            <!-- 耳朵 -->
+            <circle cx="60" cy="55" r="20" fill="#92400E" />
+            <circle cx="60" cy="55" r="16" fill="#B45309" />
+            <circle cx="62" cy="53" r="8" fill="#FED7AA" opacity="0.8" />
+
+            <circle cx="140" cy="55" r="20" fill="#92400E" />
+            <circle cx="140" cy="55" r="16" fill="#B45309" />
+            <circle cx="138" cy="53" r="8" fill="#FED7AA" opacity="0.8" />
+
+            <!-- 棕熊臉部中心（淺色） -->
+            <ellipse
+              cx="100"
+              cy="95"
+              rx="38"
+              ry="32"
+              fill="#FED7AA"
+              opacity="0.9"
+            />
+
+            <!-- 臉紅 -->
+            <ellipse
+              cx="68"
+              cy="98"
+              rx="12"
+              ry="8"
+              fill="#FCA5A5"
+              opacity="0.4"
+            />
+            <ellipse
+              cx="132"
+              cy="98"
+              rx="12"
+              ry="8"
+              fill="#FCA5A5"
+              opacity="0.4"
+            />
+
+            <!-- 眼睛 (睜開) -->
+            <g class="avatar-eyes" id="eyes-open">
+              <!-- 左眼 -->
+              <circle cx="80" cy="85" r="6" fill="#1F2937" />
+              <circle cx="82" cy="83" r="2.5" fill="white" />
+
+              <!-- 右眼 -->
+              <circle cx="120" cy="85" r="6" fill="#1F2937" />
+              <circle cx="122" cy="83" r="2.5" fill="white" />
+            </g>
+
+            <!-- 眼睛 (閉上) -->
+            <g class="avatar-eyes avatar-eyes-closed" id="eyes-closed">
+              <path
+                d="M 74 85 Q 80 82 86 85"
+                stroke="#1F2937"
+                stroke-width="2.5"
+                fill="none"
+                stroke-linecap="round"
+              />
+              <path
+                d="M 114 85 Q 120 82 126 85"
+                stroke="#1F2937"
+                stroke-width="2.5"
+                fill="none"
+                stroke-linecap="round"
+              />
+            </g>
+
+            <!-- 鼻子 -->
+            <ellipse cx="100" cy="100" rx="8" ry="6" fill="#1F2937" />
+            <ellipse
+              cx="98"
+              cy="99"
+              rx="2"
+              ry="1.5"
+              fill="white"
+              opacity="0.6"
+            />
+
+            <!-- 嘴巴（開心大笑） -->
+            <path
+              d="M 88 108 Q 100 116 112 108"
+              stroke="#1F2937"
+              stroke-width="2.5"
+              fill="none"
+              stroke-linecap="round"
+            />
+            <path
+              d="M 92 110 Q 100 114 108 110"
+              stroke="#1F2937"
+              stroke-width="1.5"
+              fill="none"
+              stroke-linecap="round"
+              opacity="0.3"
+            />
+
+            <!-- 小鬍鬚點點 -->
+            <circle cx="70" cy="102" r="1.5" fill="#D1D5DB" />
+            <circle cx="130" cy="102" r="1.5" fill="#D1D5DB" />
+
+            <!-- 小星星裝飾 (註冊頁面專屬) -->
+            <path
+              d="M 30 120 L 32 125 L 37 125 L 33 129 L 35 134 L 30 130 L 25 134 L 27 129 L 23 125 L 28 125 Z"
+              fill="#FCD34D"
+              opacity="0.6"
+            />
+            <path
+              d="M 170 120 L 172 125 L 177 125 L 173 129 L 175 134 L 170 130 L 165 134 L 167 129 L 163 125 L 168 125 Z"
+              fill="#FCD34D"
+              opacity="0.6"
+            />
+
+            <!-- 棕熊爪子/手 (用於遮眼睛) -->
+            <g class="avatar-hands" id="hands">
+              <!-- 左手 (爪子) -->
+              <g id="hand-left-group" opacity="0">
+                <ellipse
+                  cx="72"
+                  cy="82"
+                  rx="16"
+                  ry="14"
+                  fill="#92400E"
+                  transform="rotate(-20 72 82)"
+                />
+                <ellipse
+                  cx="72"
+                  cy="82"
+                  rx="13"
+                  ry="11"
+                  fill="#B45309"
+                  transform="rotate(-20 72 82)"
+                />
+                <ellipse
+                  cx="72"
+                  cy="85"
+                  rx="10"
+                  ry="8"
+                  fill="#FED7AA"
+                  opacity="0.8"
+                  transform="rotate(-20 72 85)"
+                />
+                <!-- 爪子紋路 -->
+                <line
+                  x1="68"
+                  y1="78"
+                  x2="68"
+                  y2="84"
+                  stroke="#78350F"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+                <line
+                  x1="72"
+                  y1="76"
+                  x2="72"
+                  y2="82"
+                  stroke="#78350F"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+                <line
+                  x1="76"
+                  y1="78"
+                  x2="76"
+                  y2="84"
+                  stroke="#78350F"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </g>
+
+              <!-- 右手 (爪子) -->
+              <g id="hand-right-group" opacity="0">
+                <ellipse
+                  cx="128"
+                  cy="82"
+                  rx="16"
+                  ry="14"
+                  fill="#92400E"
+                  transform="rotate(20 128 82)"
+                />
+                <ellipse
+                  cx="128"
+                  cy="82"
+                  rx="13"
+                  ry="11"
+                  fill="#B45309"
+                  transform="rotate(20 128 82)"
+                />
+                <ellipse
+                  cx="128"
+                  cy="85"
+                  rx="10"
+                  ry="8"
+                  fill="#FED7AA"
+                  opacity="0.8"
+                  transform="rotate(20 128 85)"
+                />
+                <!-- 爪子紋路 -->
+                <line
+                  x1="124"
+                  y1="78"
+                  x2="124"
+                  y2="84"
+                  stroke="#78350F"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+                <line
+                  x1="128"
+                  y1="76"
+                  x2="128"
+                  y2="82"
+                  stroke="#78350F"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+                <line
+                  x1="132"
+                  y1="78"
+                  x2="132"
+                  y2="84"
+                  stroke="#78350F"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                />
+              </g>
+            </g>
+          </svg>
+        </div>
+
+        <!-- 標題 -->
+        <h1
+          class="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-8"
+        >
+          建立您的帳號
+        </h1>
+
+        <!-- 註冊表單 -->
+        <form id="registerForm" class="space-y-5">
+          <!-- 用戶名 -->
+          <div class="input-group">
+            <i class="fas fa-user input-icon"></i>
+            <input
+              type="text"
+              id="username"
+              class="input-field"
+              placeholder="用戶名"
+              required
+              minlength="3"
+            />
+          </div>
+
+          <!-- 電子郵件 -->
+          <div>
+            <div class="input-group">
+              <i class="fas fa-envelope input-icon"></i>
+              <input
+                type="email"
+                id="email"
+                class="input-field"
+                placeholder="電子郵件"
+                required
+              />
+            </div>
+            <div id="email-validation" class="email-validation hidden"></div>
+          </div>
+
+          <!-- 密碼 -->
+          <div>
+            <div class="input-group">
+              <i class="fas fa-lock input-icon"></i>
+              <input
+                type="password"
+                id="password"
+                class="input-field"
+                placeholder="密碼（至少 6 個字符）"
+                required
+                minlength="6"
+              />
+            </div>
+            <!-- 密碼強度指示器 -->
+            <div class="password-strength-bar">
+              <div
+                id="password-strength-fill"
+                class="password-strength-fill"
+              ></div>
+            </div>
+            <div
+              id="password-strength-text"
+              class="text-xs text-gray-600 mt-1 hidden"
+            >
+              強度: <span id="strength-label" class="font-semibold"></span>
+            </div>
+
+            <!-- 密碼要求提示 -->
+            <div class="password-tips" id="password-tips">
+              <div class="text-xs font-semibold text-gray-700 mb-2">
+                <i class="fas fa-shield-alt"></i> 建議的密碼組合：
+              </div>
+              <div class="space-y-1">
+                <div class="password-requirement" id="req-length">
+                  <i class="far fa-circle"></i>
+                  <span>至少 6 個字符</span>
+                </div>
+                <div class="password-requirement" id="req-number">
+                  <i class="far fa-circle"></i>
+                  <span>包含數字 (0-9)</span>
+                </div>
+                <div class="password-requirement" id="req-uppercase">
+                  <i class="far fa-circle"></i>
+                  <span>包含大寫字母 (A-Z)</span>
+                </div>
+                <div class="password-requirement" id="req-special">
+                  <i class="far fa-circle"></i>
+                  <span>包含特殊字符 (!@#$%)</span>
+                </div>
+              </div>
+              <div
+                class="mt-2 pt-2 border-t border-gray-300 text-xs text-gray-600"
+              >
+                <i class="fas fa-lightbulb text-yellow-500"></i>
+                <strong>提示：</strong>結合字母、數字和符號，密碼更安全！
+              </div>
+            </div>
+          </div>
+
+          <!-- 確認密碼 -->
+          <div class="input-group">
+            <i class="fas fa-lock input-icon"></i>
+            <input
+              type="password"
+              id="confirmPassword"
+              class="input-field"
+              placeholder="確認密碼"
+              required
+            />
+          </div>
+
+          <!-- 錯誤訊息 -->
+          <div
+            id="error-message"
+            class="text-red-500 text-sm text-center hidden"
+          ></div>
+
+          <!-- 註冊按鈕 -->
+          <button type="submit" class="btn-primary w-full">
+            <span id="btn-text">註冊</span>
+            <i id="btn-loading" class="fas fa-spinner fa-spin ml-2 hidden"></i>
+          </button>
+
+          <!-- 登入連結 -->
+          <div class="text-center text-gray-600 mt-4">
+            已經有帳號？
+            <a
+              href="/login-page.html"
+              class="text-purple-600 hover:text-purple-700 font-medium transition-colors"
+            >
+              立即登入
+            </a>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="py-6 px-4 text-center text-white">
+      <p class="text-sm opacity-90 mb-1">© 2025 PBC聚賬通. 保留所有權利</p>
+      <p class="text-xs opacity-75">
+        讓聚會帳單分攤變得簡單公平，提升社交體驗的必備工具。
+      </p>
+    </footer>
+
+    <!-- Auth Script -->
     <script src="/js/auth.js"></script>
+    <!-- Page Transition Script -->
+    <script src="/js/page-transition.js"></script>
     <script>
-      // 頁面加載時檢查認證狀態
-      document.addEventListener("DOMContentLoaded", function () {
-        // 如果已登入，重定向到計算器頁面
-        if (window.authManager.isAuthenticated()) {
-          window.authManager.redirectToCalculator();
+      const usernameInput = document.getElementById("username");
+      const emailInput = document.getElementById("email");
+      const passwordInput = document.getElementById("password");
+      const confirmPasswordInput = document.getElementById("confirmPassword");
+      const eyesOpen = document.getElementById("eyes-open");
+      const eyesClosed = document.getElementById("eyes-closed");
+      const hands = document.getElementById("hands");
+      const handLeftGroup = document.getElementById("hand-left-group");
+      const handRightGroup = document.getElementById("hand-right-group");
+      const passwordStrength = document.getElementById("password-strength");
+      const emailValidation = document.getElementById("email-validation");
+
+      // 郵箱即時驗證
+      emailInput.addEventListener("input", () => {
+        const email = emailInput.value.trim();
+
+        if (email.length === 0) {
+          emailValidation.classList.add("hidden");
+          emailInput.classList.remove("valid", "invalid");
+          return;
+        }
+
+        // 使用 email-validator 庫驗證（如果可用）
+        let isValid = false;
+        if (typeof emailValidator !== "undefined" && emailValidator.validate) {
+          isValid = emailValidator.validate(email);
+        } else {
+          // 備用：使用正則表達式
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          isValid = emailRegex.test(email);
+        }
+
+        emailValidation.classList.remove("hidden");
+
+        if (isValid) {
+          emailInput.classList.remove("invalid");
+          emailInput.classList.add("valid");
+          emailValidation.className = "email-validation email-valid";
+          emailValidation.innerHTML =
+            '<i class="fas fa-check-circle"></i><span>郵箱格式正確</span>';
+        } else {
+          emailInput.classList.remove("valid");
+          emailInput.classList.add("invalid");
+          emailValidation.className = "email-validation email-invalid";
+          emailValidation.innerHTML =
+            '<i class="fas fa-exclamation-circle"></i><span>請輸入有效的郵箱地址（例如：user@example.com）</span>';
         }
       });
+
+      // 用戶名或電子郵件輸入時 - 睜開眼睛
+      [usernameInput, emailInput].forEach((input) => {
+        input.addEventListener("focus", () => {
+          eyesOpen.classList.remove("avatar-eyes-closed");
+          eyesClosed.classList.add("avatar-eyes-closed");
+          handLeftGroup.style.opacity = "0";
+          handRightGroup.style.opacity = "0";
+        });
+      });
+
+      // 密碼或確認密碼輸入時 - 遮住眼睛
+      [passwordInput, confirmPasswordInput].forEach((input) => {
+        input.addEventListener("focus", () => {
+          eyesOpen.classList.add("avatar-eyes-closed");
+          eyesClosed.classList.remove("avatar-eyes-closed");
+          handLeftGroup.style.opacity = "1";
+          handRightGroup.style.opacity = "1";
+        });
+      });
+
+      // 密碼強度檢查
+      const passwordStrengthFill = document.getElementById(
+        "password-strength-fill"
+      );
+      const passwordStrengthText = document.getElementById(
+        "password-strength-text"
+      );
+      const strengthLabel = document.getElementById("strength-label");
+
+      // 各項要求的元素
+      const reqLength = document.getElementById("req-length");
+      const reqNumber = document.getElementById("req-number");
+      const reqUppercase = document.getElementById("req-uppercase");
+      const reqSpecial = document.getElementById("req-special");
+
+      passwordInput.addEventListener("input", () => {
+        const password = passwordInput.value;
+
+        // 如果密碼為空，重置所有狀態
+        if (password.length === 0) {
+          passwordStrengthFill.className = "password-strength-fill";
+          passwordStrengthFill.style.width = "0";
+          passwordStrengthText.classList.add("hidden");
+          [reqLength, reqNumber, reqUppercase, reqSpecial].forEach((req) => {
+            req.classList.remove("met");
+            req.querySelector("i").className = "far fa-circle";
+          });
+          return;
+        }
+
+        // 顯示強度文字
+        passwordStrengthText.classList.remove("hidden");
+
+        // 檢查各項要求
+        const checks = {
+          length: password.length >= 6,
+          longLength: password.length >= 10,
+          number: /[0-9]/.test(password),
+          uppercase: /[A-Z]/.test(password),
+          lowercase: /[a-z]/.test(password),
+          special: /[^A-Za-z0-9]/.test(password),
+        };
+
+        // 更新要求狀態
+        updateRequirement(reqLength, checks.length);
+        updateRequirement(reqNumber, checks.number);
+        updateRequirement(reqUppercase, checks.uppercase);
+        updateRequirement(reqSpecial, checks.special);
+
+        // 計算強度分數
+        let strength = 0;
+        if (checks.length) strength++;
+        if (checks.longLength) strength++;
+        if (checks.number) strength++;
+        if (checks.uppercase) strength++;
+        if (checks.lowercase) strength++;
+        if (checks.special) strength++;
+
+        // 更新強度條和文字
+        passwordStrengthFill.className = "password-strength-fill";
+
+        if (strength <= 2) {
+          passwordStrengthFill.classList.add("strength-weak");
+          strengthLabel.textContent = "弱";
+          strengthLabel.className = "font-semibold text-red-500";
+        } else if (strength <= 4) {
+          passwordStrengthFill.classList.add("strength-medium");
+          strengthLabel.textContent = "中等";
+          strengthLabel.className = "font-semibold text-orange-500";
+        } else {
+          passwordStrengthFill.classList.add("strength-strong");
+          strengthLabel.textContent = "強";
+          strengthLabel.className = "font-semibold text-green-500";
+        }
+      });
+
+      // 更新單個要求的狀態
+      function updateRequirement(element, isMet) {
+        const icon = element.querySelector("i");
+        if (isMet) {
+          element.classList.add("met");
+          icon.className = "fas fa-check-circle";
+        } else {
+          element.classList.remove("met");
+          icon.className = "far fa-circle";
+        }
+      }
+
+      // 註冊表單提交
       document
         .getElementById("registerForm")
         .addEventListener("submit", async (e) => {
           e.preventDefault();
 
-          const username = document.getElementById("username").value;
-          const email = document.getElementById("email").value;
-          const password = document.getElementById("password").value;
-          const confirmPassword =
-            document.getElementById("confirm-password").value;
-          const registerBtn = document.getElementById("registerBtn");
-          const registerBtnText = document.getElementById("registerBtnText");
-          const registerBtnLoading =
-            document.getElementById("registerBtnLoading");
-          const errorMessage = document.getElementById("errorMessage");
+          const username = usernameInput.value.trim();
+          const email = emailInput.value.trim();
+          const password = passwordInput.value;
+          const confirmPassword = confirmPasswordInput.value;
+          const btnText = document.getElementById("btn-text");
+          const btnLoading = document.getElementById("btn-loading");
+          const errorMessage = document.getElementById("error-message");
 
-          // 驗證密碼匹配
+          // 驗證密碼
           if (password !== confirmPassword) {
-            errorMessage.textContent = "密碼不匹配";
-            errorMessage.style.display = "block";
+            errorMessage.textContent = "密碼不一致，請重新確認";
+            errorMessage.classList.remove("hidden");
             return;
           }
 
-          // 驗證密碼長度
           if (password.length < 6) {
-            errorMessage.textContent = "密碼至少需要6個字符";
-            errorMessage.style.display = "block";
+            errorMessage.textContent = "密碼至少需要 6 個字符";
+            errorMessage.classList.remove("hidden");
             return;
           }
 
-          // 顯示加載狀態
-          registerBtn.disabled = true;
-          registerBtnText.style.display = "none";
-          registerBtnLoading.style.display = "inline";
-          errorMessage.style.display = "none";
+          // 顯示載入狀態
+          btnText.textContent = "註冊中...";
+          btnLoading.classList.remove("hidden");
+          errorMessage.classList.add("hidden");
 
           try {
             const response = await fetch("/api/auth/register", {
@@ -238,27 +874,49 @@
             const data = await response.json();
 
             if (response.ok) {
-              // 註冊成功，使用認證管理器自動登入
-              window.authManager.setAuth(data.user, data.sessionId);
+              // 儲存登入資訊
+              localStorage.setItem("sessionId", data.sessionId);
+              localStorage.setItem("user", JSON.stringify(data.user));
 
-              // 重定向到計算器頁面
-              window.authManager.redirectToCalculator();
+              // 顯示成功訊息
+              errorMessage.textContent = "註冊成功！正在跳轉...";
+              errorMessage.classList.remove("hidden");
+              errorMessage.classList.remove("text-red-500");
+              errorMessage.classList.add("text-green-500");
+
+              // 添加淡出動畫後跳轉
+              setTimeout(() => {
+                document.body.style.transition = "opacity 0.3s ease-out";
+                document.body.style.opacity = "0";
+
+                setTimeout(() => {
+                  window.location.href = "/calculator.html";
+                }, 300);
+              }, 800);
             } else {
-              // 顯示錯誤信息
-              errorMessage.textContent = data.error || "註冊失敗";
-              errorMessage.style.display = "block";
+              // 顯示錯誤訊息
+              errorMessage.textContent = data.error || "註冊失敗，請稍後再試";
+              errorMessage.classList.remove("hidden");
+
+              // 重置按鈕狀態
+              btnText.textContent = "註冊";
+              btnLoading.classList.add("hidden");
             }
           } catch (error) {
-            console.error("Registration error:", error);
-            errorMessage.textContent = "網絡錯誤，請稍後再試";
-            errorMessage.style.display = "block";
-          } finally {
-            // 恢復按鈕狀態
-            registerBtn.disabled = false;
-            registerBtnText.style.display = "inline";
-            registerBtnLoading.style.display = "none";
+            console.error("註冊錯誤:", error);
+            errorMessage.textContent = "註冊失敗，請稍後再試";
+            errorMessage.classList.remove("hidden");
+
+            // 重置按鈕狀態
+            btnText.textContent = "註冊";
+            btnLoading.classList.add("hidden");
           }
         });
+
+      // 檢查是否已登入
+      if (window.authManager && window.authManager.isAuthenticated()) {
+        window.location.href = "/calculator.html";
+      }
     </script>
   </body>
 </html>
