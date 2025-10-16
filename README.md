@@ -217,14 +217,15 @@ PartyBillCalculator/
 │   ├── messageManager.ts      # 消息管理
 │   └── billCalculator.ts      # 計算邏輯
 ├── docs/                       # 項目文檔
-│   ├── CHANGELOG.md           # 更新日誌
-│   ├── DATABASE_SETUP.md      # 數據庫設置指南
-│   ├── COMPONENT_SYSTEM.md    # 組件系統文檔
-│   ├── MESSAGE_SYSTEM.md      # 消息系統文檔
-│   ├── MY_BILLS_PAGE.md       # 我的賬單頁面文檔 ⭐
-│   ├── PAYMENT_FLOW.md        # 支付流程文檔
-│   ├── TEST_USERS.md          # 測試用戶列表
-│   ├── TROUBLESHOOTING.md     # 故障排除
+│   ├── CHANGELOG.md                        # 更新日誌
+│   ├── COMPLETE_UI_OPTIMIZATION_REPORT.md  # 完整UI優化報告 ⭐
+│   ├── UPDATE_CHECKLIST.md                 # 更新檢查清單 ⭐
+│   ├── COMPONENT_SYSTEM.md                 # 組件系統文檔
+│   ├── MESSAGE_SYSTEM.md                   # 消息系統文檔
+│   ├── MY_BILLS_PAGE.md                    # 我的賬單頁面文檔
+│   ├── PAYMENT_FLOW.md                     # 支付流程文檔
+│   ├── TEST_USERS.md                       # 測試用戶列表
+│   ├── TROUBLESHOOTING.md                  # 故障排除
 │   └── archive/               # 開發歷史文檔
 │       ├── AUTH_SYSTEM_UPGRADE.md
 │       ├── PARTICIPANT_CARD_REFACTOR.md
