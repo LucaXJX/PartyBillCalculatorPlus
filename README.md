@@ -217,13 +217,21 @@ PartyBillCalculator/
 │   ├── messageManager.ts      # 消息管理
 │   └── billCalculator.ts      # 計算邏輯
 ├── docs/                       # 項目文檔
-│   ├── AUTH_SYSTEM_UPGRADE.md # 認證系統升級文檔
+│   ├── CHANGELOG.md           # 更新日誌
 │   ├── DATABASE_SETUP.md      # 數據庫設置指南
-│   ├── MY_BILLS_PAGE.md       # 我的賬單頁面文檔 ⭐
 │   ├── COMPONENT_SYSTEM.md    # 組件系統文檔
 │   ├── MESSAGE_SYSTEM.md      # 消息系統文檔
+│   ├── MY_BILLS_PAGE.md       # 我的賬單頁面文檔 ⭐
 │   ├── PAYMENT_FLOW.md        # 支付流程文檔
-│   └── TEST_USERS.md          # 測試用戶列表
+│   ├── TEST_USERS.md          # 測試用戶列表
+│   ├── TROUBLESHOOTING.md     # 故障排除
+│   └── archive/               # 開發歷史文檔
+│       ├── AUTH_SYSTEM_UPGRADE.md
+│       ├── PARTICIPANT_CARD_REFACTOR.md
+│       ├── SECURITY_UPDATES.md
+│       ├── MY_BILLS_PAGE_IMPLEMENTATION.md
+│       ├── CALCULATOR_TEST_CHECKLIST.md
+│       └── TEST_RESULTS.md
 ├── data/                       # 數據文件
 │   ├── users.json             # 用戶數據
 │   ├── bills.json             # 賬單數據
@@ -250,8 +258,7 @@ PartyBillCalculator/
 ├── README.md                   # 項目說明
 ├── CONTRIBUTING.md             # 貢獻指南
 ├── CODE_OF_CONDUCT.md          # 行為準則
-├── SECURITY.md                 # 安全政策
-└── CHANGELOG.md                # 更新日誌
+└── SECURITY.md                 # 安全政策
 ```
 
 ## 🔧 開發指南
