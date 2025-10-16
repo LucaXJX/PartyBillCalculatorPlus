@@ -213,13 +213,20 @@
       import { PageSetup } from "/js/page-setup.js";
 
       // 初始化頁面
-      const pageSetup = new PageSetup({
+      const pageSetup = new PageSetup();
+
+      await pageSetup.init({
         requireAuth: true,
         currentPage: "settings",
         redirectIfNotAuth: "/login-page.html",
+        showHeader: true,
+        showFooter: true,
+        headerOptions: {
+          showCalculator: true,
+          showMyBills: true,
+          showContact: true,
+        },
       });
-
-      pageSetup.init();
 
       // 頁面加載後顯示用戶信息
       window.addEventListener("DOMContentLoaded", () => {

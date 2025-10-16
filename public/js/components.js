@@ -32,8 +32,6 @@ class ComponentManager {
    * @returns {string} Header HTML
    */
   generateHeader(options = {}) {
-    console.log("generateHeader 被調用，選項:", options);
-
     const {
       currentPage = "",
       showCalculator = true,
@@ -47,21 +45,10 @@ class ComponentManager {
     const isAuthenticated =
       this.authManager && this.authManager.isAuthenticated();
 
-    console.log(
-      "認證狀態:",
-      isAuthenticated,
-      "是否首頁:",
-      isHomePage,
-      "是否公開頁面:",
-      isPublicPage
-    );
-
     // 首頁或公開頁面使用相同的 header 邏輯
     if (isHomePage || isPublicPage) {
-      console.log("生成首頁/公開頁面 Header");
       return this.generateHomePageHeader(isAuthenticated);
     } else {
-      console.log("生成功能頁面 Header");
       return this.generateAuthenticatedHeader(options, isAuthenticated);
     }
   }
@@ -259,6 +246,12 @@ class ComponentManager {
 
             <!-- 用戶頭像和下拉菜單 -->
             <div class="flex items-center space-x-4">
+              <!-- 移動端菜單按鈕 -->
+              <button id="menu-toggle" class="md:hidden text-gray-600 hover:text-primary p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="開啟選單">
+                <i class="fa fa-bars text-xl"></i>
+              </button>
+
+              <!-- 用戶頭像和下拉菜單 -->
               <div class="relative group">
                 <button class="flex items-center space-x-2 focus:outline-none">
                   <img src="${`https://ui-avatars.com/api/?name=${encodeURIComponent(
@@ -282,6 +275,58 @@ class ComponentManager {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- 移動端菜單 -->
+        <div id="mobile-menu" class="md:hidden hidden bg-white border-t">
+          <div class="container mx-auto px-4 py-3 space-y-3">
+            ${
+              showCalculator
+                ? `
+              <a href="/calculator.html" class="${
+                currentPage === "calculator"
+                  ? "block text-primary font-medium py-2"
+                  : "block text-gray-600 hover:text-primary py-2 transition-colors"
+              }">
+                <i class="fa fa-calculator mr-2"></i>智能計算
+              </a>
+            `
+                : ""
+            }
+            ${
+              showMyBills
+                ? `
+              <a href="/my-bills.html" class="${
+                currentPage === "my-bills"
+                  ? "block text-primary font-medium py-2"
+                  : "block text-gray-600 hover:text-primary py-2 transition-colors"
+              }">
+                <i class="fa fa-file-text mr-2"></i>我的賬單
+              </a>
+            `
+                : ""
+            }
+            ${
+              showContact
+                ? `
+              <a href="/messages.html" class="${
+                currentPage === "messages"
+                  ? "block text-primary font-medium py-2"
+                  : "block text-gray-600 hover:text-primary py-2 transition-colors"
+              }">
+                <i class="fa fa-envelope mr-2"></i>我的消息
+              </a>
+            `
+                : ""
+            }
+            <div class="border-t border-gray-200 my-2"></div>
+            <a href="/settings.html" class="block text-gray-600 hover:text-primary py-2 transition-colors">
+              <i class="fa fa-cog mr-2"></i>設置
+            </a>
+            <a href="#" id="logout-btn-mobile" class="block text-red-500 hover:bg-red-50 py-2 transition-colors">
+              <i class="fa fa-sign-out mr-2"></i>退出登入
+            </a>
           </div>
         </div>
       </header>
@@ -439,8 +484,14 @@ class ComponentManager {
     // 設置登出功能
     this.authManager.setupLogoutButton();
 
+    // 設置移動端登出按鈕
+    this.setupMobileLogout();
+
     // 設置下拉菜單功能
     this.setupDropdownMenu();
+
+    // 設置移動端菜單切換功能
+    this.setupMobileMenu();
   }
 
   /**
@@ -512,6 +563,60 @@ class ComponentManager {
             e.preventDefault();
             dropdownButton.click();
           }
+        });
+      }
+    }, 100);
+  }
+
+  /**
+   * 設置移動端菜單切換功能
+   */
+  setupMobileMenu() {
+    setTimeout(() => {
+      const menuToggle = document.getElementById("menu-toggle");
+      const mobileMenu = document.getElementById("mobile-menu");
+
+      if (menuToggle && mobileMenu) {
+        menuToggle.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          mobileMenu.classList.toggle("hidden");
+        });
+
+        // 點擊菜單項後關閉菜單
+        const menuLinks = mobileMenu.querySelectorAll("a");
+        menuLinks.forEach((link) => {
+          link.addEventListener("click", () => {
+            // 如果不是登出按鈕，關閉菜單
+            if (!link.id.includes("logout")) {
+              mobileMenu.classList.add("hidden");
+            }
+          });
+        });
+
+        // 點擊外部關閉菜單
+        document.addEventListener("click", (e) => {
+          if (
+            !menuToggle.contains(e.target) &&
+            !mobileMenu.contains(e.target)
+          ) {
+            mobileMenu.classList.add("hidden");
+          }
+        });
+      }
+    }, 100);
+  }
+
+  /**
+   * 設置移動端登出按鈕
+   */
+  setupMobileLogout() {
+    setTimeout(() => {
+      const logoutBtnMobile = document.getElementById("logout-btn-mobile");
+      if (logoutBtnMobile && this.authManager) {
+        logoutBtnMobile.addEventListener("click", async (e) => {
+          e.preventDefault();
+          await this.authManager.logout();
         });
       }
     }, 100);
