@@ -496,6 +496,17 @@
 
               displayBills(bills);
               updateStatistics(bills);
+
+              // 檢查 URL 參數，如果有 billId 和 highlight，則高亮顯示該賬單
+              const urlParams = new URLSearchParams(window.location.search);
+              const highlightBillId = urlParams.get("billId");
+              const shouldHighlight = urlParams.get("highlight") === "true";
+
+              if (highlightBillId && shouldHighlight) {
+                setTimeout(() => {
+                  highlightBill(highlightBillId);
+                }, 500);
+              }
             } else {
               console.error("加載賬單失敗，狀態碼:", response.status);
               const errorData = await response.json();
@@ -503,6 +514,37 @@
             }
           } catch (error) {
             console.error("加載賬單時出錯:", error);
+          }
+        }
+
+        // 高亮顯示指定的賬單
+        function highlightBill(billId) {
+          const billElement = document.querySelector(
+            `[data-bill-id="${billId}"]`
+          );
+          if (billElement) {
+            console.log("找到賬單元素，開始高亮:", billId);
+
+            // 滾動到該賬單
+            billElement.scrollIntoView({ behavior: "smooth", block: "center" });
+
+            // 添加高亮效果（更明顯的樣式）
+            billElement.style.backgroundColor = "#fef3c7"; // 淡黃色背景
+            billElement.style.border = "3px solid #f59e0b"; // 橙色邊框
+            billElement.style.transition = "all 0.3s ease";
+
+            // 3秒後移除高亮
+            setTimeout(() => {
+              billElement.style.backgroundColor = "";
+              billElement.style.border = "";
+              console.log("高亮已移除");
+            }, 3000);
+
+            // 清除 URL 參數
+            const newUrl = window.location.pathname;
+            window.history.replaceState({}, document.title, newUrl);
+          } else {
+            console.error("找不到賬單元素:", billId);
           }
         }
 
@@ -548,6 +590,7 @@
           const billDiv = document.createElement("div");
           billDiv.className =
             "p-4 sm:p-6 hover:bg-gray-50 transition-all duration-200 border-b border-gray-100 last:border-b-0";
+          billDiv.setAttribute("data-bill-id", bill.id);
 
           const date = new Date(bill.date);
           const formattedDate = date.toLocaleDateString("zh-TW");

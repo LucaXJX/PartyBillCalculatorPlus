@@ -12,6 +12,7 @@ import { BillCalculator } from "./billCalculator.js";
 import { dataStorage } from "./storage.js";
 import { messageManager } from "./messageManager.js";
 import { MessageHelper } from "./messageHelper.js";
+import { overdueReminderService } from "./overdueReminderService.js";
 import type { User, BillRecord, Participant } from "./types.js";
 
 // 解決 ES6 模塊中的 __dirname 問題
@@ -846,6 +847,27 @@ app.get("/registration-page.html", protectPage("auth"), (req, res) => {
 
 // 處理所有其他路由，返回 index.html 支持 SPA
 // 但排除 API 路由
+// 管理端點：手動觸發逾期檢查（僅用於測試）
+app.post(
+  "/api/admin/trigger-overdue-check",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      console.log("🧪 手動觸發逾期檢查（測試用）");
+      const count = await overdueReminderService.triggerCheck();
+      res.json({
+        success: true,
+        count: count,
+        message: "逾期檢查已完成",
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error: any) {
+      console.error("手動觸發逾期檢查失敗:", error);
+      res.status(500).json({ error: error.message });
+    }
+  }
+);
+
 app.use((req, res, next) => {
   // 如果是 API 路由，跳過 SPA 處理
   if (req.path.startsWith("/api/")) {
@@ -865,4 +887,8 @@ app.listen(PORT, () => {
   console.log(`服務器運行在 http://localhost:${PORT}`);
   console.log(`- 靜態資源來源: public 文件夾`);
   console.log(`- API 根路徑: /api`);
+
+  // 啟動逾期賬單提醒服務
+  overdueReminderService.start();
+  console.log(`- 逾期提醒服務: 已啟動（每天晚上 8 點檢查）`);
 });

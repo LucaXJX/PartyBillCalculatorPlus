@@ -422,11 +422,39 @@
                 `
                     : ""
                 }
+                
+                <!-- 跳轉按鈕（逾期提醒） -->
+                ${
+                  message.actionUrl
+                    ? `
+                <div class="mt-3">
+                  <button
+                    onclick="navigateToAction('${message.actionUrl}')"
+                    class="btn-primary text-sm"
+                  >
+                    <i class="fa fa-arrow-right mr-1"></i>${
+                      message.actionText || "查看詳情"
+                    }
+                  </button>
+                </div>
+                `
+                    : ""
+                }
               </div>
             </div>
           </div>
         `;
       }
+
+      /**
+       * 跳轉到操作頁面
+       */
+      window.navigateToAction = function (url) {
+        console.log("跳轉到:", url);
+        if (url) {
+          window.location.href = url;
+        }
+      };
 
       /**
        * 獲取消息類型信息
