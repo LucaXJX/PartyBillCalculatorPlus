@@ -12,7 +12,7 @@ import { BillCalculator } from "./billCalculator.js";
 import { dataStorage } from "./storage.js";
 import { messageManager } from "./messageManager.js";
 import { MessageHelper } from "./messageHelper.js";
-import type { User, BillRecord } from "./types.js";
+import type { User, BillRecord, Participant } from "./types.js";
 
 // 解決 ES6 模塊中的 __dirname 問題
 // const __filename = fileURLToPath(import.meta.url);
@@ -475,13 +475,32 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
     const bill = req.userDataManager.getCurrentBill();
     const results = calculator.calculate(bill);
 
-    // 如果有付款人，自動將付款人的狀態設置為已付款
-    if (bill.payerId) {
-      const payerResult = results.find((r) => r.participantId === bill.payerId);
-      if (payerResult) {
-        payerResult.paymentStatus = "paid";
-        payerResult.paidAt = new Date().toISOString();
-      }
+    // 驗證必須有付款人
+    if (!bill.payerId || bill.payerId.trim() === "") {
+      return res.status(400).json({ error: "請選擇付款人" });
+    }
+
+    // 驗證付款人必須在參與者列表中
+    const payerExists = bill.participants.some(
+      (p: Participant) => p.id === bill.payerId
+    );
+    if (!payerExists) {
+      return res.status(400).json({ error: "付款人必須是參與者之一" });
+    }
+
+    // 驗證付款人不能是空的參與者
+    const payer = bill.participants.find(
+      (p: Participant) => p.id === bill.payerId
+    );
+    if (!payer || !payer.name || payer.name.trim() === "") {
+      return res.status(400).json({ error: "付款人信息無效" });
+    }
+
+    // 自動將付款人的狀態設置為已付款
+    const payerResult = results.find((r) => r.participantId === bill.payerId);
+    if (payerResult) {
+      payerResult.paymentStatus = "paid";
+      payerResult.paidAt = new Date().toISOString();
     }
 
     const billRecord: BillRecord = {

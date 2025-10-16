@@ -209,16 +209,17 @@
                     <label
                       for="bill-payer"
                       class="block text-gray-700 font-medium mb-2"
-                      >付款人</label
+                      >付款人 <span class="text-red-500">*</span></label
                     >
                     <select
                       id="bill-payer"
                       class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus transition-all duration-300"
+                      required
                     >
-                      <option value="">請選擇付款人（可稍後選擇）</option>
+                      <option value="">請選擇付款人（必選）</option>
                     </select>
                     <p class="text-sm text-gray-500 mt-1">
-                      選擇誰先付錢，其他人需要向此人支付相應金額
+                      選擇誰先付錢，其他人需要向此人支付相應金額（保存賬單時必須選擇）
                     </p>
                   </div>
                 </div>
@@ -583,7 +584,7 @@
 
               // 設置默認付款人為當前用戶
               billPayerSelect.innerHTML = `
-                <option value="">請選擇付款人（可稍後選擇）</option>
+                <option value="">請選擇付款人（必選）</option>
                 <option value="${participant1.id}" selected>${participant1.name}</option>
               `;
 
@@ -1272,6 +1273,27 @@
         // 保存結果功能
         saveResultBtn.addEventListener("click", async () => {
           try {
+            // 驗證付款人
+            const payerId = billPayerSelect.value;
+            if (!payerId || payerId.trim() === "") {
+              alert("請先選擇付款人後再保存賬單");
+              billPayerSelect.focus();
+              return;
+            }
+
+            // 驗證付款人是否在參與者列表中
+            const participantItems =
+              participantsContainer.querySelectorAll(".participant-item");
+            const participantIds = Array.from(participantItems)
+              .map((item) => item.dataset.participantId)
+              .filter((id) => id);
+
+            if (!participantIds.includes(payerId)) {
+              alert("付款人必須是參與者之一，請重新選擇");
+              billPayerSelect.focus();
+              return;
+            }
+
             // 首先保存賬單
             const response = await authenticatedFetch("/api/bill/save", {
               method: "POST",
@@ -1446,7 +1468,7 @@
 
           // 清空並重新填充選項
           billPayerSelect.innerHTML =
-            '<option value="">請選擇付款人（可稍後選擇）</option>';
+            '<option value="">請選擇付款人（必選）</option>';
 
           participants.forEach((participant) => {
             const option = document.createElement("option");
