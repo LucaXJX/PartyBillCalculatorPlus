@@ -261,6 +261,22 @@ app.get("/api/participants", authenticateUser, (req: any, res) => {
   res.status(200).json(participants);
 });
 
+// 刪除參與者
+app.delete("/api/participant/:id", authenticateUser, (req: any, res) => {
+  const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ error: "參與者ID不能為空" });
+  }
+
+  try {
+    req.userDataManager.removeParticipant(id);
+    res.status(200).json({ message: "參與者已刪除", participantId: id });
+  } catch (error) {
+    console.error("刪除參與者失敗:", error);
+    res.status(500).json({ error: "刪除參與者失敗" });
+  }
+});
+
 // 獲取用戶的賬單列表
 // 更新支付狀態
 app.post(
