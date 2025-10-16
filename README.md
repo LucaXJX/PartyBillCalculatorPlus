@@ -204,7 +204,6 @@ PartyBillCalculator/
 │   ├── copyright.html          # 版權聲明
 │   ├── privacy-policy.html     # 隱私政策
 │   ├── disclaimer.html         # 免責聲明
-│   ├── test-my-bills-final.html # 測試頁面 ⭐
 │   ├── js/                     # JavaScript 模組
 │   │   ├── auth.js            # 認證管理
 │   │   ├── components.js      # UI組件
@@ -215,24 +214,44 @@ PartyBillCalculator/
 │   ├── types.ts               # TypeScript 類型定義
 │   ├── dataManager.ts         # 數據管理
 │   ├── storage.ts             # 數據存儲 ⭐
+│   ├── messageManager.ts      # 消息管理
 │   └── billCalculator.ts      # 計算邏輯
 ├── docs/                       # 項目文檔
+│   ├── AUTH_SYSTEM_UPGRADE.md # 認證系統升級文檔
+│   ├── DATABASE_SETUP.md      # 數據庫設置指南
 │   ├── MY_BILLS_PAGE.md       # 我的賬單頁面文檔 ⭐
 │   ├── COMPONENT_SYSTEM.md    # 組件系統文檔
+│   ├── MESSAGE_SYSTEM.md      # 消息系統文檔
+│   ├── PAYMENT_FLOW.md        # 支付流程文檔
 │   └── TEST_USERS.md          # 測試用戶列表
 ├── data/                       # 數據文件
 │   ├── users.json             # 用戶數據
 │   ├── bills.json             # 賬單數據
+│   ├── messages.json          # 消息數據
 │   └── receipts/              # 收據圖片 ⭐
-├── dist/                       # TypeScript 編譯輸出
+├── database/                   # 數據庫相關
+│   └── schema.sql             # PostgreSQL 數據庫架構
+├── tests/                      # 測試文件
+│   └── html/                  # HTML 測試頁面
 ├── scripts/                    # 工具腳本
+│   ├── add-test-data.js       # 添加測試數據
+│   └── generate-receipt-images.js  # 生成收據圖片
+├── dist/                       # TypeScript 編譯輸出
 ├── .github/                    # GitHub 配置
-│   └── ISSUE_TEMPLATE/        # Issue 模板
+│   ├── ISSUE_TEMPLATE/        # Issue 模板
+│   │   ├── bug_report.md     # Bug 報告模板
+│   │   └── feature_request.md # 功能請求模板
+│   └── pull_request_template.md  # PR 模板
 ├── package.json                # 項目配置
 ├── tsconfig.json               # TypeScript 配置
+├── env.example                 # 環境變量示例
+├── .gitignore                  # Git 忽略文件
 ├── LICENSE                     # MIT 許可證
+├── README.md                   # 項目說明
 ├── CONTRIBUTING.md             # 貢獻指南
-└── README.md                   # 項目說明
+├── CODE_OF_CONDUCT.md          # 行為準則
+├── SECURITY.md                 # 安全政策
+└── CHANGELOG.md                # 更新日誌
 ```
 
 ## 🔧 開發指南
