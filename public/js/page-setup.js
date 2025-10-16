@@ -58,8 +58,8 @@ class PageSetup {
       // 立即加載一次
       this.loadUnreadMessageCount();
 
-      // 啟動定時輪詢（每 30 秒檢查一次）
-      this.startUnreadCountPolling(30000);
+      // 啟動定時輪詢（每 10 秒檢查一次，確保用戶及時看到新消息）
+      this.startUnreadCountPolling(10000);
     }
 
     return true;
