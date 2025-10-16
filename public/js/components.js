@@ -32,6 +32,167 @@ class ComponentManager {
    * @returns {string} Header HTML
    */
   generateHeader(options = {}) {
+    console.log("generateHeader 被調用，選項:", options);
+
+    const {
+      currentPage = "",
+      showCalculator = true,
+      showMyBills = true,
+      showContact = true,
+      isHomePage = false, // 是否為首頁
+      isPublicPage = false, // 是否為公開頁面（法律頁面等）
+    } = options;
+
+    // 檢查用戶是否已登入
+    const isAuthenticated =
+      this.authManager && this.authManager.isAuthenticated();
+
+    console.log(
+      "認證狀態:",
+      isAuthenticated,
+      "是否首頁:",
+      isHomePage,
+      "是否公開頁面:",
+      isPublicPage
+    );
+
+    // 首頁或公開頁面使用相同的 header 邏輯
+    if (isHomePage || isPublicPage) {
+      console.log("生成首頁/公開頁面 Header");
+      return this.generateHomePageHeader(isAuthenticated);
+    } else {
+      console.log("生成功能頁面 Header");
+      return this.generateAuthenticatedHeader(options, isAuthenticated);
+    }
+  }
+
+  /**
+   * 生成首頁 Header (未登入/已登入)
+   * @param {boolean} isAuthenticated - 是否已登入
+   * @returns {string} Header HTML
+   */
+  generateHomePageHeader(isAuthenticated) {
+    if (isAuthenticated) {
+      // 獲取當前用戶並生成頭像（使用 ui-avatars.com API，與主頁一致）
+      const currentUser = this.authManager?.getCurrentUser();
+      const username = currentUser?.username || "用戶";
+      const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+        username
+      )}&background=4F46E5&color=fff`;
+
+      // 已登入的首頁 header
+      return `
+        <!-- 頂部導航欄 - 已登入首頁 -->
+        <header class="fixed w-full bg-white shadow-sm z-50 transition-all duration-300">
+          <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16 md:h-20">
+              <!-- 網站標誌 -->
+              <div class="flex items-center">
+                <a href="/index.html" class="flex items-center space-x-2">
+                  <img src="/img/icon499x499.png" alt="PBC聚賬通標誌" class="h-10 w-10 sm:h-12 sm:w-12 md:h-16 md:w-16 object-contain">
+                  <span class="text-lg sm:text-xl font-bold text-primary">PBC聚賬通</span>
+                </a>
+              </div>
+
+              <!-- 導航鏈接 - 桌面版 -->
+              <nav class="hidden md:flex items-center space-x-8">
+                <a href="#features" class="text-gray-600 hover:text-primary transition-colors">功能</a>
+                <a href="#testimonials" class="text-gray-600 hover:text-primary transition-colors">用戶評價</a>
+                <a href="#contact" class="text-gray-600 hover:text-primary transition-colors">聯絡我們</a>
+              </nav>
+
+              <!-- 已登入用戶操作 -->
+              <div class="flex items-center space-x-4">
+                <a href="/calculator.html" class="btn-primary text-sm">
+                  <i class="fa fa-calculator mr-2"></i>開始計算
+                </a>
+                <div class="relative group">
+                  <button class="flex items-center space-x-2 focus:outline-none">
+                    <img src="${avatarUrl}" alt="用戶頭像" class="w-10 h-10 rounded-full object-cover border-2 border-primary/20">
+                    <span class="hidden sm:inline-block font-medium user-name-display">${username}</span>
+                    <i class="fa fa-angle-down text-gray-500 group-hover:text-primary transition-colors"></i>
+                  </button>
+                  <!-- 下拉菜單 -->
+                  <div class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg py-2 z-10 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 transform group-hover:translate-y-0 translate-y-2">
+                    <a href="/my-bills.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
+                      <i class="fa fa-file-text mr-2"></i>我的賬單
+                    </a>
+                    <a href="/messages.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
+                      <i class="fa fa-envelope mr-2"></i>我的消息
+                    </a>
+                    <a href="/settings.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
+                      <i class="fa fa-cog mr-2"></i>設置
+                    </a>
+                    <div class="border-t border-gray-100 my-1"></div>
+                    <a href="#" id="logout-btn" class="block px-4 py-2 text-red-500 hover:bg-red-50 transition-colors">
+                      <i class="fa fa-sign-out mr-2"></i>退出登入
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+      `;
+    } else {
+      // 未登入的首頁 header
+      return `
+        <!-- 頂部導航欄 - 未登入首頁 -->
+        <header class="fixed w-full bg-gradient-to-r from-primary/10 via-white to-secondary/10 shadow-sm z-50 transition-all duration-300">
+          <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16 md:h-20">
+              <!-- 網站標誌 -->
+              <div class="flex items-center">
+                <a href="/index.html" class="flex items-center space-x-2">
+                  <img src="/img/icon499x499.png" alt="PBC聚賬通標誌" class="h-10 w-10 sm:h-12 sm:w-12 md:h-16 md:w-16 object-contain">
+                  <span class="text-lg sm:text-xl font-bold text-primary">PBC聚賬通</span>
+                </a>
+              </div>
+
+              <!-- 導航鏈接 - 桌面版 -->
+              <nav class="hidden md:flex items-center space-x-8">
+                <a href="#features" class="text-gray-600 hover:text-primary transition-colors">功能</a>
+                <a href="#testimonials" class="text-gray-600 hover:text-primary transition-colors">用戶評價</a>
+                <a href="#contact" class="text-gray-600 hover:text-primary transition-colors">聯絡我們</a>
+              </nav>
+
+              <!-- 登入/註冊按鈕 -->
+              <div class="flex items-center space-x-2 sm:space-x-4">
+                <a href="/login-page.html" class="text-sm sm:text-base text-gray-600 hover:text-primary transition-colors">登入</a>
+                <a href="/registration-page.html" class="text-sm sm:text-base bg-accent text-white font-semibold py-2 px-4 sm:py-3 sm:px-6 rounded-full shadow-md hover:shadow-lg hover:bg-amber-600 transition-all duration-300">註冊</a>
+                
+                <!-- 移動端菜單按鈕 -->
+                <button id="menu-toggle" class="md:hidden text-gray-600 hover:text-primary p-2 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="開啟選單">
+                  <i class="fa fa-bars text-xl"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 移动端菜单 -->
+          <div id="mobile-menu" class="md:hidden hidden bg-white border-t">
+            <div class="container mx-auto px-4 py-3 space-y-3">
+              <a href="#features" class="block text-gray-600 hover:text-primary py-2 transition-colors">功能</a>
+              <a href="#testimonials" class="block text-gray-600 hover:text-primary py-2 transition-colors">用戶評價</a>
+              <a href="#contact" class="block text-gray-600 hover:text-primary py-2 transition-colors">聯絡我們</a>
+              <div class="flex space-x-4 pt-2">
+                <a href="/login-page.html" class="text-gray-600 hover:text-primary transition-colors">登入</a>
+                <a href="/registration-page.html" class="btn-primary">立即註冊</a>
+              </div>
+            </div>
+          </div>
+        </header>
+      `;
+    }
+  }
+
+  /**
+   * 生成已登入頁面 Header (功能頁面)
+   * @param {Object} options - 配置選項
+   * @param {boolean} isAuthenticated - 是否已登入
+   * @returns {string} Header HTML
+   */
+  generateAuthenticatedHeader(options, isAuthenticated) {
     const {
       currentPage = "",
       showCalculator = true,
@@ -40,7 +201,7 @@ class ComponentManager {
     } = options;
 
     return `
-      <!-- 頂部導航欄 -->
+      <!-- 頂部導航欄 - 功能頁面 -->
       <header id="navbar" class="fixed w-full bg-white shadow-sm z-50 transition-all duration-300">
         <div class="container mx-auto px-4 sm:px-6 lg:px-8">
           <div class="flex justify-between items-center h-16 md:h-20">
@@ -96,13 +257,16 @@ class ComponentManager {
               }
             </nav>
 
-            <!-- 登入/用戶信息 -->
+            <!-- 用戶頭像和下拉菜單 -->
             <div class="flex items-center space-x-4">
-              <!-- 用戶頭像和下拉菜單 -->
               <div class="relative group">
                 <button class="flex items-center space-x-2 focus:outline-none">
-                  <img src="https://picsum.photos/100/100?random=user" alt="用戶頭像" class="w-10 h-10 rounded-full object-cover border-2 border-primary/20">
-                  <span class="hidden sm:inline-block font-medium user-name-display">陳小明</span>
+                  <img src="${`https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    this.authManager?.getCurrentUser()?.username || "用戶"
+                  )}&background=4F46E5&color=fff`}" alt="用戶頭像" class="w-10 h-10 rounded-full object-cover border-2 border-primary/20">
+                  <span class="hidden sm:inline-block font-medium user-name-display">${
+                    this.authManager?.getCurrentUser()?.username || "用戶"
+                  }</span>
                   <i class="fa fa-angle-down text-gray-500 group-hover:text-primary transition-colors"></i>
                 </button>
                 <!-- 下拉菜單 -->
@@ -241,7 +405,7 @@ class ComponentManager {
       return;
     }
 
-    const html = componentGenerator(options);
+    const html = componentGenerator.call(this, options);
 
     // 對於 body 元素，使用 insertAdjacentHTML 來插入組件
     if (targetSelector === "body") {

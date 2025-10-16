@@ -27,16 +27,20 @@
     <style type="text/tailwindcss">
       @layer utilities {
         .btn-primary {
-          @apply bg-primary text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg hover:bg-primary/90 transition-all duration-300;
+          @apply bg-primary text-white font-semibold py-3 px-5 rounded-lg shadow-md hover:shadow-lg hover:bg-primary/90 transition-all duration-300 inline-flex items-center justify-center;
+          min-height: 44px;
         }
         .btn-secondary {
-          @apply bg-white text-primary border-2 border-primary font-semibold py-2 px-4 rounded-lg shadow-sm hover:shadow-md hover:bg-primary/5 transition-all duration-300;
+          @apply bg-white text-primary border-2 border-primary font-semibold py-3 px-5 rounded-lg shadow-sm hover:shadow-md hover:bg-primary/5 transition-all duration-300 inline-flex items-center justify-center;
+          min-height: 44px;
         }
         .btn-danger {
-          @apply bg-red-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg hover:bg-red-600 transition-all duration-300;
+          @apply bg-red-500 text-white font-semibold py-3 px-5 rounded-lg shadow-md hover:shadow-lg hover:bg-red-600 transition-all duration-300 inline-flex items-center justify-center;
+          min-height: 44px;
         }
         .btn-success {
-          @apply bg-green-500 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:shadow-lg hover:bg-green-600 transition-all duration-300;
+          @apply bg-green-500 text-white font-semibold py-3 px-5 rounded-lg shadow-md hover:shadow-lg hover:bg-green-600 transition-all duration-300 inline-flex items-center justify-center;
+          min-height: 44px;
         }
       }
     </style>
@@ -55,8 +59,11 @@
           <div class="mb-8">
             <div class="flex items-center justify-between">
               <div>
-                <h1 class="text-3xl font-bold text-dark flex items-center">
-                  <i class="fa fa-envelope text-primary mr-3"></i>我的消息
+                <h1
+                  class="text-2xl sm:text-3xl font-bold text-dark flex items-center"
+                >
+                  <i class="fa fa-envelope text-primary mr-2 sm:mr-3"></i
+                  >我的消息
                 </h1>
                 <p class="text-gray-600 mt-2">查看系統通知和賬單相關消息</p>
               </div>
@@ -734,6 +741,39 @@
           });
         });
       }
+
+      // 回到頂部功能
+      document.addEventListener("DOMContentLoaded", function () {
+        const backToTopBtn = document.getElementById("back-to-top");
+
+        // 監聽滾動事件
+        window.addEventListener("scroll", function () {
+          if (window.pageYOffset > 300) {
+            backToTopBtn.classList.remove("opacity-0", "invisible");
+            backToTopBtn.classList.add("opacity-100", "visible");
+          } else {
+            backToTopBtn.classList.add("opacity-0", "invisible");
+            backToTopBtn.classList.remove("opacity-100", "visible");
+          }
+        });
+
+        // 點擊回到頂部
+        backToTopBtn.addEventListener("click", function () {
+          window.scrollTo({
+            top: 0,
+            behavior: "smooth",
+          });
+        });
+      });
     </script>
+
+    <!-- 回到頂部按鈕 -->
+    <button
+      id="back-to-top"
+      class="fixed bottom-6 right-6 bg-primary text-white p-3 rounded-full shadow-lg hover:bg-primary/90 transition-all duration-300 opacity-0 invisible z-50 min-w-[48px] min-h-[48px] flex items-center justify-center"
+      aria-label="回到頂部"
+    >
+      <i class="fa fa-arrow-up text-lg"></i>
+    </button>
   </body>
 </html>

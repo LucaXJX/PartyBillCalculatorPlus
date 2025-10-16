@@ -45,7 +45,8 @@
           @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
         }
         .btn-primary {
-          @apply bg-accent text-white font-semibold py-3 px-6 rounded-full shadow-md hover:shadow-lg hover:bg-amber-600 transition-all duration-300 transform hover:-translate-y-0.5;
+          @apply bg-accent text-white font-semibold py-3 px-6 rounded-full shadow-md hover:shadow-lg hover:bg-amber-600 transition-all duration-300 transform hover:-translate-y-0.5 inline-flex items-center justify-center;
+          min-height: 44px;
         }
         .btn-secondary {
           @apply bg-white text-primary border border-primary font-semibold py-3 px-6 rounded-full shadow-sm hover:shadow-md hover:bg-primary/5 transition-all duration-300;
@@ -53,7 +54,7 @@
       }
     </style>
   </head>
-  <body class="font-sans text-dark bg-gray-50">
+  <body class="font-sans text-dark bg-gray-50" data-page="privacy-policy">
     <!-- 頂部導航欄 -->
     <header
       id="navbar"
@@ -268,46 +269,13 @@
     </footer>
 
     <!-- 認證模組 -->
-    <script type="module" src="/js/auth.js"></script>
+    <script src="/js/auth.js"></script>
+
+    <!-- 公開頁面 Header 管理 -->
+    <script src="/js/public-page-header.js"></script>
 
     <!-- JavaScript -->
-    <script type="module">
-      // 頁面加載時檢查登錄狀態
-      window.addEventListener("DOMContentLoaded", () => {
-        const user = window.authManager?.getCurrentUser();
-
-        if (user) {
-          // 用戶已登錄，隱藏登入/註冊按鈕，顯示用戶信息
-          const loginBtn = document.getElementById("login-btn");
-          const registerBtn = document.getElementById("register-btn");
-          const navSection = document.getElementById("nav-user-section");
-
-          if (loginBtn) loginBtn.style.display = "none";
-          if (registerBtn) registerBtn.style.display = "none";
-
-          // 添加用戶信息
-          const userInfo = document.createElement("div");
-          userInfo.className = "hidden sm:flex items-center space-x-4";
-          userInfo.innerHTML = `
-            <span class="text-gray-700">歡迎，${user.username}</span>
-            <a href="/calculator.html" class="text-primary hover:text-primary/80 transition-colors">
-              <i class="fa fa-calculator mr-1"></i>開始計算
-            </a>
-            <button onclick="logout()" class="text-gray-600 hover:text-primary transition-colors">
-              <i class="fa fa-sign-out mr-1"></i>登出
-            </button>
-          `;
-          navSection.insertBefore(userInfo, navSection.firstChild);
-        }
-      });
-
-      // 登出函數
-      async function logout() {
-        if (window.authManager) {
-          await window.authManager.logout();
-        }
-      }
-
+    <script>
       // 1. 頂部Logo點擊：返回首頁
       document
         .getElementById("top-logo")

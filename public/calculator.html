@@ -49,11 +49,15 @@
         background-color: var(--primary);
         color: white;
         padding: 0.75rem 1.5rem;
+        min-height: 44px;
         border-radius: 0.5rem;
         font-weight: 600;
         transition: all 0.3s ease;
         border: none;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .btn-primary:hover {
@@ -66,11 +70,15 @@
         background-color: #f3f4f6;
         color: var(--dark);
         padding: 0.75rem 1.5rem;
+        min-height: 44px;
         border-radius: 0.5rem;
         font-weight: 600;
         transition: all 0.3s ease;
         border: 1px solid #d1d5db;
         cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
       }
 
       .btn-secondary:hover {
@@ -100,33 +108,37 @@
 
         <div class="max-w-5xl mx-auto">
           <!-- 步驟導航 -->
-          <div class="flex flex-wrap justify-center mb-10">
+          <div class="flex flex-wrap justify-center gap-4 sm:gap-8 mb-10">
             <div class="flex items-center">
               <div
-                class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold shadow-md shadow-primary/20"
+                class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold shadow-md shadow-primary/20 text-sm sm:text-base"
               >
                 1
               </div>
-              <div class="h-1 w-16 bg-primary mx-2"></div>
-              <span class="text-primary font-medium">基本信息</span>
+              <div class="h-1 w-8 sm:w-16 bg-primary mx-1 sm:mx-2"></div>
+              <span class="text-primary font-medium text-sm sm:text-base"
+                >基本信息</span
+              >
             </div>
-            <div class="flex items-center ml-8">
+            <div class="flex items-center">
               <div
-                class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold shadow-md shadow-primary/20"
+                class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold shadow-md shadow-primary/20 text-sm sm:text-base"
               >
                 2
               </div>
-              <div class="h-1 w-16 bg-primary mx-2"></div>
-              <span class="text-primary font-medium">添加項目</span>
+              <div class="h-1 w-8 sm:w-16 bg-primary mx-1 sm:mx-2"></div>
+              <span class="text-primary font-medium text-sm sm:text-base"
+                >添加項目</span
+              >
             </div>
-            <div class="flex items-center ml-8">
+            <div class="flex items-center">
               <div
-                class="w-10 h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold"
+                class="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-200 text-gray-500 flex items-center justify-center font-bold text-sm sm:text-base"
               >
                 3
               </div>
-              <div class="h-1 w-16 bg-gray-200 mx-2"></div>
-              <span class="text-gray-500">計算結果</span>
+              <div class="h-1 w-8 sm:w-16 bg-gray-200 mx-1 sm:mx-2"></div>
+              <span class="text-gray-500 text-sm sm:text-base">計算結果</span>
             </div>
           </div>
 
@@ -136,16 +148,16 @@
           >
             <!-- 卡片頭部 -->
             <div
-              class="bg-gradient-to-r from-primary to-primary/80 p-6 text-white"
+              class="bg-gradient-to-r from-primary to-primary/80 p-4 sm:p-6 text-white"
             >
-              <h2 class="text-2xl font-bold mb-2">創建新賬單</h2>
-              <p class="text-white/90">
+              <h2 class="text-xl sm:text-2xl font-bold mb-2">創建新賬單</h2>
+              <p class="text-white/90 text-sm sm:text-base">
                 輸入聚會信息和消費項目，我們將為您自動計算
               </p>
             </div>
 
             <!-- 卡片內容 -->
-            <div class="p-6 md:p-8">
+            <div class="p-4 sm:p-6 md:p-8">
               <!-- 基本信息表單 -->
               <div class="mb-10">
                 <h3 class="text-xl font-semibold mb-6 flex items-center">
