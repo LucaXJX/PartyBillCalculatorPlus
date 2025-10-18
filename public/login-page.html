@@ -488,8 +488,9 @@
               type="password"
               id="password"
               class="input-field"
-              placeholder="密碼"
+              placeholder="密碼（至少 8 個字符）"
               required
+              minlength="8"
             />
           </div>
 
@@ -605,6 +606,13 @@
           const btnText = document.getElementById("btn-text");
           const btnLoading = document.getElementById("btn-loading");
           const errorMessage = document.getElementById("error-message");
+
+          // 密碼長度檢查
+          if (password.length < 8) {
+            errorMessage.textContent = "密碼至少需要 8 個字符";
+            errorMessage.classList.remove("hidden");
+            return;
+          }
 
           // 顯示載入狀態
           btnText.textContent = "登入中...";
