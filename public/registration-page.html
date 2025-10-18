@@ -571,9 +571,9 @@
                 type="password"
                 id="password"
                 class="input-field"
-                placeholder="密碼（至少 6 個字符）"
+                placeholder="密碼（至少 8 個字符）"
                 required
-                minlength="6"
+                minlength="8"
               />
             </div>
             <!-- 密碼強度指示器 -->
@@ -598,7 +598,7 @@
               <div class="space-y-1">
                 <div class="password-requirement" id="req-length">
                   <i class="far fa-circle"></i>
-                  <span>至少 6 個字符</span>
+                  <span>至少 8 個字符</span>
                 </div>
                 <div class="password-requirement" id="req-number">
                   <i class="far fa-circle"></i>
@@ -777,7 +777,7 @@
 
         // 檢查各項要求
         const checks = {
-          length: password.length >= 6,
+          length: password.length >= 8,
           longLength: password.length >= 10,
           number: /[0-9]/.test(password),
           uppercase: /[A-Z]/.test(password),
@@ -851,8 +851,8 @@
             return;
           }
 
-          if (password.length < 6) {
-            errorMessage.textContent = "密碼至少需要 6 個字符";
+          if (password.length < 8) {
+            errorMessage.textContent = "密碼至少需要 8 個字符";
             errorMessage.classList.remove("hidden");
             return;
           }
