@@ -194,9 +194,11 @@
                     <i class="fa fa-envelope mr-2"></i>修改郵箱
                     <span class="ml-2 text-xs text-gray-400">(即將推出)</span>
                   </button>
-                  <button class="btn-secondary flex items-center" disabled>
+                  <button
+                    class="btn-secondary flex items-center"
+                    id="edit-password-btn"
+                  >
                     <i class="fa fa-lock mr-2"></i>修改密碼
-                    <span class="ml-2 text-xs text-gray-400">(即將推出)</span>
                   </button>
                 </div>
               </div>
@@ -217,6 +219,89 @@
     </main>
 
     <!-- Footer 將由組件系統插入 -->
+
+    <!-- 修改密碼 Modal -->
+    <div
+      id="password-modal"
+      class="fixed inset-0 z-50 flex items-center justify-center bg-black/30 hidden"
+    >
+      <div class="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md relative">
+        <button
+          id="close-password-modal"
+          class="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
+        >
+          <i class="fa fa-times"></i>
+        </button>
+        <h3 class="text-xl font-bold mb-4 text-dark flex items-center">
+          <i class="fa fa-lock text-primary mr-2"></i>修改密碼
+        </h3>
+        <form id="password-form" class="space-y-4">
+          <div>
+            <label
+              for="current-password"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >當前密碼</label
+            >
+            <input
+              type="password"
+              id="current-password"
+              name="current-password"
+              class="w-full border rounded-lg px-4 py-2 input-focus"
+              required
+              minlength="6"
+              autocomplete="current-password"
+            />
+          </div>
+          <div>
+            <label
+              for="new-password"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >新密碼</label
+            >
+            <input
+              type="password"
+              id="new-password"
+              name="new-password"
+              class="w-full border rounded-lg px-4 py-2 input-focus"
+              required
+              minlength="6"
+              autocomplete="new-password"
+            />
+          </div>
+          <div>
+            <label
+              for="confirm-password"
+              class="block text-sm font-medium text-gray-700 mb-1"
+              >確認新密碼</label
+            >
+            <input
+              type="password"
+              id="confirm-password"
+              name="confirm-password"
+              class="w-full border rounded-lg px-4 py-2 input-focus"
+              required
+              minlength="6"
+              autocomplete="new-password"
+            />
+          </div>
+          <div id="password-error" class="text-red-600 text-sm hidden"></div>
+          <div
+            id="password-success"
+            class="text-green-600 text-sm hidden"
+          ></div>
+          <div class="flex gap-3 justify-end">
+            <button
+              type="button"
+              id="cancel-password-btn"
+              class="btn-secondary"
+            >
+              取消
+            </button>
+            <button type="submit" class="btn-primary">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
 
     <!-- 修改用戶名 Modal -->
     <div
@@ -365,6 +450,77 @@
               document.getElementById("username-modal").classList.add("hidden");
             } catch (err) {
               errorDiv.textContent = err.message || "更新失敗";
+              errorDiv.classList.remove("hidden");
+            }
+          });
+
+        // 綁定修改密碼按鈕
+        const openPasswordModal = () => {
+          document.getElementById("password-modal").classList.remove("hidden");
+          document.getElementById("current-password").value = "";
+          document.getElementById("new-password").value = "";
+          document.getElementById("confirm-password").value = "";
+          document.getElementById("password-error").classList.add("hidden");
+          document.getElementById("password-success").classList.add("hidden");
+        };
+        const pwBtn = document.getElementById("edit-password-btn");
+        if (pwBtn) pwBtn.addEventListener("click", openPasswordModal);
+        // 關閉密碼 modal
+        ["close-password-modal", "cancel-password-btn"].forEach((id) => {
+          const btn = document.getElementById(id);
+          if (btn)
+            btn.addEventListener("click", () => {
+              document.getElementById("password-modal").classList.add("hidden");
+            });
+        });
+        // 密碼表單提交
+        document
+          .getElementById("password-form")
+          .addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const currentPassword =
+              document.getElementById("current-password").value;
+            const newPassword = document.getElementById("new-password").value;
+            const confirmPassword =
+              document.getElementById("confirm-password").value;
+            const errorDiv = document.getElementById("password-error");
+            const successDiv = document.getElementById("password-success");
+            errorDiv.classList.add("hidden");
+            successDiv.classList.add("hidden");
+            if (!currentPassword || !newPassword || !confirmPassword) {
+              errorDiv.textContent = "所有欄位皆為必填";
+              errorDiv.classList.remove("hidden");
+              return;
+            }
+            if (newPassword.length < 6) {
+              errorDiv.textContent = "新密碼長度需至少6字";
+              errorDiv.classList.remove("hidden");
+              return;
+            }
+            if (newPassword !== confirmPassword) {
+              errorDiv.textContent = "新密碼與確認密碼不一致";
+              errorDiv.classList.remove("hidden");
+              return;
+            }
+            try {
+              const res = await fetch("/api/user/password", {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ currentPassword, newPassword }),
+                credentials: "include",
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.message || "密碼更新失敗");
+              successDiv.textContent = "密碼已成功更新";
+              successDiv.classList.remove("hidden");
+              // 自動關閉 modal
+              setTimeout(() => {
+                document
+                  .getElementById("password-modal")
+                  .classList.add("hidden");
+              }, 1200);
+            } catch (err) {
+              errorDiv.textContent = err.message || "密碼更新失敗";
               errorDiv.classList.remove("hidden");
             }
           });
