@@ -28,3 +28,5 @@ test-api.cjs
 
 .tmp.driveupload/
 .tmp.driveupload/*
+.tmp.drivedownload/
+.tmp.drivedownload/*
