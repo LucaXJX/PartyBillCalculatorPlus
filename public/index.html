@@ -669,6 +669,16 @@
     <!-- 引入認證管理器 -->
     <script src="/js/auth.js"></script>
     <script>
+      /**
+       * 轉義 HTML 特殊字符以防止 XSS 攻擊
+       */
+      function escapeHtml(text) {
+        if (text == null) return "";
+        const div = document.createElement("div");
+        div.textContent = String(text);
+        return div.innerHTML;
+      }
+
       // 主頁認證檢查
       document.addEventListener("DOMContentLoaded", function () {
         // 檢查用戶認證狀態
@@ -701,7 +711,9 @@
             const userInfo = document.createElement("div");
             userInfo.className = "flex items-center space-x-4";
             userInfo.innerHTML = `
-              <span class="text-gray-700">歡迎，${user.username}</span>
+              <span class="text-gray-700">歡迎，${escapeHtml(
+                user.username
+              )}</span>
               <a href="/calculator.html" class="btn-primary">開始計算</a>
               <button onclick="logout()" class="text-gray-600 hover:text-primary">登出</button>
             `;

@@ -399,6 +399,16 @@
           window.authManager
         );
 
+        /**
+         * 轉義 HTML 特殊字符以防止 XSS 攻擊
+         */
+        function escapeHtml(text) {
+          if (text == null) return "";
+          const div = document.createElement("div");
+          div.textContent = String(text);
+          return div.innerHTML;
+        }
+
         // DOM元素
         const searchInput = document.getElementById("search-input");
         const statusFilter = document.getElementById("status-filter");
@@ -686,12 +696,14 @@
                <!-- 標題和狀態行 -->
                <div class="flex items-start justify-between">
                  <div class="flex-1 min-w-0">
-                   <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 truncate">${
+                   <h3 class="text-lg sm:text-xl font-bold text-gray-900 mb-2 truncate">${escapeHtml(
                      bill.name || "未命名聚會"
-                   }</h3>
+                   )}</h3>
                    <div class="flex flex-wrap items-center gap-2">
                      <span class="px-3 py-1.5 rounded-full text-xs font-semibold ${statusClass} shadow-sm">
-                       <i class="fa ${statusIcon} mr-1.5"></i>${statusText}
+                       <i class="fa ${statusIcon} mr-1.5"></i>${escapeHtml(
+            statusText
+          )}
                      </span>
                      ${
                        isPayer
@@ -706,13 +718,13 @@
                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm text-gray-600">
                  <div class="flex items-center">
                    <i class="fa fa-calendar text-gray-400 mr-2 w-4"></i>
-                   <span>${formattedDate}</span>
+                   <span>${escapeHtml(formattedDate)}</span>
                  </div>
                  <div class="flex items-center">
                    <i class="fa fa-map-marker text-gray-400 mr-2 w-4"></i>
-                   <span class="truncate">${
+                   <span class="truncate">${escapeHtml(
                      bill.location || "未指定地點"
-                   }</span>
+                   )}</span>
                  </div>
                  <div class="flex items-center">
                    <i class="fa fa-users text-gray-400 mr-2 w-4"></i>
@@ -1174,14 +1186,14 @@
               const participants = item.participantsIds
                 ?.map((pid) => {
                   const p = bill.participants.find((x) => x.id === pid);
-                  return p?.name || "未知";
+                  return escapeHtml(p?.name || "未知");
                 })
                 .join(", ");
 
               return `
               <div class="flex justify-between items-start py-2 border-b">
                 <div class="flex-1">
-                  <div class="font-medium">${item.name}</div>
+                  <div class="font-medium">${escapeHtml(item.name)}</div>
                   <div class="text-sm text-gray-500">
                     ${
                       item.isShared
@@ -1218,9 +1230,9 @@
                     </div>
                     <div>
                       <div class="flex items-center gap-2">
-                        <span class="font-medium">${
+                        <span class="font-medium">${escapeHtml(
                           participant?.name || "未知"
-                        }</span>
+                        )}</span>
                         ${
                           isThisPayer
                             ? '<span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">付款人</span>'
@@ -1229,7 +1241,9 @@
                       </div>
                       <div class="text-xs text-gray-500 mt-1">
                         金額: $${result.amount?.toFixed(2) || "0.00"}
-                        <span class="ml-2 ${statusClass}">${status}</span>
+                        <span class="ml-2 ${statusClass}">${escapeHtml(
+                status
+              )}</span>
                       </div>
                     </div>
                   </div>
@@ -1259,15 +1273,19 @@
               <div class="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded">
                 <div>
                   <div class="text-sm text-gray-600">賬單名稱</div>
-                  <div class="font-semibold">${bill.name || "(無名稱)"}</div>
+                  <div class="font-semibold">${escapeHtml(
+                    bill.name || "(無名稱)"
+                  )}</div>
                 </div>
                 <div>
                   <div class="text-sm text-gray-600">日期</div>
-                  <div class="font-semibold">${bill.date}</div>
+                  <div class="font-semibold">${escapeHtml(bill.date)}</div>
                 </div>
                 <div>
                   <div class="text-sm text-gray-600">地點</div>
-                  <div class="font-semibold">${bill.location || "未指定"}</div>
+                  <div class="font-semibold">${escapeHtml(
+                    bill.location || "未指定"
+                  )}</div>
                 </div>
                 <div>
                   <div class="text-sm text-gray-600">小費比例</div>
@@ -1382,9 +1400,9 @@
               <div class="border-b pb-4 mb-4">
                 <div class="flex items-center justify-between">
                   <div class="flex-1">
-                    <div class="font-semibold text-lg">${
+                    <div class="font-semibold text-lg">${escapeHtml(
                       participant?.name || "未知"
-                    }</div>
+                    )}</div>
                     <div class="text-gray-600">應付金額: $${
                       result.amount?.toFixed(2) || "0.00"
                     }</div>
@@ -1455,11 +1473,13 @@
               <div class="grid grid-cols-2 gap-4 mb-4 p-4 bg-gray-50 rounded">
                 <div>
                   <div class="text-sm text-gray-600">賬單名稱</div>
-                  <div class="font-semibold">${bill.name || "(無名稱)"}</div>
+                  <div class="font-semibold">${escapeHtml(
+                    bill.name || "(無名稱)"
+                  )}</div>
                 </div>
                 <div>
                   <div class="text-sm text-gray-600">日期</div>
-                  <div class="font-semibold">${bill.date}</div>
+                  <div class="font-semibold">${escapeHtml(bill.date)}</div>
                 </div>
                 <div>
                   <div class="text-sm text-gray-600">總金額</div>
@@ -1496,7 +1516,7 @@
             <div class="bg-white rounded-lg max-w-2xl w-full my-4">
               <div class="p-6">
                 <div class="flex justify-between items-center mb-4">
-                  <h3 class="text-xl font-bold">${title}</h3>
+                  <h3 class="text-xl font-bold">${escapeHtml(title)}</h3>
                   <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
                     <i class="fa fa-times text-xl"></i>
                   </button>
@@ -1561,10 +1581,14 @@
             const blob = await response.blob();
             const imageUrl = URL.createObjectURL(blob);
 
-            // 更新 modal 內容
+            // 更新 modal 內容 - 使用 DOM API
             const contentDiv = modal.querySelector(".min-h-\\[200px\\]");
             if (contentDiv) {
-              contentDiv.innerHTML = `<img src="${imageUrl}" class="max-w-full h-auto rounded-lg" />`;
+              contentDiv.innerHTML = ""; // 清空
+              const img = document.createElement("img");
+              img.src = imageUrl;
+              img.className = "max-w-full h-auto rounded-lg";
+              contentDiv.appendChild(img);
             }
           } catch (error) {
             console.error("加載收據失敗:", error);

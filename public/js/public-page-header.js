@@ -5,6 +5,16 @@
  */
 
 (function () {
+  /**
+   * 轉義 HTML 特殊字符以防止 XSS 攻擊
+   */
+  function escapeHtml(text) {
+    if (text == null) return "";
+    const div = document.createElement("div");
+    div.textContent = String(text);
+    return div.innerHTML;
+  }
+
   // 頁面加載時檢查登錄狀態並更新 header
   window.addEventListener("DOMContentLoaded", async () => {
     console.log("公開頁面 Header 初始化...");
@@ -52,7 +62,9 @@
         <div class="relative group">
           <button class="flex items-center space-x-2 focus:outline-none min-w-[44px] min-h-[44px]">
             <img src="${avatarUrl}" alt="用戶頭像" class="w-10 h-10 rounded-full object-cover border-2 border-primary/20">
-            <span class="hidden sm:inline-block font-medium user-name-display">${user.username}</span>
+            <span class="hidden sm:inline-block font-medium user-name-display">${escapeHtml(
+              user.username
+            )}</span>
             <i class="fa fa-angle-down text-gray-500 group-hover:text-primary transition-colors"></i>
           </button>
           <!-- 下拉菜單 -->

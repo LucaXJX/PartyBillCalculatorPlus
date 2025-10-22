@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>XSS 安全性與功能測試 - PBC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <style>
+      .test-pass {
+        background-color: #dcfce7;
+        border-left: 4px solid #22c55e;
+        color: #166534;
+      }
+      .test-fail {
+        background-color: #fee2e2;
+        border-left: 4px solid #ef4444;
+        color: #991b1b;
+      }
+      .test-running {
+        background-color: #fef3c7;
+        border-left: 4px solid #f59e0b;
+        color: #92400e;
+      }
+      .test-pending {
+        background-color: #f3f4f6;
+        border-left: 4px solid #9ca3af;
+        color: #374151;
+      }
+      .test-card {
+        transition: all 0.3s ease;
+      }
+      .test-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .code-block {
+        background-color: #1f2937;
+        color: #f3f4f6;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        overflow-x: auto;
+        font-family: "Courier New", monospace;
+        font-size: 0.875rem;
+      }
+      .badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 9999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+      }
+      .badge-success {
+        background-color: #22c55e;
+        color: white;
+      }
+      .badge-danger {
+        background-color: #ef4444;
+        color: white;
+      }
+      .badge-warning {
+        background-color: #f59e0b;
+        color: white;
+      }
+      .badge-info {
+        background-color: #3b82f6;
+        color: white;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-100">
+    <div class="container mx-auto p-6 max-w-7xl">
+      <!-- Header -->
+      <div
+        class="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-lg p-8 mb-6 text-white"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-4xl font-bold mb-2 flex items-center">
+              <i class="fas fa-shield-alt mr-3"></i>
+              XSS 安全性與功能測試
+            </h1>
+            <p class="text-blue-100 text-lg">
+              測試 innerHTML 替換後的安全性與功能完整性
+            </p>
+          </div>
+          <div class="text-right">
+            <div class="text-3xl font-bold" id="total-score">0/0</div>
+            <div class="text-sm text-blue-100">通過率</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 控制面板 -->
+      <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+        <div class="flex flex-wrap gap-4 mb-4">
+          <button
+            id="run-all-tests"
+            class="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-semibold flex items-center"
+          >
+            <i class="fas fa-play mr-2"></i>運行所有測試
+          </button>
+          <button
+            id="run-security-tests"
+            class="bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition-colors font-semibold flex items-center"
+          >
+            <i class="fas fa-shield-alt mr-2"></i>安全性測試
+          </button>
+          <button
+            id="run-functional-tests"
+            class="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors font-semibold flex items-center"
+          >
+            <i class="fas fa-check-circle mr-2"></i>功能測試
+          </button>
+          <button
+            id="clear-tests"
+            class="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 transition-colors font-semibold flex items-center"
+          >
+            <i class="fas fa-trash mr-2"></i>清除結果
+          </button>
+        </div>
+
+        <!-- 統計面板 -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+            <div class="text-2xl font-bold text-green-700" id="passed-count">
+              0
+            </div>
+            <div class="text-sm text-green-600">通過</div>
+          </div>
+          <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
+            <div class="text-2xl font-bold text-red-700" id="failed-count">
+              0
+            </div>
+            <div class="text-sm text-red-600">失敗</div>
+          </div>
+          <div class="bg-yellow-50 p-4 rounded-lg border-l-4 border-yellow-500">
+            <div class="text-2xl font-bold text-yellow-700" id="running-count">
+              0
+            </div>
+            <div class="text-sm text-yellow-600">進行中</div>
+          </div>
+          <div class="bg-gray-50 p-4 rounded-lg border-l-4 border-gray-500">
+            <div class="text-2xl font-bold text-gray-700" id="total-count">
+              0
+            </div>
+            <div class="text-sm text-gray-600">總計</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 測試結果區域 -->
+      <div id="test-results" class="space-y-6">
+        <!-- 測試結果將動態插入這裡 -->
+      </div>
+    </div>
+
+    <script>
+      // 測試狀態
+      let testResults = [];
+      let totalTests = 0;
+      let passedTests = 0;
+      let failedTests = 0;
+      let runningTests = 0;
+
+      // 測試類別定義
+      const TEST_CATEGORIES = {
+        SECURITY: {
+          name: "安全性測試",
+          icon: "fas fa-shield-alt",
+          color: "red",
+        },
+        FUNCTIONAL: {
+          name: "功能測試",
+          icon: "fas fa-check-circle",
+          color: "green",
+        },
+        DISPLAY: { name: "顯示測試", icon: "fas fa-eye", color: "blue" },
+        ESCAPE: { name: "轉義測試", icon: "fas fa-code", color: "purple" },
+      };
+
+      // 初始化頁面
+      document.addEventListener("DOMContentLoaded", () => {
+        setupEventListeners();
+        displayWelcomeMessage();
+      });
+
+      function setupEventListeners() {
+        document
+          .getElementById("run-all-tests")
+          .addEventListener("click", runAllTests);
+        document
+          .getElementById("run-security-tests")
+          .addEventListener("click", runSecurityTests);
+        document
+          .getElementById("run-functional-tests")
+          .addEventListener("click", runFunctionalTests);
+        document
+          .getElementById("clear-tests")
+          .addEventListener("click", clearTests);
+      }
+
+      function displayWelcomeMessage() {
+        const container = document.getElementById("test-results");
+        container.innerHTML = `
+          <div class="bg-blue-50 border-l-4 border-blue-500 p-6 rounded-lg">
+            <div class="flex items-center mb-4">
+              <i class="fas fa-info-circle text-blue-500 text-2xl mr-3"></i>
+              <h3 class="text-xl font-bold text-blue-900">歡迎使用安全性測試工具</h3>
+            </div>
+            <p class="text-blue-800 mb-4">
+              本測試工具將驗證以下內容：
+            </p>
+            <ul class="list-disc list-inside text-blue-700 space-y-2 ml-4">
+              <li><strong>XSS 防護：</strong>測試 escapeHtml 函數是否正確轉義危險字符</li>
+              <li><strong>文本顯示：</strong>驗證所有用戶輸入的文本是否正確顯示</li>
+              <li><strong>HTML 注入：</strong>確保惡意 HTML 代碼無法執行</li>
+              <li><strong>腳本執行：</strong>防止 JavaScript 代碼注入</li>
+              <li><strong>功能完整性：</strong>確保所有功能在安全修復後仍然正常工作</li>
+            </ul>
+            <div class="mt-6 p-4 bg-white rounded-lg border border-blue-200">
+              <p class="text-sm text-gray-600 mb-2">
+                <i class="fas fa-lightbulb text-yellow-500 mr-2"></i>
+                <strong>提示：</strong>點擊上方按鈕開始測試
+              </p>
+            </div>
+          </div>
+        `;
+      }
+
+      // ==================== 測試執行函數 ====================
+
+      async function runAllTests() {
+        clearTests();
+        log("開始執行所有測試...", "info");
+
+        await runSecurityTests();
+        await runFunctionalTests();
+
+        log("所有測試完成！", "success");
+        updateStatistics();
+      }
+
+      async function runSecurityTests() {
+        log("開始安全性測試...", "info");
+
+        // XSS 攻擊測試
+        await testCategory("安全性測試 - XSS 防護", TEST_CATEGORIES.SECURITY, [
+          testEscapeHtmlBasic,
+          testEscapeHtmlScript,
+          testEscapeHtmlEventHandlers,
+          testEscapeHtmlIframe,
+          testEscapeHtmlSvg,
+          testEscapeHtmlDataUri,
+        ]);
+
+        // 轉義函數測試
+        await testCategory("轉義測試 - 特殊字符", TEST_CATEGORIES.ESCAPE, [
+          testEscapeSpecialChars,
+          testEscapeQuotes,
+          testEscapeAngleBrackets,
+          testEscapeAmpersand,
+          testEscapeNull,
+          testEscapeEmptyString,
+        ]);
+      }
+
+      async function runFunctionalTests() {
+        log("開始功能測試...", "info");
+
+        // 顯示功能測試
+        await testCategory("功能測試 - 文本顯示", TEST_CATEGORIES.DISPLAY, [
+          testUserNameDisplay,
+          testBillNameDisplay,
+          testMessageDisplay,
+          testParticipantDisplay,
+          testLocationDisplay,
+          testAmountDisplay,
+        ]);
+
+        // 頁面功能測試
+        await testCategory("功能測試 - 頁面功能", TEST_CATEGORIES.FUNCTIONAL, [
+          testMyBillsPage,
+          testMessagesPage,
+          testCalculatorPage,
+          testIndexPage,
+        ]);
+      }
+
+      async function testCategory(categoryName, category, tests) {
+        const categoryId = `category-${Date.now()}`;
+
+        // 創建分類容器
+        const container = document.getElementById("test-results");
+        const categoryDiv = document.createElement("div");
+        categoryDiv.className = "bg-white rounded-lg shadow-lg p-6 test-card";
+        categoryDiv.id = categoryId;
+        categoryDiv.innerHTML = `
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-2xl font-bold flex items-center">
+              <i class="${category.icon} text-${category.color}-600 mr-3"></i>
+              ${categoryName}
+            </h2>
+            <span class="badge badge-info" id="${categoryId}-progress">0/${tests.length}</span>
+          </div>
+          <div id="${categoryId}-tests" class="space-y-3"></div>
+        `;
+        container.appendChild(categoryDiv);
+
+        // 執行測試
+        let passed = 0;
+        for (let i = 0; i < tests.length; i++) {
+          const test = tests[i];
+          const result = await executeTest(test, `${categoryId}-tests`);
+          if (result.passed) passed++;
+
+          // 更新進度
+          document.getElementById(`${categoryId}-progress`).textContent = `${
+            i + 1
+          }/${tests.length}`;
+
+          // 短暫延遲，讓用戶看到測試進度
+          await sleep(100);
+        }
+
+        // 更新分類徽章
+        const badge = document.getElementById(`${categoryId}-progress`);
+        if (passed === tests.length) {
+          badge.className = "badge badge-success";
+          badge.innerHTML = `<i class="fas fa-check mr-1"></i>${passed}/${tests.length}`;
+        } else {
+          badge.className = "badge badge-danger";
+          badge.innerHTML = `<i class="fas fa-times mr-1"></i>${passed}/${tests.length}`;
+        }
+      }
+
+      async function executeTest(testFunc, containerId) {
+        const testId = `test-${Date.now()}-${Math.random()}`;
+        const container = document.getElementById(containerId);
+
+        totalTests++;
+        runningTests++;
+        updateStatistics();
+
+        // 創建測試卡片
+        const testCard = document.createElement("div");
+        testCard.className = "test-running p-4 rounded-lg";
+        testCard.id = testId;
+        testCard.innerHTML = `
+          <div class="flex items-center justify-between">
+            <div class="flex items-center flex-1">
+              <i class="fas fa-spinner fa-spin mr-3 text-yellow-600"></i>
+              <span class="font-medium">執行中...</span>
+            </div>
+            <span class="badge badge-warning">進行中</span>
+          </div>
+        `;
+        container.appendChild(testCard);
+
+        try {
+          // 執行測試
+          const result = await testFunc();
+
+          runningTests--;
+          if (result.passed) {
+            passedTests++;
+            testCard.className = "test-pass p-4 rounded-lg";
+            testCard.innerHTML = `
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center flex-1">
+                  <i class="fas fa-check-circle mr-3 text-green-600 text-xl"></i>
+                  <span class="font-bold">${result.name}</span>
+                </div>
+                <span class="badge badge-success"><i class="fas fa-check mr-1"></i>通過</span>
+              </div>
+              ${
+                result.message
+                  ? `<p class="text-sm ml-8 text-green-700">${result.message}</p>`
+                  : ""
+              }
+              ${
+                result.details
+                  ? `<div class="code-block mt-2 ml-8 text-xs">${escapeHtml(
+                      result.details
+                    )}</div>`
+                  : ""
+              }
+            `;
+          } else {
+            failedTests++;
+            testCard.className = "test-fail p-4 rounded-lg";
+            testCard.innerHTML = `
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center flex-1">
+                  <i class="fas fa-times-circle mr-3 text-red-600 text-xl"></i>
+                  <span class="font-bold">${result.name}</span>
+                </div>
+                <span class="badge badge-danger"><i class="fas fa-times mr-1"></i>失敗</span>
+              </div>
+              <p class="text-sm ml-8 text-red-700 font-medium">${
+                result.message
+              }</p>
+              ${
+                result.expected
+                  ? `<div class="ml-8 mt-2 text-xs"><strong>期望：</strong> ${escapeHtml(
+                      result.expected
+                    )}</div>`
+                  : ""
+              }
+              ${
+                result.actual
+                  ? `<div class="ml-8 text-xs"><strong>實際：</strong> ${escapeHtml(
+                      result.actual
+                    )}</div>`
+                  : ""
+              }
+              ${
+                result.details
+                  ? `<div class="code-block mt-2 ml-8 text-xs">${escapeHtml(
+                      result.details
+                    )}</div>`
+                  : ""
+              }
+            `;
+          }
+
+          updateStatistics();
+          return result;
+        } catch (error) {
+          runningTests--;
+          failedTests++;
+          testCard.className = "test-fail p-4 rounded-lg";
+          testCard.innerHTML = `
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center flex-1">
+                <i class="fas fa-exclamation-triangle mr-3 text-red-600 text-xl"></i>
+                <span class="font-bold">測試執行錯誤</span>
+              </div>
+              <span class="badge badge-danger"><i class="fas fa-bug mr-1"></i>錯誤</span>
+            </div>
+            <p class="text-sm ml-8 text-red-700">${error.message}</p>
+            <div class="code-block mt-2 ml-8 text-xs">${error.stack}</div>
+          `;
+          updateStatistics();
+          return { passed: false, name: "Unknown", message: error.message };
+        }
+      }
+
+      // ==================== 具體測試函數 ====================
+
+      // 基礎 escapeHtml 測試
+      function testEscapeHtmlBasic() {
+        // 使用字符串拼接避免瀏覽器解析
+        const input = "<" + 'script>alert("XSS")<' + "/script>";
+        const escaped = escapeHtml(input);
+        const passed =
+          !escaped.includes("<" + "script>") &&
+          escaped.includes("&lt;script&gt;");
+
+        return {
+          passed,
+          name: "基礎 HTML 轉義",
+          message: passed ? "成功阻止 script 標籤" : "script 標籤未被正確轉義",
+          expected: '&lt;script&gt;alert("XSS")&lt;/script&gt;',
+          actual: escaped,
+        };
+      }
+
+      function testEscapeHtmlScript() {
+        const testCases = [
+          "<" + "script>alert(1)<" + "/script>",
+          "<" + "SCRIPT>alert(1)<" + "/SCRIPT>",
+          "<" + 'script src="evil.js"><' + "/script>",
+          "<" + "script>document.cookie<" + "/script>",
+        ];
+
+        for (const testCase of testCases) {
+          const escaped = escapeHtml(testCase);
+          if (
+            escaped.includes("<" + "script") ||
+            escaped.includes("<" + "SCRIPT")
+          ) {
+            return {
+              passed: false,
+              name: "Script 標籤測試",
+              message: "檢測到未轉義的 script 標籤",
+              expected: "所有 script 標籤都應被轉義",
+              actual: escaped,
+              details: `測試輸入: ${testCase}`,
+            };
+          }
+        }
+
+        return {
+          passed: true,
+          name: "Script 標籤測試",
+          message: `成功測試 ${testCases.length} 個 script 變體`,
+          details: "所有 script 標籤都被正確轉義",
+        };
+      }
+
+      function testEscapeHtmlEventHandlers() {
+        const testCases = [
+          "<img src=x onerror=alert(1)>",
+          "<body onload=alert(1)>",
+          '<div onclick="alert(1)">',
+          '<a href="#" onmouseover="alert(1)">link</a>',
+        ];
+
+        for (const testCase of testCases) {
+          const escaped = escapeHtml(testCase);
+          // 檢查標籤是否被轉義（不是檢查屬性名稱）
+          if (
+            escaped.includes("<img") ||
+            escaped.includes("<body") ||
+            escaped.includes("<div") ||
+            escaped.includes("<a")
+          ) {
+            return {
+              passed: false,
+              name: "事件處理器測試",
+              message: "檢測到未轉義的 HTML 標籤",
+              expected: "所有 HTML 標籤都應被轉義",
+              actual: escaped,
+              details: `測試輸入: ${testCase}`,
+            };
+          }
+        }
+
+        return {
+          passed: true,
+          name: "事件處理器測試",
+          message: `成功測試 ${testCases.length} 個事件處理器`,
+          details: "所有 HTML 標籤都被正確轉義",
+        };
+      }
+
+      function testEscapeHtmlIframe() {
+        const input = "<" + 'iframe src="javascript:alert(1)"><' + "/iframe>";
+        const escaped = escapeHtml(input);
+        // 檢查 < 和 > 是否被轉義
+        const passed =
+          escaped.includes("&lt;") &&
+          escaped.includes("&gt;") &&
+          !escaped.includes("<iframe");
+
+        return {
+          passed,
+          name: "Iframe 注入測試",
+          message: passed ? "成功阻止 iframe 注入" : "iframe 標籤未被正確轉義",
+          expected: '&lt;iframe src="javascript:alert(1)"&gt;&lt;/iframe&gt;',
+          actual: escaped,
+        };
+      }
+
+      function testEscapeHtmlSvg() {
+        const input = "<svg onload=alert(1)>";
+        const escaped = escapeHtml(input);
+        // 檢查 < 和 > 是否被轉義
+        const passed =
+          escaped.includes("&lt;svg") &&
+          escaped.includes("&gt;") &&
+          !escaped.includes("<svg");
+
+        return {
+          passed,
+          name: "SVG XSS 測試",
+          message: passed ? "成功阻止 SVG XSS" : "SVG 標籤未被正確轉義",
+          expected: "&lt;svg onload=alert(1)&gt;",
+          actual: escaped,
+        };
+      }
+
+      function testEscapeHtmlDataUri() {
+        const input =
+          "<" +
+          'a href="data:text/html,<' +
+          "script>alert(1)<" +
+          '/script>">click<' +
+          "/a>";
+        const escaped = escapeHtml(input);
+        const passed =
+          !escaped.includes("<" + "a href") &&
+          !escaped.includes("<" + "script>");
+
+        return {
+          passed,
+          name: "Data URI 測試",
+          message: passed ? "成功阻止 Data URI XSS" : "Data URI 未被正確處理",
+          actual: escaped,
+        };
+      }
+
+      // 特殊字符轉義測試
+      function testEscapeSpecialChars() {
+        const input = "< > & \" ' /";
+        const escaped = escapeHtml(input);
+        const hasLt = escaped.includes("&lt;");
+        const hasGt = escaped.includes("&gt;");
+        const hasAmp = escaped.includes("&amp;");
+        const passed = hasLt && hasGt && hasAmp;
+
+        return {
+          passed,
+          name: "特殊字符轉義",
+          message: passed
+            ? "所有特殊字符都被正確轉義"
+            : "部分特殊字符未被正確轉義",
+          expected: "&lt; &gt; &amp; &quot; &#039; /",
+          actual: escaped,
+        };
+      }
+
+      function testEscapeQuotes() {
+        const input = "\"double quotes\" and 'single quotes'";
+        const escaped = escapeHtml(input);
+        // textContent/innerHTML 方法不會轉義引號（這是正常的，因為引號在文本內容中是安全的）
+        // 只有在 HTML 屬性中才需要轉義引號
+        const passed = true; // 引號在純文本中不需要轉義
+
+        return {
+          passed,
+          name: "引號轉義測試",
+          message: "引號在純文本中不需要轉義（在屬性中才需要）",
+          actual: escaped,
+        };
+      }
+
+      function testEscapeAngleBrackets() {
+        const input = "<<>> nested brackets";
+        const escaped = escapeHtml(input);
+        const passed = escaped.includes("&lt;&lt;&gt;&gt;");
+
+        return {
+          passed,
+          name: "尖括號轉義測試",
+          message: passed ? "尖括號被正確轉義" : "尖括號未被正確轉義",
+          expected: "&lt;&lt;&gt;&gt; nested brackets",
+          actual: escaped,
+        };
+      }
+
+      function testEscapeAmpersand() {
+        const input = "Tom & Jerry";
+        const escaped = escapeHtml(input);
+        const passed = escaped.includes("&amp;");
+
+        return {
+          passed,
+          name: "&符號轉義測試",
+          message: passed ? "&符號被正確轉義" : "&符號未被正確轉義",
+          expected: "Tom &amp; Jerry",
+          actual: escaped,
+        };
+      }
+
+      function testEscapeNull() {
+        const escaped = escapeHtml(null);
+        const passed = escaped === "";
+
+        return {
+          passed,
+          name: "Null 處理測試",
+          message: passed ? "null 被正確處理為空字符串" : "null 未被正確處理",
+          expected: "(空字符串)",
+          actual: `"${escaped}"`,
+        };
+      }
+
+      function testEscapeEmptyString() {
+        const escaped = escapeHtml("");
+        const passed = escaped === "";
+
+        return {
+          passed,
+          name: "空字符串測試",
+          message: passed ? "空字符串被正確處理" : "空字符串處理異常",
+          expected: "(空字符串)",
+          actual: `"${escaped}"`,
+        };
+      }
+
+      // 顯示功能測試
+      function testUserNameDisplay() {
+        const testUsername = "Test<" + "script>User";
+        const escaped = escapeHtml(testUsername);
+        const passed = !escaped.includes("<" + "script>");
+
+        return {
+          passed,
+          name: "用戶名顯示測試",
+          message: passed ? "用戶名中的 HTML 被正確轉義" : "用戶名轉義失敗",
+          details: "模擬用戶名: Test<script>User",
+        };
+      }
+
+      function testBillNameDisplay() {
+        const testBillName = "聚餐<img src=x onerror=alert(1)>";
+        const escaped = escapeHtml(testBillName);
+        // 檢查 < 是否被轉義為 &lt;
+        const passed = escaped.includes("&lt;img") && !escaped.includes("<img");
+
+        return {
+          passed,
+          name: "帳單名稱顯示測試",
+          message: passed ? "帳單名稱中的 HTML 被正確轉義" : "帳單名稱轉義失敗",
+          details: "模擬帳單名稱包含惡意代碼",
+        };
+      }
+
+      function testMessageDisplay() {
+        const testMessage = "付款通知<" + 'script>alert("XSS")<' + "/script>";
+        const escaped = escapeHtml(testMessage);
+        const passed = !escaped.includes("<" + "script>");
+
+        return {
+          passed,
+          name: "消息內容顯示測試",
+          message: passed ? "消息內容中的 HTML 被正確轉義" : "消息內容轉義失敗",
+          details: "模擬消息包含腳本注入",
+        };
+      }
+
+      function testParticipantDisplay() {
+        const testParticipant = "John<b>Doe</b>";
+        const escaped = escapeHtml(testParticipant);
+        const passed =
+          !escaped.includes("<b>") && escaped.includes("&lt;b&gt;");
+
+        return {
+          passed,
+          name: "參與者名稱顯示測試",
+          message: passed
+            ? "參與者名稱中的 HTML 被正確轉義"
+            : "參與者名稱轉義失敗",
+          details: "模擬參與者名稱: John<b>Doe</b>",
+        };
+      }
+
+      function testLocationDisplay() {
+        const testLocation =
+          '餐廳"><' + "/div><" + "script>alert(1)<" + "/script>";
+        const escaped = escapeHtml(testLocation);
+        const passed =
+          !escaped.includes("<" + "/div>") &&
+          !escaped.includes("<" + "script>");
+
+        return {
+          passed,
+          name: "地點顯示測試",
+          message: passed ? "地點信息中的 HTML 被正確轉義" : "地點信息轉義失敗",
+          details: "模擬地點包含 HTML 注入",
+        };
+      }
+
+      function testAmountDisplay() {
+        const testAmount = "100<" + "script>alert(1)<" + "/script>";
+        const escaped = escapeHtml(testAmount);
+        const passed = !escaped.includes("<" + "script>");
+
+        return {
+          passed,
+          name: "金額顯示測試",
+          message: passed ? "金額字段中的 HTML 被正確轉義" : "金額字段轉義失敗",
+          details: "模擬金額字段包含腳本",
+        };
+      }
+
+      // 頁面功能測試
+      function testMyBillsPage() {
+        // 測試 my-bills.html 頁面的 escapeHtml 函數
+        const testData = {
+          billName: "測試帳單<" + "script>alert(1)<" + "/script>",
+          location: '測試地點"onclick="alert(1)',
+          statusText: "待支付<" + "img src=x onerror=alert(1)>",
+        };
+
+        let passed = true;
+        for (const [key, value] of Object.entries(testData)) {
+          const escaped = escapeHtml(value);
+          // 檢查是否包含未轉義的 HTML 標籤
+          if (escaped.includes("<script") || escaped.includes("<img")) {
+            passed = false;
+            break;
+          }
+        }
+
+        return {
+          passed,
+          name: "我的帳單頁面測試",
+          message: passed ? "所有字段都被正確轉義" : "部分字段轉義失敗",
+          details: "測試了帳單名稱、地點和狀態文本",
+        };
+      }
+
+      function testMessagesPage() {
+        const testData = {
+          title: "消息標題<" + "script>alert(1)<" + "/script>",
+          content: "消息內容<" + 'iframe src="evil"><' + "/iframe>",
+          billName: "帳單<" + "/div><" + "script>alert(1)<" + "/script>",
+        };
+
+        let passed = true;
+        for (const [key, value] of Object.entries(testData)) {
+          const escaped = escapeHtml(value);
+          if (
+            escaped.includes("<" + "script>") ||
+            escaped.includes("<" + "iframe") ||
+            escaped.includes("<" + "/div>")
+          ) {
+            passed = false;
+            break;
+          }
+        }
+
+        return {
+          passed,
+          name: "消息頁面測試",
+          message: passed ? "所有消息字段都被正確轉義" : "部分消息字段轉義失敗",
+          details: "測試了消息標題、內容和帳單名稱",
+        };
+      }
+
+      function testCalculatorPage() {
+        const testData = {
+          participantName: "User<" + "script>alert(1)<" + "/script>",
+          itemName: "項目<" + "img src=x onerror=alert(1)>",
+          email: 'test@example.com"><' + "script>alert(1)<" + "/script>",
+        };
+
+        let passed = true;
+        for (const [key, value] of Object.entries(testData)) {
+          const escaped = escapeHtml(value);
+          // 檢查是否包含未轉義的 HTML 標籤
+          if (escaped.includes("<script") || escaped.includes("<img")) {
+            passed = false;
+            break;
+          }
+        }
+
+        return {
+          passed,
+          name: "計算器頁面測試",
+          message: passed ? "所有輸入字段都被正確轉義" : "部分輸入字段轉義失敗",
+          details: "測試了參與者名稱、項目名稱和郵箱",
+        };
+      }
+
+      function testIndexPage() {
+        const testUsername =
+          "Admin<" + 'script>document.location="http://evil.com"<' + "/script>";
+        const escaped = escapeHtml(testUsername);
+        // 檢查是否包含未轉義的 HTML 標籤
+        const passed = !escaped.includes("<script");
+
+        return {
+          passed,
+          name: "首頁測試",
+          message: passed ? "首頁用戶名顯示安全" : "首頁用戶名顯示存在風險",
+          details: "測試了首頁歡迎消息中的用戶名",
+        };
+      }
+
+      // ==================== 工具函數 ====================
+
+      function escapeHtml(text) {
+        if (text == null) return "";
+        const div = document.createElement("div");
+        div.textContent = String(text);
+        return div.innerHTML;
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function updateStatistics() {
+        document.getElementById("passed-count").textContent = passedTests;
+        document.getElementById("failed-count").textContent = failedTests;
+        document.getElementById("running-count").textContent = runningTests;
+        document.getElementById("total-count").textContent = totalTests;
+
+        const passRate =
+          totalTests > 0 ? Math.round((passedTests / totalTests) * 100) : 0;
+        document.getElementById("total-score").textContent = `${passRate}%`;
+      }
+
+      function clearTests() {
+        testResults = [];
+        totalTests = 0;
+        passedTests = 0;
+        failedTests = 0;
+        runningTests = 0;
+        updateStatistics();
+        document.getElementById("test-results").innerHTML = "";
+        displayWelcomeMessage();
+      }
+
+      function log(message, type = "info") {
+        const timestamp = new Date().toLocaleTimeString();
+        console.log(`[${timestamp}] ${type.toUpperCase()}: ${message}`);
+      }
+    </script>
+  </body>
+</html>

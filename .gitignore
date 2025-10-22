@@ -25,3 +25,6 @@ test-api.cjs
 # 數據庫目錄 - 保留架構文件
 !database/
 !database/*.sql
+
+.tmp.driveupload/
+.tmp.driveupload/*
