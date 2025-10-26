@@ -73,7 +73,6 @@
 ### 數據存儲
 
 - **JSON 文件** - 當前數據存儲方案
-- **PostgreSQL** - 計劃中的數據庫升級
 
 ### 開發工具
 
@@ -238,8 +237,6 @@ PartyBillCalculator/
 │   ├── bills.json             # 賬單數據
 │   ├── messages.json          # 消息數據
 │   └── receipts/              # 收據圖片 ⭐
-├── database/                   # 數據庫相關
-│   └── schema.sql             # PostgreSQL 數據庫架構
 ├── tests/                      # 測試文件
 │   └── html/                  # HTML 測試頁面
 ├── scripts/                    # 工具腳本

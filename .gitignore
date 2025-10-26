@@ -17,14 +17,14 @@ test-api.cjs
 # 文檔目錄 - 保留文檔文件
 !docs/
 !docs/*.md
+docs/ppt
+public/ppt
 
 # 配置目錄 - 保留文檔，忽略字體文件
 !config/
 !config/*.md
 
-# 數據庫目錄 - 保留架構文件
-!database/
-!database/*.sql
+# 數據庫目錄 - 已移動到 data/database/，由 data*/ 規則忽略
 
 .tmp.driveupload/
 .tmp.driveupload/*
