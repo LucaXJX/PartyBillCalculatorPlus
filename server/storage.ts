@@ -82,9 +82,19 @@ export class DataStorage {
 
     try {
       const data = fs.readFileSync(USERS_FILE, "utf8");
+
+      // 檢查文件是否為空或只包含空白字符
+      if (!data.trim()) {
+        console.log("Users file is empty, initializing with empty array");
+        await this.saveUsers([]);
+        return [];
+      }
+
       return JSON.parse(data);
     } catch (error) {
       console.error("Error loading users:", error);
+      console.log("Initializing users file with empty array");
+      await this.saveUsers([]);
       return [];
     }
   }
@@ -165,9 +175,19 @@ export class DataStorage {
 
     try {
       const data = fs.readFileSync(BILLS_FILE, "utf8");
+
+      // 檢查文件是否為空或只包含空白字符
+      if (!data.trim()) {
+        console.log("Bills file is empty, initializing with empty array");
+        await this.saveBills([]);
+        return [];
+      }
+
       return JSON.parse(data);
     } catch (error) {
       console.error("Error loading bills:", error);
+      console.log("Initializing bills file with empty array");
+      await this.saveBills([]);
       return [];
     }
   }
