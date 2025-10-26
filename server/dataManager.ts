@@ -86,7 +86,7 @@ export class DataManager {
     );
     // 同时从项目中移除该参与者
     this.currentBill.items.forEach((item: Item) => {
-      item.participantsIds = item.participantsIds.filter(
+      item.participantIds = item.participantIds.filter(
         (pId: string) => pId !== id
       );
     });
@@ -104,7 +104,7 @@ export class DataManager {
       name: name,
       amount: amount,
       isShared: isShared,
-      participantsIds: participantIds,
+      participantIds: participantIds,
     };
     this.currentBill.items.push(newItem);
     return newItem;
@@ -119,7 +119,7 @@ export class DataManager {
   updateItemParticipants(itemId: string, participantIds: string[]): void {
     const item = this.currentBill.items.find((i: Item) => i.id === itemId);
     if (item) {
-      item.participantsIds = participantIds;
+      item.participantIds = participantIds;
     }
   }
 

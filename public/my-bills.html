@@ -636,7 +636,7 @@
             (sum, item) => sum + item.amount,
             0
           );
-          const userAmount = userResult ? userResult.amount : 0;
+          const userAmount = userResult ? userResult.amount || 0 : 0;
 
           // 根據角色顯示不同的狀態
           let statusClass, statusText, statusIcon;
@@ -745,9 +745,9 @@
                      ? `
                  <div class="flex justify-between items-center">
                    <span class="text-sm text-gray-600">您的分攤</span>
-                   <span class="text-base font-semibold text-gray-700">$${userResult.amount.toFixed(
-                     2
-                   )}</span>
+                   <span class="text-base font-semibold text-gray-700">$${(
+                     userResult.amount || 0
+                   ).toFixed(2)}</span>
                  </div>
                  `
                      : ""
@@ -817,11 +817,11 @@
                 ${
                   userStatus === "pending" && userParticipant && !isPayer
                     ? `
-                  <button class="btn-primary text-sm flex-1 min-h-[44px]" onclick="openPaymentModal('${bill.id}', '${userParticipant.id}')">
+                  <button class="btn-primary text-sm flex-1 min-h-[44px]" onclick="console.log('🔧 點擊標記已支付按鈕:', '${bill.id}', '${userParticipant.id}'); openPaymentModal('${bill.id}', '${userParticipant.id}')">
                     <i class="fa fa-credit-card mr-2"></i>標記已支付
                   </button>
                 `
-                    : ""
+                    : `<!-- 按鈕條件不滿足: userStatus=${userStatus}, userParticipant=${!!userParticipant}, isPayer=${isPayer} -->`
                 }
                  ${
                    isPayer && receivablesAmount > 0
@@ -871,7 +871,7 @@
               (sum, item) => sum + item.amount,
               0
             );
-            const userAmount = userResult ? userResult.amount : 0;
+            const userAmount = userResult ? userResult.amount || 0 : 0;
 
             if (isPayer) {
               // 付款人角色：計算應收款
@@ -1037,11 +1037,13 @@
 
         // 打開支付模態框
         function openPaymentModal(billId, participantId) {
+          console.log("🔧 打開支付模態框:", { billId, participantId });
           currentBillId = billId;
           currentParticipantId = participantId;
           paymentModal.classList.remove("opacity-0", "invisible");
           paymentModal.querySelector(".bg-white").classList.remove("scale-95");
           paymentModal.querySelector(".bg-white").classList.add("scale-100");
+          console.log("✅ 支付模態框已打開");
         }
 
         // 關閉支付模態框
@@ -1093,8 +1095,9 @@
 
         // 保存支付狀態
         async function savePaymentStatus() {
+          console.log("🔧 開始保存支付狀態...");
           if (!currentBillId || !currentParticipantId) {
-            console.error("缺少必要參數:", {
+            console.error("❌ 缺少必要參數:", {
               currentBillId,
               currentParticipantId,
             });
@@ -1183,12 +1186,12 @@
           // 構建項目列表
           let itemsHTML = bill.items
             .map((item) => {
-              const participants = item.participantsIds
+              const participants = item.participantIds
                 ?.map((pid) => {
                   const p = bill.participants.find((x) => x.id === pid);
                   return escapeHtml(p?.name || "未知");
                 })
-                .join(", ");
+                .join(", ") || "未知參與者";
 
               return `
               <div class="flex justify-between items-start py-2 border-b">
