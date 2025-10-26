@@ -34,6 +34,8 @@
   },
   "homepage": "https://github.com/LucaXJX/PartyBillCalculator#readme",
   "dependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "bcrypt": "^6.0.0",
     "dotenv": "^16.0.0",
     "express": "^5.1.0",
     "express-session": "^1.18.2",

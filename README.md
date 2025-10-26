@@ -222,6 +222,7 @@ PartyBillCalculator/
 │   ├── MY_BILLS_PAGE.md                    # 我的賬單頁面文檔
 │   ├── PAYMENT_FLOW.md                     # 支付流程文檔
 │   ├── TEST_USERS.md                       # 測試用戶列表
+│   ├── TESTING_REPORT.md                   # 全面測試報告
 │   ├── TROUBLESHOOTING.md                  # 故障排除
 │   ├── ppt/                    # 演示文檔
 │   │   └── 1-fileStructure.md              # 文件結構說明
@@ -245,10 +246,18 @@ PartyBillCalculator/
 │   ├── messages.json          # 消息數據
 │   └── receipts/              # 收據圖片 ⭐
 ├── tests/                      # 測試文件
+│   ├── api-test.js            # API 功能測試
+│   ├── comprehensive-test.js  # 全面系統測試
+│   ├── quick-test.js          # 快速功能測試
+│   ├── TESTING_REPORT.md      # 全面測試報告
 │   └── html/                  # HTML 測試頁面
 ├── scripts/                    # 工具腳本
 │   ├── add-test-data.js       # 添加測試數據
-│   └── generate-receipt-images.js  # 生成收據圖片
+│   ├── fix-bill-data.js       # 修復賬單數據
+│   ├── generate-receipt-images.js  # 生成收據圖片
+│   ├── migrate-passwords.js   # 密碼加密遷移
+│   ├── unify-test-users.js    # 統一測試用戶配置
+│   └── README.md              # 腳本使用說明
 ├── dist/                       # TypeScript 編譯輸出
 ├── .github/                    # GitHub 配置
 │   ├── ISSUE_TEMPLATE/        # Issue 模板
@@ -304,14 +313,37 @@ PartyBillCalculator/
 
 ## 🧪 測試
 
-### 運行測試
+### 快速測試
 
 ```bash
-# 查看測試結果
-cat docs/archive/TEST_RESULTS.md
+# 快速驗證系統基本功能
+node tests/quick-test.js
+
+# 全面測試系統功能和數據完整性
+node tests/comprehensive-test.js
+```
+
+### API 測試
+
+```bash
+# 啟動服務器
+npm run dev
+
+# 在另一個終端運行 API 測試
+node tests/api-test.js
+```
+
+### 測試文檔
+
+```bash
+# 查看測試報告
+cat tests/TESTING_REPORT.md
 
 # 查看測試用戶信息
 cat docs/TEST_USERS.md
+
+# 查看腳本使用說明
+cat scripts/README.md
 ```
 
 ### 測試覆蓋範圍

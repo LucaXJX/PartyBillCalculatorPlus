@@ -10,6 +10,7 @@ import multer from "multer";
 import { DataManager } from "./dataManager.js";
 import { BillCalculator } from "./billCalculator.js";
 import { dataStorage } from "./storage.js";
+import { PasswordUtils } from "./passwordUtils.js";
 import { messageManager } from "./messageManager.js";
 import { MessageHelper } from "./messageHelper.js";
 import { overdueReminderService } from "./overdueReminderService.js";
@@ -117,11 +118,14 @@ app.post("/api/auth/register", async (req, res) => {
     }
 
     // 創建新用戶
+    // 加密密碼
+    const hashedPassword = PasswordUtils.hashPasswordSync(password);
+
     const newUser: User = {
       id: Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
       username,
       email,
-      password, // 實際應用中應該加密
+      password: hashedPassword, // bcrypt 加密後的密碼
       createdAt: new Date().toISOString(),
     };
 
@@ -155,7 +159,7 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     const user = await dataStorage.getUserByEmail(email);
-    if (!user || user.password !== password) {
+    if (!user || !PasswordUtils.verifyPasswordSync(password, user.password)) {
       return res.status(401).json({ error: "郵箱或密碼錯誤" });
     }
 
