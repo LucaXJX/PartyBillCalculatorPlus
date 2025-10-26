@@ -7,39 +7,45 @@
 - **包含大小寫字母、數字和特殊字符**
 - **便於測試記憶**
 
+## 統一測試配置
+
+為了便於測試，所有用戶使用相同的配置：
+- **統一密碼**: `Test123!`
+- **統一郵箱後綴**: `@test.com`
+
 ## 測試用戶列表（21 個）
 
 ### 用戶信息
 
 | 序號 | 用戶名 | 郵箱 | 密碼 | 賬單數量 |
 |------|--------|------|------|----------|
-| 1 | alice_wong | alice.wong@email.com | Alice123! | 11 |
-| 2 | bob_lee | bob.lee@email.com | Bob123!@ | 11 |
-| 3 | charlie_chan | charlie.chan@email.com | Charlie123! | 11 |
-| 4 | diana_liu | diana.liu@email.com | Diana123! | 11 |
-| 5 | edward_zhang | edward.zhang@email.com | Edward123! | 11 |
-| 6 | fiona_chen | fiona.chen@email.com | Fiona123! | 11 |
-| 7 | george_wang | george.wang@email.com | George123! | 11 |
-| 8 | helen_li | helen.li@email.com | Helen123! | 11 |
-| 9 | ivan_huang | ivan.huang@email.com | Ivan123!@ | 11 |
-| 10 | julia_lin | julia.lin@email.com | Julia123! | 11 |
-| 11 | kevin_zhou | kevin.zhou@email.com | Kevin123! | 10 |
-| 12 | lisa_wu | lisa.wu@email.com | Lisa123!@ | 10 |
-| 13 | mike_xu | mike.xu@email.com | Mike123!@ | 10 |
-| 14 | nancy_ma | nancy.ma@email.com | Nancy123! | 10 |
-| 15 | oscar_liu | oscar.liu@email.com | Oscar123! | 10 |
-| 16 | penny_gao | penny.gao@email.com | Penny123! | 10 |
-| 17 | quincy_ye | quincy.ye@email.com | Quincy123! | 10 |
-| 18 | rachel_he | rachel.he@email.com | Rachel123! | 10 |
-| 19 | steve_guo | steve.guo@email.com | Steve123!@ | 10 |
-| 20 | tina_liang | tina.liang@email.com | Tina123!@ | 10 |
-| 21 | ulrich_wei | ulrich.wei@email.com | Ulrich123! | 10 |
+| 1 | alice_wong | alice.wong@test.com | Test123! | 10+ |
+| 2 | bob_lee | bob.lee@test.com | Test123! | 10+ |
+| 3 | charlie_chan | charlie.chan@test.com | Test123! | 10+ |
+| 4 | diana_liu | diana.liu@test.com | Test123! | 10+ |
+| 5 | edward_zhang | edward.zhang@test.com | Test123! | 10+ |
+| 6 | fiona_chen | fiona.chen@test.com | Test123! | 10+ |
+| 7 | george_wang | george.wang@test.com | Test123! | 10+ |
+| 8 | helen_li | helen.li@test.com | Test123! | 10+ |
+| 9 | ivan_huang | ivan.huang@test.com | Test123! | 10+ |
+| 10 | julia_lin | julia.lin@test.com | Test123! | 10+ |
+| 11 | kevin_zhou | kevin.zhou@test.com | Test123! | 10+ |
+| 12 | lisa_wu | lisa.wu@test.com | Test123! | 10+ |
+| 13 | mike_xu | mike.xu@test.com | Test123! | 10+ |
+| 14 | nancy_ma | nancy.ma@test.com | Test123! | 10+ |
+| 15 | oscar_liu | oscar.liu@test.com | Test123! | 10+ |
+| 16 | penny_gao | penny.gao@test.com | Test123! | 10+ |
+| 17 | quincy_ye | quincy.ye@test.com | Test123! | 10+ |
+| 18 | rachel_he | rachel.he@test.com | Test123! | 10+ |
+| 19 | steve_guo | steve.guo@test.com | Test123! | 10+ |
+| 20 | tina_liang | tina.liang@test.com | Test123! | 10+ |
+| 21 | ulrich_wei | ulrich.wei@test.com | Test123! | 10+ |
 
 ## 測試數據統計
 
 - **總用戶數**: 21 個
-- **總賬單數**: 220 個
-- **平均每用戶賬單數**: 10.5 個
+- **總賬單數**: 220+ 個
+- **平均每用戶賬單數**: 10+ 個
 - **數據時間範圍**: 過去 90 天內
 - **賬單類型**: 聚餐、KTV、燒烤、電影、購物等 20 種不同場景
 
@@ -47,8 +53,8 @@
 
 ### 快速測試
 
-- 使用 **alice_wong** / alice.wong@email.com / Alice123! 進行快速測試
-- 使用 **bob_lee** / bob.lee@email.com / Bob123!@ 進行對比測試
+- 使用 **alice_wong** / alice.wong@test.com / Test123! 進行快速測試
+- 使用 **bob_lee** / bob.lee@test.com / Test123! 進行對比測試
 
 ### 功能測試場景
 
@@ -78,7 +84,7 @@
 ### 演示建議
 
 1. **展示用戶隔離**
-   - 使用 alice_wong 登入，展示她的 11 個賬單
+   - 使用 alice_wong 登入，展示她的賬單
    - 切換到 bob_lee，展示完全不同的賬單列表
 
 2. **展示賬單多樣性**
@@ -119,6 +125,10 @@
 
 如需更新測試數據，可以運行：
 ```bash
+# 統一用戶密碼和郵箱
+node scripts/unify-test-users.js
+
+# 重新生成測試賬單數據
 node scripts/generate-test-data.js
 ```
 

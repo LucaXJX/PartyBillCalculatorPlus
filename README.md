@@ -217,21 +217,28 @@ PartyBillCalculator/
 │   └── billCalculator.ts      # 計算邏輯
 ├── docs/                       # 項目文檔
 │   ├── CHANGELOG.md                        # 更新日誌
-│   ├── COMPLETE_UI_OPTIMIZATION_REPORT.md  # 完整UI優化報告 ⭐
-│   ├── UPDATE_CHECKLIST.md                 # 更新檢查清單 ⭐
 │   ├── COMPONENT_SYSTEM.md                 # 組件系統文檔
 │   ├── MESSAGE_SYSTEM.md                   # 消息系統文檔
 │   ├── MY_BILLS_PAGE.md                    # 我的賬單頁面文檔
 │   ├── PAYMENT_FLOW.md                     # 支付流程文檔
 │   ├── TEST_USERS.md                       # 測試用戶列表
 │   ├── TROUBLESHOOTING.md                  # 故障排除
+│   ├── ppt/                    # 演示文檔
+│   │   └── 1-fileStructure.md              # 文件結構說明
 │   └── archive/               # 開發歷史文檔
 │       ├── AUTH_SYSTEM_UPGRADE.md
-│       ├── PARTICIPANT_CARD_REFACTOR.md
-│       ├── SECURITY_UPDATES.md
+│       ├── COMPLETE_UI_OPTIMIZATION_REPORT.md
+│       ├── DOCUMENTATION_CONSOLIDATION_SUMMARY.md
+│       ├── FINAL_SUMMARY.md
+│       ├── MESSAGE_TESTING_GUIDE.md
 │       ├── MY_BILLS_PAGE_IMPLEMENTATION.md
-│       ├── CALCULATOR_TEST_CHECKLIST.md
-│       └── TEST_RESULTS.md
+│       ├── OVERDUE_REMINDER_SYSTEM.md
+│       ├── PARTICIPANT_CARD_REFACTOR.md
+│       ├── RECEIPT_GENERATION_REPORT.md
+│       ├── SECURITY_TEST_GUIDE.md
+│       ├── SECURITY_UPDATES.md
+│       ├── TEST_RESULTS.md
+│       └── README.md
 ├── data/                       # 數據文件
 │   ├── users.json             # 用戶數據
 │   ├── bills.json             # 賬單數據
@@ -301,7 +308,7 @@ PartyBillCalculator/
 
 ```bash
 # 查看測試結果
-cat docs/TEST_RESULTS.md
+cat docs/archive/TEST_RESULTS.md
 
 # 查看測試用戶信息
 cat docs/TEST_USERS.md
