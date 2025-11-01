@@ -104,18 +104,7 @@
                     </div>
                   </div>
 
-                  <!-- 註冊時間 -->
-                  <div class="bg-gray-50 p-4 rounded-lg">
-                    <label class="block text-sm font-medium text-gray-600 mb-2">
-                      <i class="fa fa-calendar mr-2"></i>註冊時間
-                    </label>
-                    <div
-                      id="display-created"
-                      class="text-lg font-semibold text-gray-800"
-                    >
-                      載入中...
-                    </div>
-                  </div>
+                  
 
                   <!-- 用戶ID -->
                   <div class="bg-gray-50 p-4 rounded-lg">
@@ -348,15 +337,13 @@
       </div>
     </div>
 
-    <!-- 頁面設置腳本 -->
-    <script type="module" src="/js/page-setup.js"></script>
+    <!-- 必要腳本：認證、組件、頁面設置 -->
+    <script src="/js/auth.js"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/page-setup.js"></script>
     <script type="module">
-      import { PageSetup } from "/js/page-setup.js";
-
       // 初始化頁面
-      const pageSetup = new PageSetup();
-
-      await pageSetup.init({
+      await window.pageSetup.init({
         requireAuth: true,
         currentPage: "settings",
         redirectIfNotAuth: "/login-page.html",
@@ -379,14 +366,7 @@
           document.getElementById("display-email").textContent = user.email;
           document.getElementById("display-userid").textContent = user.id;
 
-          // 如果有創建時間，顯示
-          if (user.createdAt) {
-            const date = new Date(user.createdAt);
-            document.getElementById("display-created").textContent =
-              date.toLocaleDateString("zh-TW");
-          } else {
-            document.getElementById("display-created").textContent = "N/A";
-          }
+          // 註冊時間不顯示
         }
         // 綁定編輯用戶名按鈕
         const openModal = () => {
@@ -427,22 +407,26 @@
             }
             try {
               // 調用API更新用戶名
-              const res = await fetch("/api/user/username", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: newUsername }),
-                credentials: "include",
-              });
+              const res = await window.authManager.authenticatedFetch(
+                "/api/user/username",
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ username: newUsername }),
+                }
+              );
+              if (!res) return; // 可能已被重定向
               const data = await res.json();
               if (!res.ok) throw new Error(data.message || "更新失敗");
               // 更新UI
               document.getElementById("display-username").textContent =
                 newUsername;
               if (window.authManager) {
-                window.authManager.setCurrentUser({
-                  ...user,
-                  username: newUsername,
-                });
+                const sessionId = window.authManager.getSessionId();
+                window.authManager.setAuth(
+                  { ...user, username: newUsername },
+                  sessionId
+                );
               }
               document.getElementById("username-modal").classList.add("hidden");
             } catch (err) {
@@ -484,17 +468,24 @@
               return;
             }
             try {
-              const res = await fetch("/api/user/email", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ email: newEmail }),
-                credentials: "include",
-              });
+              const res = await window.authManager.authenticatedFetch(
+                "/api/user/email",
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ email: newEmail }),
+                }
+              );
+              if (!res) return; // 可能已被重定向
               const data = await res.json();
               if (!res.ok) throw new Error(data.message || "郵箱更新失敗");
               document.getElementById("display-email").textContent = newEmail;
               if (window.authManager) {
-                window.authManager.setCurrentUser({ ...user, email: newEmail });
+                const sessionId = window.authManager.getSessionId();
+                window.authManager.setAuth(
+                  { ...user, email: newEmail },
+                  sessionId
+                );
               }
               successDiv.textContent = "郵箱已成功更新";
               successDiv.classList.remove("hidden");
@@ -556,12 +547,15 @@
               return;
             }
             try {
-              const res = await fetch("/api/user/password", {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ currentPassword, newPassword }),
-                credentials: "include",
-              });
+              const res = await window.authManager.authenticatedFetch(
+                "/api/user/password",
+                {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ currentPassword, newPassword }),
+                }
+              );
+              if (!res) return; // 可能已被重定向
               const data = await res.json();
               if (!res.ok) throw new Error(data.message || "密碼更新失敗");
               successDiv.textContent = "密碼已成功更新";

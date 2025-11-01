@@ -152,7 +152,11 @@ app.post("/api/auth/register", async (req, res) => {
 // 用戶登入
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { email, password } = req.body;
+    let { email, password } = req.body;
+
+    // 輸入正規化
+    if (typeof email === "string") email = email.trim().toLowerCase();
+    if (typeof password === "string") password = password.trim();
 
     if (!email || !password) {
       return res.status(400).json({ error: "請填寫郵箱和密碼" });
@@ -211,6 +215,91 @@ app.get("/api/auth/me", authenticateUser, (req: any, res) => {
       email: req.user.email,
     },
   });
+});
+
+// === 用戶資料更新 ===
+// 更新用戶名
+app.put("/api/user/username", authenticateUser, async (req: any, res) => {
+  try {
+    let { username } = req.body as { username: string };
+    if (typeof username !== "string") {
+      return res.status(400).json({ message: "用戶名格式不正確" });
+    }
+    username = username.trim();
+    if (username.length < 2 || username.length > 32) {
+      return res.status(400).json({ message: "用戶名長度需為2-32字" });
+    }
+
+    // 用戶名唯一性
+    const existed = await dataStorage.getUserByUsername(username);
+    if (existed && existed.id !== req.user.id) {
+      return res.status(409).json({ message: "用戶名已被使用" });
+    }
+
+    const user: User = { ...req.user, username };
+    await dataStorage.saveUser(user);
+    return res.status(200).json({ message: "用戶名已更新", user: { id: user.id, username: user.username, email: user.email } });
+  } catch (error) {
+    console.error("Update username error:", error);
+    return res.status(500).json({ message: "更新失敗" });
+  }
+});
+
+// 更新郵箱
+app.put("/api/user/email", authenticateUser, async (req: any, res) => {
+  try {
+    let { email } = req.body as { email: string };
+    if (typeof email !== "string") {
+      return res.status(400).json({ message: "郵箱格式不正確" });
+    }
+    email = email.trim().toLowerCase();
+    const emailRegex = /^\S+@\S+\.[\S]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ message: "請輸入有效的郵箱地址" });
+    }
+
+    // 郵箱唯一性
+    const existed = await dataStorage.getUserByEmail(email);
+    if (existed && existed.id !== req.user.id) {
+      return res.status(409).json({ message: "該郵箱已被註冊" });
+    }
+
+    const user: User = { ...req.user, email };
+    await dataStorage.saveUser(user);
+    return res.status(200).json({ message: "郵箱已更新", user: { id: user.id, username: user.username, email: user.email } });
+  } catch (error) {
+    console.error("Update email error:", error);
+    return res.status(500).json({ message: "郵箱更新失敗" });
+  }
+});
+
+// 更新密碼
+app.put("/api/user/password", authenticateUser, async (req: any, res) => {
+  try {
+    let { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
+    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+      return res.status(400).json({ message: "所有欄位皆為必填" });
+    }
+    currentPassword = currentPassword.trim();
+    newPassword = newPassword.trim();
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "新密碼長度需至少6字" });
+    }
+
+    const isValid = PasswordUtils.verifyPasswordSync(currentPassword, req.user.password);
+    if (!isValid) {
+      // 使用 400 表示業務校驗錯誤，避免前端把 401 當成會話失效而自動登出
+      return res.status(400).json({ message: "當前密碼不正確" });
+    }
+
+    const hashed = PasswordUtils.hashPasswordSync(newPassword);
+    const user: User = { ...req.user, password: hashed };
+    await dataStorage.saveUser(user);
+    return res.status(200).json({ message: "密碼已更新" });
+  } catch (error) {
+    console.error("Update password error:", error);
+    return res.status(500).json({ message: "密碼更新失敗" });
+  }
 });
 
 // 搜尋用戶
