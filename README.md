@@ -93,7 +93,7 @@
 1. **克隆項目**
 
    ```bash
-   git clone https://github.com/your-username/PartyBillCalculator.git
+   git clone https://github.com/LucaXJX/PartyBillCalculator.git
    cd PartyBillCalculator
    ```
 
@@ -105,16 +105,35 @@
 
 3. **環境配置**
 
+   複製環境變量示例文件：
+
    ```bash
+   # Linux/macOS
    cp env.example .env
-   # 編輯 .env 文件，配置必要的環境變量
+
+   # Windows (CMD)
+   copy env.example .env
+
+   # Windows (PowerShell)
+   Copy-Item env.example .env
    ```
 
-4. **啟動開發服務器**
+   然後編輯 `.env` 文件，配置必要的環境變量（特別是 `SESSION_SECRET`，請設置為隨機字符串）
 
-   ```bash
-   npm run dev
-   ```
+4. **啟動服務器**
+
+   - **開發模式**（代碼熱更新，適合開發調試）：
+
+     ```bash
+     npm run dev
+     ```
+
+   - **正式啟動**（生產或模擬真實部署，正式編譯 TypeScript 源碼）：
+
+     ```bash
+     npm run build
+     npm start
+     ```
 
 5. **訪問應用**
    打開瀏覽器訪問 `http://localhost:3000`
@@ -224,8 +243,6 @@ PartyBillCalculator/
 │   ├── TEST_USERS.md                       # 測試用戶列表
 │   ├── TESTING_REPORT.md                   # 全面測試報告
 │   ├── TROUBLESHOOTING.md                  # 故障排除
-│   ├── ppt/                    # 演示文檔
-│   │   └── 1-fileStructure.md              # 文件結構說明
 │   └── archive/               # 開發歷史文檔
 │       ├── AUTH_SYSTEM_UPGRADE.md
 │       ├── COMPLETE_UI_OPTIMIZATION_REPORT.md
@@ -293,7 +310,7 @@ PartyBillCalculator/
 
 3. **類型檢查**
    ```bash
-   npx tsc --noEmit
+   npm run type-check
    ```
 
 ### 開發規範

@@ -1,5 +1,8 @@
 // server/server.ts
 
+import dotenv from "dotenv";
+dotenv.config();
+
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -238,7 +241,12 @@ app.put("/api/user/username", authenticateUser, async (req: any, res) => {
 
     const user: User = { ...req.user, username };
     await dataStorage.saveUser(user);
-    return res.status(200).json({ message: "用戶名已更新", user: { id: user.id, username: user.username, email: user.email } });
+    return res
+      .status(200)
+      .json({
+        message: "用戶名已更新",
+        user: { id: user.id, username: user.username, email: user.email },
+      });
   } catch (error) {
     console.error("Update username error:", error);
     return res.status(500).json({ message: "更新失敗" });
@@ -266,7 +274,12 @@ app.put("/api/user/email", authenticateUser, async (req: any, res) => {
 
     const user: User = { ...req.user, email };
     await dataStorage.saveUser(user);
-    return res.status(200).json({ message: "郵箱已更新", user: { id: user.id, username: user.username, email: user.email } });
+    return res
+      .status(200)
+      .json({
+        message: "郵箱已更新",
+        user: { id: user.id, username: user.username, email: user.email },
+      });
   } catch (error) {
     console.error("Update email error:", error);
     return res.status(500).json({ message: "郵箱更新失敗" });
@@ -276,8 +289,14 @@ app.put("/api/user/email", authenticateUser, async (req: any, res) => {
 // 更新密碼
 app.put("/api/user/password", authenticateUser, async (req: any, res) => {
   try {
-    let { currentPassword, newPassword } = req.body as { currentPassword: string; newPassword: string };
-    if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+    let { currentPassword, newPassword } = req.body as {
+      currentPassword: string;
+      newPassword: string;
+    };
+    if (
+      typeof currentPassword !== "string" ||
+      typeof newPassword !== "string"
+    ) {
       return res.status(400).json({ message: "所有欄位皆為必填" });
     }
     currentPassword = currentPassword.trim();
@@ -286,7 +305,10 @@ app.put("/api/user/password", authenticateUser, async (req: any, res) => {
       return res.status(400).json({ message: "新密碼長度需至少6字" });
     }
 
-    const isValid = PasswordUtils.verifyPasswordSync(currentPassword, req.user.password);
+    const isValid = PasswordUtils.verifyPasswordSync(
+      currentPassword,
+      req.user.password
+    );
     if (!isValid) {
       // 使用 400 表示業務校驗錯誤，避免前端把 401 當成會話失效而自動登出
       return res.status(400).json({ message: "當前密碼不正確" });

@@ -10,6 +10,11 @@ pnpm-lock.yaml
 data*/
 data/receipts/
 
+# 環境變數文件
+.env
+.env.local
+.env.*.local
+
 # 測試文件
 test-api.js
 test-api.cjs
