@@ -1,0 +1,129 @@
+# Visualize on https://erd.surge.sh
+# or https://quick-erd.surge.sh
+#
+# Relationship Types
+#  -    - one to one
+#  -<   - one to many
+#  >-   - many to one
+#  >-<  - many to many
+#  -0   - one to zero or one
+#  0-   - zero or one to one
+#  0-0  - zero or one to zero or one
+#  -0<  - one to zero or many
+#  >0-  - zero or many to one
+#
+////////////////////////////////////
+
+
+user
+----
+id varchar(64) PK
+username varchar(64) unique
+email varchar(255) unique
+password varchar(255)
+created_at varchar(64)
+
+
+bill
+----
+id varchar(64) PK
+name varchar(255)
+date varchar(64)
+location varchar(255) NULL
+tip_percentage real
+payer_id varchar(64) FK >- user.id
+created_by varchar(64) FK >- user.id
+payer_receipt_url varchar(512) NULL
+created_at varchar(64)
+updated_at varchar(64)
+
+
+bill_participant
+----------------
+id varchar(64) PK
+bill_id varchar(64) FK >- bill.id
+participant_id varchar(64) FK >- user.id
+participant_name varchar(64)
+created_at varchar(64)
+
+
+item
+----
+id varchar(64) PK
+bill_id varchar(64) FK >- bill.id
+name varchar(255)
+amount real
+is_shared integer
+created_at varchar(64)
+
+
+item_participant
+----------------
+id varchar(64) PK
+item_id varchar(64) FK >- item.id
+participant_id varchar(64) FK >- user.id
+created_at varchar(64)
+
+
+calculation_result
+------------------
+id varchar(64) PK
+bill_id varchar(64) FK >- bill.id
+participant_id varchar(64) FK >- user.id
+amount real
+breakdown text NULL
+payment_status varchar(32)
+paid_at varchar(64) NULL
+confirmed_by_payer integer
+receipt_image_url varchar(512) NULL
+rejected_reason varchar(64) NULL
+rejected_at varchar(64) NULL
+created_at varchar(64)
+updated_at varchar(64)
+
+
+message
+-------
+id varchar(64) PK
+type varchar(32)
+recipient_id varchar(64) FK >- user.id
+sender_id varchar(64) FK >0- user.id null.id
+bill_id varchar(64) FK >- bill.id
+bill_name varchar(255)
+title varchar(255)
+content text
+image_url varchar(512) NULL
+metadata text NULL
+is_read integer
+created_at varchar(64)
+read_at varchar(64) NULL
+actionable integer
+action_type varchar(32) NULL
+action_completed integer
+
+
+session
+-------
+id varchar(64) PK
+user_id varchar(64) FK >- user.id
+session_id varchar(255) unique
+expires_at varchar(64)
+created_at varchar(64)
+
+
+# zoom: 1.000
+# view: (0, 0)
+# text-bg: #6495ed
+# text-color: #000000
+# diagram-bg: #f5f5f5
+# diagram-text: #000000
+# table-bg: #ffffff
+# table-text: #000000
+# user (1304, 89)
+# bill (752, 134)
+# bill_participant (473, 7)
+# item (141, 616)
+# item_participant (172, 208)
+# calculation_result (1232, 442)
+# message (432, 353)
+# session (52, 418)
