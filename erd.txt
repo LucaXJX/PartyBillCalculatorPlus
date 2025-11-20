@@ -87,7 +87,7 @@ message
 id varchar(64) PK
 type varchar(32)
 recipient_id varchar(64) FK >- user.id
-sender_id varchar(64) FK >0- user.id null.id
+sender_id varchar(64) FK >0- user.id
 bill_id varchar(64) FK >- bill.id
 bill_name varchar(255)
 title varchar(255)

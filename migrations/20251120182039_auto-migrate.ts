@@ -4,7 +4,7 @@ import { Knex } from 'knex'
 export async function up(knex: Knex): Promise<void> {
   if (!(await knex.schema.hasTable('user'))) {
     await knex.schema.createTable('user', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('username', 64).notNullable().unique()
       table.string('email', 255).notNullable().unique()
       table.string('password', 255).notNullable()
@@ -14,7 +14,7 @@ export async function up(knex: Knex): Promise<void> {
 
   if (!(await knex.schema.hasTable('bill'))) {
     await knex.schema.createTable('bill', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('name', 255).notNullable()
       table.string('date', 64).notNullable()
       table.string('location', 255).nullable()
@@ -28,7 +28,7 @@ export async function up(knex: Knex): Promise<void> {
 
   if (!(await knex.schema.hasTable('bill_participant'))) {
     await knex.schema.createTable('bill_participant', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('bill_id', 64).unsigned().notNullable().references('bill.id')
       table.string('participant_id', 64).unsigned().notNullable().references('user.id')
       table.string('participant_name', 64).notNullable()
@@ -38,7 +38,7 @@ export async function up(knex: Knex): Promise<void> {
 
   if (!(await knex.schema.hasTable('item'))) {
     await knex.schema.createTable('item', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('bill_id', 64).unsigned().notNullable().references('bill.id')
       table.string('name', 255).notNullable()
       table.specificType('amount', 'real').notNullable()
@@ -49,7 +49,7 @@ export async function up(knex: Knex): Promise<void> {
 
   if (!(await knex.schema.hasTable('item_participant'))) {
     await knex.schema.createTable('item_participant', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('item_id', 64).unsigned().notNullable().references('item.id')
       table.string('participant_id', 64).unsigned().notNullable().references('user.id')
       table.string('created_at', 64).notNullable()
@@ -58,7 +58,7 @@ export async function up(knex: Knex): Promise<void> {
 
   if (!(await knex.schema.hasTable('calculation_result'))) {
     await knex.schema.createTable('calculation_result', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('bill_id', 64).unsigned().notNullable().references('bill.id')
       table.string('participant_id', 64).unsigned().notNullable().references('user.id')
       table.specificType('amount', 'real').notNullable()
@@ -75,10 +75,10 @@ export async function up(knex: Knex): Promise<void> {
 
   if (!(await knex.schema.hasTable('message'))) {
     await knex.schema.createTable('message', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('type', 32).notNullable()
       table.string('recipient_id', 64).unsigned().notNullable().references('user.id')
-      table.string('sender_id', 64).unsigned().notNullable().references('null.id')
+      table.string('sender_id', 64).unsigned().nullable().references('user.id')
       table.string('bill_id', 64).unsigned().notNullable().references('bill.id')
       table.string('bill_name', 255).notNullable()
       table.string('title', 255).notNullable()
@@ -96,7 +96,7 @@ export async function up(knex: Knex): Promise<void> {
 
   if (!(await knex.schema.hasTable('session'))) {
     await knex.schema.createTable('session', table => {
-      table.increments('id')
+      table.string('id', 64).primary()
       table.string('user_id', 64).unsigned().notNullable().references('user.id')
       table.string('session_id', 255).notNullable().unique()
       table.string('expires_at', 64).notNullable()

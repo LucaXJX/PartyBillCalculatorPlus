@@ -14,13 +14,16 @@
     "type-check": "tsc --noEmit",
     "install-concurrently": "npm install concurrently nodemon --no-save",
     "db:ui": "erd-ui erd.txt",
-    "db:setup": "npm run db:migrate",
+    "db:setup": "npm run db:migrate && npm run db:seed",
     "db:dev": "run-s db:migrate db:plan db:update",
     "db:migrate": "cross-env NODE_OPTIONS=\"--loader ts-node/esm\" knex migrate:latest",
-    "db:plan": "auto-migrate dev.sqlite3 < erd.txt",
-    "db:rename": "auto-migrate --rename dev.sqlite3 < erd.txt",
+    "db:seed": "node --loader ts-node/esm seed.ts",
+    "db:plan": "auto-migrate dev.sqlite3 < erd.txt && node --loader ts-node/esm scripts/fix-migration.ts",
+    "db:rename": "auto-migrate --rename dev.sqlite3 < erd.txt && node --loader ts-node/esm scripts/fix-migration.ts",
     "db:update": "run-s db:migrate db:gen-proxy",
-    "db:gen-proxy": "erd-to-proxy < erd.txt > server\\proxy.ts"
+    "db:gen-proxy": "erd-to-proxy < erd.txt > server\\proxy.ts && node --loader ts-node/esm scripts/fix-proxy.ts",
+    "db:fix-proxy": "node --loader ts-node/esm scripts/fix-proxy.ts",
+    "db:fix-migration": "node --loader ts-node/esm scripts/fix-migration.ts"
   },
   "repository": {
     "type": "git",
