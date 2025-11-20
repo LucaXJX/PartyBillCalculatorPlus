@@ -73,7 +73,6 @@
 ### 數據存儲
 
 - **JSON 文件** - 當前數據存儲方案
-- **PostgreSQL** - 計劃中的數據庫升級
 
 ### 開發工具
 
@@ -94,7 +93,7 @@
 1. **克隆項目**
 
    ```bash
-   git clone https://github.com/your-username/PartyBillCalculator.git
+   git clone https://github.com/LucaXJX/PartyBillCalculator.git
    cd PartyBillCalculator
    ```
 
@@ -106,16 +105,35 @@
 
 3. **環境配置**
 
+   複製環境變量示例文件：
+
    ```bash
+   # Linux/macOS
    cp env.example .env
-   # 編輯 .env 文件，配置必要的環境變量
+
+   # Windows (CMD)
+   copy env.example .env
+
+   # Windows (PowerShell)
+   Copy-Item env.example .env
    ```
 
-4. **啟動開發服務器**
+   然後編輯 `.env` 文件，配置必要的環境變量（特別是 `SESSION_SECRET`，請設置為隨機字符串）
 
-   ```bash
-   npm run dev
-   ```
+4. **啟動服務器**
+
+   - **開發模式**（代碼熱更新，適合開發調試）：
+
+     ```bash
+     npm run dev
+     ```
+
+   - **正式啟動**（生產或模擬真實部署，正式編譯 TypeScript 源碼）：
+
+     ```bash
+     npm run build
+     npm start
+     ```
 
 5. **訪問應用**
    打開瀏覽器訪問 `http://localhost:3000`
@@ -218,33 +236,45 @@ PartyBillCalculator/
 │   └── billCalculator.ts      # 計算邏輯
 ├── docs/                       # 項目文檔
 │   ├── CHANGELOG.md                        # 更新日誌
-│   ├── COMPLETE_UI_OPTIMIZATION_REPORT.md  # 完整UI優化報告 ⭐
-│   ├── UPDATE_CHECKLIST.md                 # 更新檢查清單 ⭐
 │   ├── COMPONENT_SYSTEM.md                 # 組件系統文檔
 │   ├── MESSAGE_SYSTEM.md                   # 消息系統文檔
 │   ├── MY_BILLS_PAGE.md                    # 我的賬單頁面文檔
 │   ├── PAYMENT_FLOW.md                     # 支付流程文檔
 │   ├── TEST_USERS.md                       # 測試用戶列表
+│   ├── TESTING_REPORT.md                   # 全面測試報告
 │   ├── TROUBLESHOOTING.md                  # 故障排除
 │   └── archive/               # 開發歷史文檔
 │       ├── AUTH_SYSTEM_UPGRADE.md
-│       ├── PARTICIPANT_CARD_REFACTOR.md
-│       ├── SECURITY_UPDATES.md
+│       ├── COMPLETE_UI_OPTIMIZATION_REPORT.md
+│       ├── DOCUMENTATION_CONSOLIDATION_SUMMARY.md
+│       ├── FINAL_SUMMARY.md
+│       ├── MESSAGE_TESTING_GUIDE.md
 │       ├── MY_BILLS_PAGE_IMPLEMENTATION.md
-│       ├── CALCULATOR_TEST_CHECKLIST.md
-│       └── TEST_RESULTS.md
+│       ├── OVERDUE_REMINDER_SYSTEM.md
+│       ├── PARTICIPANT_CARD_REFACTOR.md
+│       ├── RECEIPT_GENERATION_REPORT.md
+│       ├── SECURITY_TEST_GUIDE.md
+│       ├── SECURITY_UPDATES.md
+│       ├── TEST_RESULTS.md
+│       └── README.md
 ├── data/                       # 數據文件
 │   ├── users.json             # 用戶數據
 │   ├── bills.json             # 賬單數據
 │   ├── messages.json          # 消息數據
 │   └── receipts/              # 收據圖片 ⭐
-├── database/                   # 數據庫相關
-│   └── schema.sql             # PostgreSQL 數據庫架構
 ├── tests/                      # 測試文件
+│   ├── api-test.js            # API 功能測試
+│   ├── comprehensive-test.js  # 全面系統測試
+│   ├── quick-test.js          # 快速功能測試
+│   ├── TESTING_REPORT.md      # 全面測試報告
 │   └── html/                  # HTML 測試頁面
 ├── scripts/                    # 工具腳本
 │   ├── add-test-data.js       # 添加測試數據
-│   └── generate-receipt-images.js  # 生成收據圖片
+│   ├── fix-bill-data.js       # 修復賬單數據
+│   ├── generate-receipt-images.js  # 生成收據圖片
+│   ├── migrate-passwords.js   # 密碼加密遷移
+│   ├── unify-test-users.js    # 統一測試用戶配置
+│   └── README.md              # 腳本使用說明
 ├── dist/                       # TypeScript 編譯輸出
 ├── .github/                    # GitHub 配置
 │   ├── ISSUE_TEMPLATE/        # Issue 模板
@@ -280,7 +310,7 @@ PartyBillCalculator/
 
 3. **類型檢查**
    ```bash
-   npx tsc --noEmit
+   npm run type-check
    ```
 
 ### 開發規範
@@ -300,14 +330,37 @@ PartyBillCalculator/
 
 ## 🧪 測試
 
-### 運行測試
+### 快速測試
 
 ```bash
-# 查看測試結果
-cat docs/TEST_RESULTS.md
+# 快速驗證系統基本功能
+node tests/quick-test.js
+
+# 全面測試系統功能和數據完整性
+node tests/comprehensive-test.js
+```
+
+### API 測試
+
+```bash
+# 啟動服務器
+npm run dev
+
+# 在另一個終端運行 API 測試
+node tests/api-test.js
+```
+
+### 測試文檔
+
+```bash
+# 查看測試報告
+cat tests/TESTING_REPORT.md
 
 # 查看測試用戶信息
 cat docs/TEST_USERS.md
+
+# 查看腳本使用說明
+cat scripts/README.md
 ```
 
 ### 測試覆蓋範圍

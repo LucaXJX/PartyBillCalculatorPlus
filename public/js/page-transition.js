@@ -55,6 +55,14 @@
 
     forms.forEach((form) => {
       form.addEventListener("submit", function (e) {
+        // 跳過標記為不需要過渡的表單（例如：登入 AJAX 處理）
+        if (this.hasAttribute("data-skip-transition")) {
+          return;
+        }
+        // 若已被 JS 處理且阻止預設行為，則不進行過渡
+        if (e.defaultPrevented) {
+          return;
+        }
         // 不阻止默認行為，但添加視覺效果
         setTimeout(() => {
           if (document.body) {

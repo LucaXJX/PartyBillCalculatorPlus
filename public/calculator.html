@@ -1007,8 +1007,8 @@
           }月${date.getDate()}日`;
         }
 
-        // 關閉模態框
-        closeModalBtn.addEventListener("click", async () => {
+        // 關閉結果模態框的函數
+        async function closeResultModal() {
           resultModal.classList.add("opacity-0", "invisible");
           resultModal.querySelector(".bg-white").classList.add("scale-95");
           resultModal.querySelector(".bg-white").classList.remove("scale-100");
@@ -1079,83 +1079,15 @@
           } catch (error) {
             console.error("重置賬單狀態失敗:", error);
           }
-        });
+        }
+
+        // 關閉模態框按鈕事件
+        closeModalBtn.addEventListener("click", closeResultModal);
 
         // 點擊模態框背景關閉
         resultModal.addEventListener("click", async (e) => {
           if (e.target === resultModal) {
-            resultModal.classList.add("opacity-0", "invisible");
-            resultModal.querySelector(".bg-white").classList.add("scale-95");
-            resultModal
-              .querySelector(".bg-white")
-              .classList.remove("scale-100");
-            document.body.style.overflow = "auto";
-
-            // 不要重置服務器狀態，保持參與者數據
-            // 只清空項目數據，但保留參與者
-            try {
-              // 獲取當前參與者列表（從卡片中）
-              const participantCards = participantsContainer.querySelectorAll(
-                ".participant-card:not(.add-card)"
-              );
-              const participants = Array.from(participantCards)
-                .map((card) => {
-                  const name = card.dataset.participantName;
-                  const id = card.dataset.participantId;
-                  // 必須同時有ID和名稱
-                  if (!name || name.length === 0 || !id) return null;
-                  return { name, id };
-                })
-                .filter((p) => p !== null);
-
-              // 保存當前選中的付款人名稱
-              const currentPayerId = billPayerSelect.value;
-              const currentPayerName =
-                billPayerSelect.options[billPayerSelect.selectedIndex]?.text;
-
-              // 重置服務器狀態
-              await authenticatedFetch("/api/bill/reset", { method: "POST" });
-
-              // 重新添加參與者到服務器，並更新前端卡片的 ID
-              const oldIdToNewId = new Map();
-              for (const participant of participants) {
-                const response = await authenticatedFetch("/api/participant", {
-                  method: "POST",
-                  body: JSON.stringify({ name: participant.name }),
-                });
-
-                if (response && response.ok) {
-                  const newParticipant = await response.json();
-                  oldIdToNewId.set(participant.id, newParticipant.id);
-
-                  // 更新前端卡片的 participantId
-                  const participantCard = Array.from(participantCards).find(
-                    (card) => card.dataset.participantId === participant.id
-                  );
-                  if (participantCard) {
-                    participantCard.dataset.participantId = newParticipant.id;
-                  }
-                }
-              }
-
-              // 更新付款人選擇框
-              updatePayerSelect();
-
-              // 恢復付款人選擇（根據名稱匹配）
-              if (currentPayerName) {
-                const options = Array.from(billPayerSelect.options);
-                const matchingOption = options.find(
-                  (opt) => opt.text === currentPayerName
-                );
-                if (matchingOption) {
-                  billPayerSelect.value = matchingOption.value;
-                }
-              }
-
-              console.log("賬單狀態已重置，參與者已重新添加");
-            } catch (error) {
-              console.error("重置賬單狀態失敗:", error);
-            }
+            await closeResultModal();
           }
         });
 
@@ -1294,12 +1226,26 @@
 
         // 保存結果功能
         saveResultBtn.addEventListener("click", async () => {
+          // 防止重複提交
+          if (saveResultBtn.disabled) {
+            return;
+          }
+
           try {
+            // 禁用按鈕防止重複提交
+            saveResultBtn.disabled = true;
+            saveResultBtn.innerHTML =
+              '<i class="fa fa-spinner fa-spin mr-2"></i> 保存中...';
+
             // 驗證付款人
             const payerId = billPayerSelect.value;
             if (!payerId || payerId.trim() === "") {
               alert("請先選擇付款人後再保存賬單");
               billPayerSelect.focus();
+              // 恢復按鈕狀態
+              saveResultBtn.disabled = false;
+              saveResultBtn.innerHTML =
+                '<i class="fa fa-save mr-2"></i> 保存賬單';
               return;
             }
 
@@ -1314,6 +1260,10 @@
             if (!participantIds.includes(payerId)) {
               alert("付款人必須是參與者之一，請重新選擇");
               billPayerSelect.focus();
+              // 恢復按鈕狀態
+              saveResultBtn.disabled = false;
+              saveResultBtn.innerHTML =
+                '<i class="fa fa-save mr-2"></i> 保存賬單';
               return;
             }
 
@@ -1388,6 +1338,9 @@
               } else {
                 alert(`賬單已保存，ID: ${billId}`);
               }
+
+              // 提交成功後自動關閉彈窗
+              closeResultModal();
             } else {
               const errorData = await response.json();
               alert(`保存失敗: ${errorData.error}`);
@@ -1395,6 +1348,11 @@
           } catch (error) {
             console.error("Error saving result:", error);
             alert("保存賬單時出錯");
+          } finally {
+            // 恢復按鈕狀態
+            saveResultBtn.disabled = false;
+            saveResultBtn.innerHTML =
+              '<i class="fa fa-save mr-2"></i> 保存賬單';
           }
         });
 

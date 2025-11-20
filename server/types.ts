@@ -18,7 +18,7 @@ export interface Item {
   name: string;
   amount: number;
   isShared: boolean;
-  participantsIds: string[];
+  participantIds: string[];
 }
 
 // 基礎賬單結構（計算前）

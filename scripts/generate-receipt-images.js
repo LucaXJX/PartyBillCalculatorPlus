@@ -197,7 +197,9 @@ async function main() {
     }
 
     // 計算總金額
-    const totalAmount = bill.results.reduce((sum, r) => sum + r.amount, 0);
+    const totalAmount = bill.results
+      ? bill.results.reduce((sum, r) => sum + (r.amount || 0), 0)
+      : 0;
 
     // 1. 為付款人生成收據（強制重新生成 SVG）
     const payerFilename = `payer_${bill.id}.svg`;
@@ -222,36 +224,38 @@ async function main() {
     generatedCount++;
 
     // 2. 為已支付的參與者生成收據
-    for (const result of bill.results) {
-      if (
-        result.paymentStatus === "paid" &&
-        result.participantId !== bill.payerId
-      ) {
-        const participant = bill.participants.find(
-          (p) => p.id === result.participantId
-        );
-        if (!participant) continue;
+    if (bill.results) {
+      for (const result of bill.results) {
+        if (
+          result.paymentStatus === "paid" &&
+          result.participantId !== bill.payerId
+        ) {
+          const participant = bill.participants.find(
+            (p) => p.id === result.participantId
+          );
+          if (!participant) continue;
 
-        const receiptFilename = `receipt_${bill.id}_${result.participantId}.svg`;
-        console.log(`  📝 生成 ${participant.name} 的收據...`);
-        generateReceiptSVG(receiptFilename, {
-          billName: bill.name,
-          date: bill.date,
-          location: bill.location,
-          payerName: participant.name,
-          recipientName: payer.name,
-          amount: result.amount,
-          transactionId: generateTransactionId(),
-          timestamp: formatDateTime(result.paidAt || bill.createdAt),
-        });
+          const receiptFilename = `receipt_${bill.id}_${result.participantId}.svg`;
+          console.log(`  📝 生成 ${participant.name} 的收據...`);
+          generateReceiptSVG(receiptFilename, {
+            billName: bill.name,
+            date: bill.date,
+            location: bill.location,
+            payerName: participant.name,
+            recipientName: payer.name,
+            amount: result.amount,
+            transactionId: generateTransactionId(),
+            timestamp: formatDateTime(result.paidAt || bill.createdAt),
+          });
 
-        // 更新 URL（如果不同）
-        const newReceiptUrl = `/receipts/${receiptFilename}`;
-        if (result.receiptImageUrl !== newReceiptUrl) {
-          result.receiptImageUrl = newReceiptUrl;
-          updatedCount++;
+          // 更新 URL（如果不同）
+          const newReceiptUrl = `/receipts/${receiptFilename}`;
+          if (result.receiptImageUrl !== newReceiptUrl) {
+            result.receiptImageUrl = newReceiptUrl;
+            updatedCount++;
+          }
+          generatedCount++;
         }
-        generatedCount++;
       }
     }
   }
