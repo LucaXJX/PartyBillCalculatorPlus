@@ -234,6 +234,49 @@
                       選擇誰先付錢，其他人需要向此人支付相應金額（保存賬單時必須選擇）
                     </p>
                   </div>
+                  <!-- AI 賬單識別區域（OCR + LLM） -->
+                  <div class="md:col-span-2 mt-4">
+                    <div
+                      class="border border-dashed border-primary/40 rounded-xl p-4 md:p-5 bg-primary/5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                    >
+                      <div>
+                        <h4 class="font-semibold text-primary mb-1">
+                          <i class="fa fa-magic mr-2"></i>AI 賬單識別（Beta）
+                        </h4>
+                        <p class="text-sm text-gray-600">
+                          上傳餐廳賬單照片，由系統自動識別並預填聚會名稱、日期、地點與項目草稿。
+                          請在保存前仔細檢查與修改。
+                        </p>
+                        <p
+                          id="ocr-status"
+                          class="mt-2 text-xs text-gray-500"
+                        ></p>
+                      </div>
+                      <div class="flex flex-col sm:flex-row gap-2 md:gap-3">
+                        <input
+                          type="file"
+                          id="ocr-bill-image-input"
+                          accept="image/*"
+                          class="hidden"
+                        />
+                        <button
+                          type="button"
+                          id="ocr-select-image-btn"
+                          class="btn-secondary w-full sm:w-auto"
+                        >
+                          <i class="fa fa-image mr-2"></i> 選擇賬單圖片
+                        </button>
+                        <button
+                          type="button"
+                          id="ocr-bill-upload-btn"
+                          class="btn-primary w-full sm:w-auto"
+                        >
+                          <i class="fa fa-wand-magic-sparkles mr-2"></i>
+                          從圖片識別賬單
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -551,6 +594,17 @@
         const resultModal = document.getElementById("result-modal");
         const closeModalBtn = document.getElementById("close-modal-btn");
         const saveResultBtn = document.getElementById("save-result-btn");
+        // OCR + LLM 元素
+        const ocrBillImageInput = document.getElementById(
+          "ocr-bill-image-input"
+        );
+        const ocrSelectImageBtn = document.getElementById(
+          "ocr-select-image-btn"
+        );
+        const ocrBillUploadBtn = document.getElementById(
+          "ocr-bill-upload-btn"
+        );
+        const ocrStatus = document.getElementById("ocr-status");
 
         // 初始化日期為今天
         billDateInput.value = new Date().toISOString().split("T")[0];
@@ -597,6 +651,162 @@
           } catch (error) {
             console.error("初始化默認設置失敗:", error);
           }
+        }
+
+        // --- OCR + LLM 自動識別賬單 ---
+
+        function setOcrStatus(message, type = "info") {
+          if (!ocrStatus) return;
+          const colorMap = {
+            info: "text-gray-600",
+            success: "text-green-600",
+            error: "text-red-600",
+          };
+          ocrStatus.className = `mt-2 text-xs ${colorMap[type] || "text-gray-600"}`;
+          ocrStatus.textContent = message;
+        }
+
+        if (ocrSelectImageBtn && ocrBillImageInput) {
+          ocrSelectImageBtn.addEventListener("click", () => {
+            ocrBillImageInput.click();
+          });
+
+          ocrBillImageInput.addEventListener("change", () => {
+            const file = ocrBillImageInput.files?.[0];
+            if (file) {
+              setOcrStatus(`已選擇圖片：${file.name}`, "info");
+            } else {
+              setOcrStatus("");
+            }
+          });
+        }
+
+        if (ocrBillUploadBtn && ocrBillImageInput) {
+          ocrBillUploadBtn.addEventListener("click", async () => {
+            try {
+              let file = ocrBillImageInput.files?.[0];
+              if (!file) {
+                // 若尚未選擇，先打開選擇框
+                ocrBillImageInput.click();
+                setOcrStatus("請先選擇一張賬單圖片，再點擊識別。", "info");
+                return;
+              }
+
+              setOcrStatus("正在上傳並識別賬單圖片，可能需要幾秒鐘，請稍候...", "info");
+              ocrBillUploadBtn.disabled = true;
+              ocrBillUploadBtn.innerHTML =
+                '<i class="fa fa-spinner fa-spin mr-2"></i> 識別中...';
+
+              const formData = new FormData();
+              formData.append("billImage", file);
+
+              const response = await authenticatedFetch(
+                "/api/bill/ocr-upload",
+                {
+                  method: "POST",
+                  body: formData,
+                }
+              );
+
+              if (!response) {
+                setOcrStatus("認證失敗，請重新登入後再試。", "error");
+                return;
+              }
+
+              const data = await response.json();
+
+              if (!response.ok || data.error) {
+                setOcrStatus(
+                  data.error ||
+                    "識別失敗，請確保圖片清晰並包含完整賬單信息。",
+                  "error"
+                );
+                return;
+              }
+
+              // 即使 LLM 解析失敗，後端也會返回 success: false，但仍有 ocrText
+              if (!data.success) {
+                setOcrStatus(
+                  "已識別出文字，但自動解析失敗，請手動參考文字填寫賬單信息。",
+                  "error"
+                );
+                console.log("OCR 文本：", data.ocrText);
+                return;
+              }
+
+              const bill = data.bill;
+
+              // 使用解析結果預填基本信息
+              if (bill) {
+                if (bill.restaurant && !billNameInput.value) {
+                  billNameInput.value = bill.restaurant;
+                }
+                if (bill.date) {
+                  try {
+                    const date = new Date(bill.date);
+                    if (!isNaN(date.getTime())) {
+                      billDateInput.value = date
+                        .toISOString()
+                        .split("T")[0];
+                    }
+                  } catch {}
+                }
+                if (bill.currency && !billLocationInput.value) {
+                  // 若沒有地點但有餐廳名稱，已填在名稱；此處暫不使用 currency
+                }
+                if (bill.tip != null && !Number.isNaN(bill.tip)) {
+                  billTipInput.value = String(bill.tip);
+                }
+
+                // 根據 items 建立項目草稿（清空舊項目）
+                itemsContainer.innerHTML = "";
+                if (Array.isArray(bill.items) && bill.items.length > 0) {
+                  bill.items.forEach((item) => {
+                    // 觸發現有邏輯創建一個項目卡片
+                    addItemBtn.click();
+                    const itemCard =
+                      itemsContainer.lastElementChild;
+                    if (!itemCard) return;
+                    const nameInput =
+                      itemCard.querySelector(".item-name");
+                    const amountInput =
+                      itemCard.querySelector(".item-amount");
+                    const isSharedCheckbox =
+                      itemCard.querySelector(".item-is-shared");
+                    const participantsSelection =
+                      itemCard.querySelector(
+                        ".participants-selection"
+                      );
+
+                    if (nameInput) {
+                      nameInput.value = item.name || "";
+                    }
+                    if (amountInput && typeof item.price === "number") {
+                      amountInput.value = item.price.toFixed(2);
+                    }
+                    if (isSharedCheckbox) {
+                      isSharedCheckbox.checked = true;
+                    }
+                    if (participantsSelection) {
+                      participantsSelection.style.display = "none";
+                    }
+                  });
+                }
+              }
+
+              setOcrStatus("賬單識別成功，已為你預填部分信息，請檢查並補充。", "success");
+            } catch (error) {
+              console.error("OCR 上傳/解析失敗:", error);
+              setOcrStatus(
+                "處理失敗，請稍後重試，或改為手動輸入賬單信息。",
+                "error"
+              );
+            } finally {
+              ocrBillUploadBtn.disabled = false;
+              ocrBillUploadBtn.innerHTML =
+                '<i class="fa fa-wand-magic-sparkles mr-2"></i> 從圖片識別賬單';
+            }
+          });
         }
 
         // --- 參與者卡片管理函數 ---

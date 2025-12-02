@@ -43,3 +43,7 @@ public/ppt
 *.sqlite3-wal
 dump.sql
 *.xz
+venv*/
+venv/*
+
+docs/ignore/*
