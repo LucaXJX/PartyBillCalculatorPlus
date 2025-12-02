@@ -18,6 +18,9 @@ import { messageManager } from "./messageManager.js";
 import { MessageHelper } from "./messageHelper.js";
 import { overdueReminderService } from "./overdueReminderService.js";
 import type { User, BillRecord, Participant } from "./types.js";
+import { ocrImage, checkOCRService } from "./ocrClient.js";
+import { parseBillFromOCR } from "./llm/billParser.js";
+import type { ParsedBill } from "./llm/types.js";
 
 // 解決 ES6 模塊中的 __dirname 問題
 // const __filename = fileURLToPath(import.meta.url);
@@ -440,6 +443,83 @@ app.post(
   }
 );
 
+/**
+ * 對 LLM 返回的賬單進行 tip 後處理：
+ * - 嘗試判斷 tip 是「百分比」還是「金額」
+ * - 如果是百分比（0~1 之間的小數），轉換為金額並更新 total
+ * - 如果是金額，且除以 subtotal 得到的百分比接近「整數百分比」，則在前端可顯示為百分比（此處暫不改動結構）
+ * - 如果是金額但無法得到「好看」的百分比，則將 tip 作為一個獨立的消費項目加入 items，並將 tip 設為 0
+ */
+function postProcessTip(bill: ParsedBill): ParsedBill {
+  const subtotal = bill.subtotal;
+  const tip = bill.tip;
+  const total = bill.total;
+
+  // 基本檢查
+  if (!Number.isFinite(subtotal) || subtotal <= 0) return bill;
+  if (!Number.isFinite(tip) || tip <= 0) return bill;
+
+  const epsAmount = 0.5; // 金額容忍度
+
+  // 情況 1：tip 在 0~1 之間，視為「百分比（小數）」，如 0.1 表示 10%
+  if (tip > 0 && tip < 1) {
+    const tipAmount = subtotal * tip;
+    const roundedTip = Math.round(tipAmount * 100) / 100;
+    const newTotal = Math.round((subtotal + roundedTip) * 100) / 100;
+
+    return {
+      ...bill,
+      tip: roundedTip,
+      total: Number.isFinite(total) ? total : newTotal,
+    };
+  }
+
+  // 情況 2：tip 看起來是金額（>= 1）
+  // 2.1 嘗試判斷 LLM 是否已將 total 設為 subtotal + tip
+  const amountConsistent =
+    Number.isFinite(total) && Math.abs(subtotal + tip - total) <= epsAmount;
+
+  // 2.2 從金額反推百分比
+  const percentFromAmount = (tip / subtotal) * 100; // 例如 10 表示 10%
+
+  // 判斷是否是「好看」的百分比（接近整數或常見值）
+  const nicePercents = [5, 8, 10, 12.5, 15, 20];
+  const nearestNice = nicePercents.reduce((best, p) =>
+    Math.abs(p - percentFromAmount) < Math.abs(best - percentFromAmount)
+      ? p
+      : best
+  , nicePercents[0]);
+  const diffNice = Math.abs(nearestNice - percentFromAmount);
+
+  // 若已知是金額，且反推百分比接近一個「好看」的整數（如 5%, 10% 等）
+  // 這裡不改動結構，只是為前端提供一個穩定的金額；百分比可以在前端按需顯示
+  if (diffNice <= 0.25 && amountConsistent) {
+    // 保留 tip 作為金額，不做結構變更
+    return bill;
+  }
+
+  // 情況 3：金額除以 subtotal 無法得到好看的百分比
+  // 將 tip 作為一個獨立的消費項目加入 items，並將 tip 設為 0
+  const adjustedItems = bill.items.concat([
+    {
+      name: "服務費（自動推斷）",
+      price: tip,
+      quantity: 1,
+    },
+  ]);
+
+  const adjustedSubtotal = subtotal + tip;
+
+  return {
+    ...bill,
+    items: adjustedItems,
+    subtotal: adjustedSubtotal,
+    tip: 0,
+    // 若原本 total 合理，保留；否則重算
+    total: Number.isFinite(total) ? total : adjustedSubtotal,
+  };
+}
+
 // 上傳收據圖片（付款人上傳付款憑證或其他參與者上傳付款憑證）
 app.post(
   "/api/receipt/upload",
@@ -468,6 +548,81 @@ app.post(
     } catch (error) {
       console.error("上傳收據失敗:", error);
       res.status(500).json({ error: "上傳收據失敗" });
+    }
+  }
+);
+
+// OCR 賬單識別和解析（上傳圖片，自動識別並解析為結構化數據）
+app.post(
+  "/api/bill/ocr-upload",
+  authenticateUser,
+  upload.single("billImage"),
+  async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "請上傳圖片文件" });
+      }
+
+      const imagePath = req.file.path;
+      const userId = req.user.id;
+
+      // 1. 檢查 OCR 服務是否可用（本地 FastAPI + PaddleOCR）
+      const ocrServiceAvailable = await checkOCRService();
+      if (!ocrServiceAvailable) {
+        return res.status(503).json({
+          error: "OCR 服務暫時不可用，請稍後再試",
+        });
+      }
+
+      // 2. 調用 OCR 服務識別圖片
+      let ocrResult;
+      try {
+        ocrResult = await ocrImage(imagePath);
+      } catch (error) {
+        console.error("OCR 識別失敗:", error);
+        return res.status(500).json({
+          error: "圖片識別失敗，請確保圖片清晰且包含賬單信息",
+          details: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      if (!ocrResult.text || ocrResult.text.trim().length === 0) {
+        return res.status(400).json({
+          error: "未能從圖片中識別出文字，請確保圖片清晰",
+        });
+      }
+
+      // 3. 使用 LLM 解析 OCR 文本為結構化數據
+      let parsedBill: ParsedBill;
+      try {
+        parsedBill = await parseBillFromOCR(ocrResult.text, userId);
+      } catch (error) {
+        console.error("LLM 解析失敗:", error);
+        // 即使 LLM 解析失敗，也返回 OCR 文本，讓用戶手動輸入
+        return res.status(200).json({
+          success: false,
+          ocrText: ocrResult.text,
+          error: "自動解析失敗，請手動輸入賬單信息",
+          details: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      // 4. 根據 tip 值做後處理（推斷百分比或轉為消費項目）
+      const finalBill = postProcessTip(parsedBill);
+
+      // 5. 返回解析結果
+      res.status(200).json({
+        success: true,
+        ocrText: ocrResult.text,
+        bill: finalBill,
+        message: "賬單識別成功",
+      });
+    } catch (error) {
+      console.error("OCR 上傳處理失敗:", error);
+      res.status(500).json({
+        error: "處理失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 );
