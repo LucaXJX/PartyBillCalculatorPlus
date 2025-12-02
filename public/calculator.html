@@ -212,10 +212,12 @@
                       type="number"
                       id="bill-tip"
                       placeholder="0"
-                      min="0"
-                      max="100"
+                      step="0.01"
                       class="w-full px-4 py-3 border border-gray-300 rounded-lg input-focus transition-all duration-300"
                     />
+                    <p class="text-xs text-gray-500 mt-1">
+                      正數表示小費比例（%），負數表示折扣比例（%）
+                    </p>
                   </div>
                   <div class="md:col-span-2">
                     <label
@@ -251,6 +253,14 @@
                           id="ocr-status"
                           class="mt-2 text-xs text-gray-500"
                         ></p>
+                        <p
+                          id="ocr-usage-info"
+                          class="mt-2 text-xs text-gray-600"
+                        >
+                          <i class="fa fa-info-circle mr-1"></i>
+                          今日使用：<span id="ocr-usage-used">0</span>/<span id="ocr-usage-limit">10</span> 次
+                          （剩餘 <span id="ocr-usage-remaining">10</span> 次）
+                        </p>
                       </div>
                       <div class="flex flex-col sm:flex-row gap-2 md:gap-3">
                         <input
@@ -605,9 +615,46 @@
           "ocr-bill-upload-btn"
         );
         const ocrStatus = document.getElementById("ocr-status");
+        const ocrUsageInfo = document.getElementById("ocr-usage-info");
+        const ocrUsageUsed = document.getElementById("ocr-usage-used");
+        const ocrUsageLimit = document.getElementById("ocr-usage-limit");
+        const ocrUsageRemaining = document.getElementById("ocr-usage-remaining");
+
+        // 獲取並更新使用量信息
+        async function updateOcrUsage() {
+          try {
+            const response = await authenticatedFetch("/api/bill/ocr-usage");
+            if (response && response.ok) {
+              const data = await response.json();
+              if (ocrUsageUsed) ocrUsageUsed.textContent = data.used || 0;
+              if (ocrUsageLimit) ocrUsageLimit.textContent = data.limit || 10;
+              if (ocrUsageRemaining) ocrUsageRemaining.textContent = data.remaining || 10;
+              
+              // 如果已用完，顯示警告
+              if (ocrUsageInfo) {
+                if (data.remaining === 0) {
+                  ocrUsageInfo.className = "mt-2 text-xs text-red-600";
+                  ocrUsageInfo.innerHTML = `
+                    <i class="fa fa-exclamation-triangle mr-1"></i>
+                    今日使用次數已用完（${data.used}/${data.limit}），請明天再試
+                  `;
+                } else if (data.remaining <= 2) {
+                  ocrUsageInfo.className = "mt-2 text-xs text-orange-600";
+                } else {
+                  ocrUsageInfo.className = "mt-2 text-xs text-gray-600";
+                }
+              }
+            }
+          } catch (error) {
+            console.error("獲取使用量信息失敗:", error);
+          }
+        }
 
         // 初始化日期為今天
         billDateInput.value = new Date().toISOString().split("T")[0];
+
+        // 頁面加載時獲取使用量信息
+        updateOcrUsage();
 
         // 當頁面加載時，重置服務器上的賬單狀態並初始化默認值
         authenticatedFetch("/api/bill/reset", { method: "POST" })
@@ -716,11 +763,22 @@
               const data = await response.json();
 
               if (!response.ok || data.error) {
-                setOcrStatus(
-                  data.error ||
-                    "識別失敗，請確保圖片清晰並包含完整賬單信息。",
-                  "error"
-                );
+                // 檢查是否因為使用量限制失敗
+                if (response.status === 429) {
+                  setOcrStatus(
+                    data.error || "今日識別次數已用完，請明天再試。",
+                    "error"
+                  );
+                  if (data.usage) {
+                    updateOcrUsage();
+                  }
+                } else {
+                  setOcrStatus(
+                    data.error ||
+                      "識別失敗，請確保圖片清晰並包含完整賬單信息。",
+                    "error"
+                  );
+                }
                 return;
               }
 
@@ -735,6 +793,17 @@
               }
 
               const bill = data.bill;
+
+              // 將 OCR 識別使用的圖片加入到收據上傳列表
+              if (file && payerReceiptFiles.length < 6) {
+                payerReceiptFiles.push(file);
+                // 更新收據預覽
+                updateReceiptPreview();
+                setOcrStatus(
+                  `識別成功！圖片已自動加入收據列表（${payerReceiptFiles.length}/6）`,
+                  "success"
+                );
+              }
 
               // 使用解析結果預填基本信息
               if (bill) {
@@ -755,7 +824,28 @@
                   // 若沒有地點但有餐廳名稱，已填在名稱；此處暫不使用 currency
                 }
                 if (bill.tip != null && !Number.isNaN(bill.tip)) {
-                  billTipInput.value = String(bill.tip);
+                  // 將 tip 金額轉換為百分比
+                  // 如果 tip 是金額（>= 1 或 <= -1），需要轉換為百分比
+                  // 如果 tip 是百分比（0~1 之間或 -1~0 之間），直接轉換為百分比
+                  const subtotal = bill.items.reduce(
+                    (sum, item) => sum + (item.price || 0) * (item.quantity || 1),
+                    0
+                  );
+                  
+                  let tipPercentage = 0;
+                  if (Math.abs(bill.tip) < 1) {
+                    // tip 是百分比（小數形式，如 0.1 表示 10%，-0.1 表示 -10%）
+                    tipPercentage = bill.tip * 100;
+                  } else if (Math.abs(subtotal) > 0.01) {
+                    // tip 是金額，轉換為百分比（支持負數）
+                    tipPercentage = (bill.tip / subtotal) * 100;
+                  } else {
+                    // 無法轉換（subtotal 為 0 或接近 0），直接使用 tip 值（可能是百分比）
+                    // 如果 tip 看起來是金額（>= 1），可能需要用戶手動調整
+                    tipPercentage = bill.tip;
+                  }
+                  
+                  billTipInput.value = tipPercentage.toFixed(2);
                 }
 
                 // 根據 items 建立項目草稿（清空舊項目）
@@ -781,20 +871,40 @@
                     if (nameInput) {
                       nameInput.value = item.name || "";
                     }
-                    if (amountInput && typeof item.price === "number") {
-                      amountInput.value = item.price.toFixed(2);
+                    if (amountInput) {
+                      // 支持 item.price 或 item.amount，並支持負數（折扣）
+                      const itemAmount = typeof item.price === "number" 
+                        ? item.price * (item.quantity || 1)
+                        : (typeof item.amount === "number" ? item.amount : 0);
+                      amountInput.value = itemAmount.toFixed(2);
                     }
                     if (isSharedCheckbox) {
                       isSharedCheckbox.checked = true;
                     }
                     if (participantsSelection) {
+                      // 先更新參與者標籤，即使當前是共享項目
+                      // 這樣當用戶取消勾選共享項目時，標籤已經準備好了
+                      updateParticipantTagsForSelection(participantsSelection);
                       participantsSelection.style.display = "none";
                     }
                   });
                 }
               }
 
-              setOcrStatus("賬單識別成功，已為你預填部分信息，請檢查並補充。", "success");
+              // 根據使用量狀態顯示不同的消息
+              if (data.usage?.exceeded) {
+                setOcrStatus(
+                  "識別成功！但今日次數已用完，下次請明天再試。",
+                  "error"
+                );
+              } else {
+                setOcrStatus("賬單識別成功，已為你預填部分信息，請檢查並補充。", "success");
+              }
+              
+              // 更新使用量信息
+              if (data.usage) {
+                updateOcrUsage();
+              }
             } catch (error) {
               console.error("OCR 上傳/解析失敗:", error);
               setOcrStatus(
@@ -1008,16 +1118,25 @@
                     .filter((id) => id);
                 }
 
+                // 如果項目沒有參與者，自動設為共享項目（確保項目不會被過濾掉）
+                let finalIsShared = isShared;
+                if (participantIds.length === 0 && finalParticipants.length > 0) {
+                  participantIds = finalParticipants.map((p) => p.id);
+                  finalIsShared = true;
+                }
+
                 return {
                   name,
                   amount,
-                  isShared,
+                  isShared: finalIsShared,
                   participantIds,
                 };
               })
               .filter(
                 (item) =>
-                  item.name && item.amount > 0 && item.participantIds.length > 0
+                  item.name && 
+                  item.amount !== 0 && // 允許負數（折扣），但不允許 0
+                  item.participantIds.length > 0
               );
 
             if (items.length === 0) {
@@ -1109,27 +1228,30 @@
           itemsTableBody.innerHTML = "";
           bill.items.forEach((item) => {
             const row = document.createElement("tr");
+            // 支持負數顯示（折扣）
+            const amount = item.amount || 0;
+            const amountDisplay = amount >= 0 ? `$${amount.toFixed(2)}` : `-$${Math.abs(amount).toFixed(2)}`;
             row.innerHTML = `
             <td class="py-3 px-4 border-b">${escapeHtml(item.name)}</td>
-            <td class="py-3 px-4 text-right border-b">$${item.amount.toFixed(
-              2
-            )}</td>
+            <td class="py-3 px-4 text-right border-b ${amount < 0 ? 'text-red-600' : ''}">${amountDisplay}</td>
           `;
             itemsTableBody.appendChild(row);
           });
 
-          // 添加小費行
+          // 添加小費行（支持負數代表折扣）
           const subtotal = bill.items.reduce(
             (sum, item) => sum + item.amount,
             0
           );
           const tipAmount = subtotal * (bill.tipPercentage / 100);
           const tipRow = document.createElement("tr");
+          const tipLabel = bill.tipPercentage >= 0 ? "小費" : "折扣";
+          const tipSign = bill.tipPercentage >= 0 ? "+" : "";
           tipRow.innerHTML = `
-          <td class="py-3 px-4 border-b font-semibold">小費 (${
-            bill.tipPercentage
+          <td class="py-3 px-4 border-b font-semibold">${tipLabel} (${tipSign}${
+            bill.tipPercentage.toFixed(2)
           }%)</td>
-          <td class="py-3 px-4 text-right border-b font-semibold">$${tipAmount.toFixed(
+          <td class="py-3 px-4 text-right border-b font-semibold">${tipSign}$${tipAmount.toFixed(
             2
           )}</td>
         `;
@@ -1332,22 +1454,10 @@
           payerReceiptInput.click();
         });
 
-        payerReceiptInput.addEventListener("change", (e) => {
-          const newFiles = Array.from(e.target.files);
+        // 更新收據預覽的函數
+        function updateReceiptPreview() {
+          if (!receiptPreviewContainer || !receiptFileCount) return;
 
-          // 合併新文件到現有文件列表
-          const combinedFiles = [...payerReceiptFiles, ...newFiles];
-
-          // 限制最多6張圖片
-          if (combinedFiles.length > 6) {
-            alert(
-              `最多只能上傳6張圖片，已選擇${payerReceiptFiles.length}張，再選擇${newFiles.length}張將超過限制`
-            );
-            payerReceiptInput.value = "";
-            return;
-          }
-
-          payerReceiptFiles = combinedFiles;
           receiptFileCount.textContent = `已選擇 ${payerReceiptFiles.length} 張圖片`;
 
           // 清空預覽容器
@@ -1364,64 +1474,42 @@
               previewDiv.innerHTML = `
                 <img src="${
                   e.target.result
-                }" class="w-full h-32 object-cover rounded-lg shadow-md" />
-                <button 
-                  onclick="removeReceiptImage(${index})" 
-                  class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="刪除此圖片"
-                >
-                  <i class="fa fa-times"></i>
+                }" alt="收據預覽 ${index + 1}" class="w-full h-32 object-cover rounded-lg border border-gray-300">
+                <button onclick="removeReceiptImage(${index})" class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">
+                  <i class="fa fa-times text-xs"></i>
                 </button>
-                <div class="text-xs text-gray-600 mt-1 text-center">${
-                  index + 1
-                }/${payerReceiptFiles.length}</div>
               `;
               receiptPreviewContainer.appendChild(previewDiv);
             };
             reader.readAsDataURL(file);
           });
+        }
+
+        payerReceiptInput.addEventListener("change", (e) => {
+          const newFiles = Array.from(e.target.files);
+
+          // 合併新文件到現有文件列表
+          const combinedFiles = [...payerReceiptFiles, ...newFiles];
+
+          // 限制最多6張圖片
+          if (combinedFiles.length > 6) {
+            alert(
+              `最多只能上傳6張圖片，已選擇${payerReceiptFiles.length}張，再選擇${newFiles.length}張將超過限制`
+            );
+            payerReceiptInput.value = "";
+            return;
+          }
+
+          payerReceiptFiles = combinedFiles;
+          updateReceiptPreview();
         });
 
         // 刪除指定的收據圖片
         window.removeReceiptImage = function (index) {
           // 從數組中移除指定的圖片
           payerReceiptFiles.splice(index, 1);
-
-          // 更新顯示
-          receiptFileCount.textContent =
-            payerReceiptFiles.length > 0
-              ? `已選擇 ${payerReceiptFiles.length} 張圖片`
-              : "";
-
-          // 重新渲染預覽
-          receiptPreviewContainer.innerHTML = "";
-          receiptPreviewContainer.style.display =
-            payerReceiptFiles.length > 0 ? "grid" : "none";
-
-          payerReceiptFiles.forEach((file, idx) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-              const previewDiv = document.createElement("div");
-              previewDiv.className = "relative group";
-              previewDiv.innerHTML = `
-                <img src="${
-                  e.target.result
-                }" class="w-full h-32 object-cover rounded-lg shadow-md" />
-                <button 
-                  onclick="removeReceiptImage(${idx})" 
-                  class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="刪除此圖片"
-                >
-                  <i class="fa fa-times"></i>
-                </button>
-                <div class="text-xs text-gray-600 mt-1 text-center">${
-                  idx + 1
-                }/${payerReceiptFiles.length}</div>
-              `;
-              receiptPreviewContainer.appendChild(previewDiv);
-            };
-            reader.readAsDataURL(file);
-          });
+          // 更新預覽
+          updateReceiptPreview();
         };
 
         // 上傳賬單功能已註釋（通過保存賬單自動上傳收據）
@@ -1579,7 +1667,7 @@
             </div>
             <div>
               <label class="block text-gray-700 font-medium mb-2">金額 (HKD)</label>
-              <input type="number" class="item-amount w-full px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300" placeholder="0.00" min="0" step="0.01">
+              <input type="number" class="item-amount w-full px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300" placeholder="0.00" step="0.01">
             </div>
           </div>
           <div class="mb-4">
