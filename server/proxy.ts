@@ -102,6 +102,19 @@ export type Session = {
   created_at: string
 }
 
+export type LLMApiUsage = {
+  id?: null | number
+  user_id: null | string
+  user?: User
+  request_type: string
+  tokens_used: null | number
+  cost: null | number
+  success: number
+  error_message: null | string
+  created_at: string
+  updated_at: string
+}
+
 export type DBProxy = {
   user: User[]
   bill: Bill[]
@@ -111,6 +124,7 @@ export type DBProxy = {
   calculation_result: CalculationResult[]
   message: Message[]
   session: Session[]
+  llm_api_usage: LLMApiUsage[]
 }
 
 export let proxy = proxySchema<DBProxy>({
@@ -148,6 +162,10 @@ export let proxy = proxySchema<DBProxy>({
       ['bill', { field: 'bill_id', table: 'bill' }],
     ],
     session: [
+      /* foreign references */
+      ['user', { field: 'user_id', table: 'user' }],
+    ],
+    llm_api_usage: [
       /* foreign references */
       ['user', { field: 'user_id', table: 'user' }],
     ],

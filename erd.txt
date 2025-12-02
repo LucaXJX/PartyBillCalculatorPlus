@@ -111,6 +111,19 @@ expires_at varchar(64)
 created_at varchar(64)
 
 
+llm_api_usage
+-------------
+id integer PK
+user_id varchar(64) NULL FK >0- user.id
+request_type varchar(64)
+tokens_used integer NULL
+cost decimal(10,4) NULL
+success integer
+error_message text NULL
+created_at varchar(64)
+updated_at varchar(64)
+
+
 # zoom: 1.000
 # view: (0, 0)
 # text-bg: #6495ed
