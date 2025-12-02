@@ -1,0 +1,11 @@
+{
+  "watch": ["server"],
+  "ext": "ts,js,json",
+  "ignore": ["server/**/*.spec.ts", "server/**/*.test.ts", "node_modules", "dist", "data"],
+  "exec": "node --loader ts-node/esm server/server.ts",
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000
+}
+
