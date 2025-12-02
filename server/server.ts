@@ -455,13 +455,14 @@ function postProcessTip(bill: ParsedBill): ParsedBill {
   const tip = bill.tip;
   const total = bill.total;
 
-  // 基本檢查
-  if (!Number.isFinite(subtotal) || subtotal <= 0) return bill;
-  if (!Number.isFinite(tip) || tip <= 0) return bill;
+  // 基本檢查（支持負數，代表折扣）
+  if (!Number.isFinite(subtotal)) return bill;
+  if (!Number.isFinite(tip)) return bill;
+  // 允許 subtotal 和 tip 為負數（代表折扣）
 
   const epsAmount = 0.5; // 金額容忍度
 
-  // 情況 1：tip 在 0~1 之間，視為「百分比（小數）」，如 0.1 表示 10%
+  // 情況 1：tip 在 0~1 之間或 -1~0 之間，視為「百分比（小數）」，如 0.1 表示 10%，-0.1 表示 -10%
   if (tip > 0 && tip < 1) {
     const tipAmount = subtotal * tip;
     const roundedTip = Math.round(tipAmount * 100) / 100;
@@ -474,7 +475,20 @@ function postProcessTip(bill: ParsedBill): ParsedBill {
     };
   }
 
-  // 情況 2：tip 看起來是金額（>= 1）
+  // 情況 1b：tip 在 -1~0 之間，視為「負百分比（折扣）」，如 -0.1 表示 -10%
+  if (tip < 0 && tip > -1) {
+    const tipAmount = subtotal * tip;
+    const roundedTip = Math.round(tipAmount * 100) / 100;
+    const newTotal = Math.round((subtotal + roundedTip) * 100) / 100;
+
+    return {
+      ...bill,
+      tip: roundedTip,
+      total: Number.isFinite(total) ? total : newTotal,
+    };
+  }
+
+  // 情況 2：tip 看起來是金額（>= 1 或 <= -1）
   // 2.1 嘗試判斷 LLM 是否已將 total 設為 subtotal + tip
   const amountConsistent =
     Number.isFinite(total) && Math.abs(subtotal + tip - total) <= epsAmount;
@@ -482,8 +496,8 @@ function postProcessTip(bill: ParsedBill): ParsedBill {
   // 2.2 從金額反推百分比
   const percentFromAmount = (tip / subtotal) * 100; // 例如 10 表示 10%
 
-  // 判斷是否是「好看」的百分比（接近整數或常見值）
-  const nicePercents = [5, 8, 10, 12.5, 15, 20];
+  // 判斷是否是「好看」的百分比（接近整數或常見值，包括負數）
+  const nicePercents = [-20, -15, -12.5, -10, -8, -5, 5, 8, 10, 12.5, 15, 20];
   const nearestNice = nicePercents.reduce((best, p) =>
     Math.abs(p - percentFromAmount) < Math.abs(best - percentFromAmount)
       ? p
@@ -491,18 +505,20 @@ function postProcessTip(bill: ParsedBill): ParsedBill {
   , nicePercents[0]);
   const diffNice = Math.abs(nearestNice - percentFromAmount);
 
-  // 若已知是金額，且反推百分比接近一個「好看」的整數（如 5%, 10% 等）
+  // 若已知是金額，且反推百分比接近一個「好看」的整數（如 5%, 10% 等，包括負數）
   // 這裡不改動結構，只是為前端提供一個穩定的金額；百分比可以在前端按需顯示
-  if (diffNice <= 0.25 && amountConsistent) {
+  if (diffNice <= 0.25 && amountConsistent && Math.abs(subtotal) > 0.01) {
     // 保留 tip 作為金額，不做結構變更
+    // 前端會將 tip 金額轉換為百分比
     return bill;
   }
 
   // 情況 3：金額除以 subtotal 無法得到好看的百分比
   // 將 tip 作為一個獨立的消費項目加入 items，並將 tip 設為 0
+  const tipItemName = tip >= 0 ? "服務費（自動推斷）" : "折扣（自動推斷）";
   const adjustedItems = bill.items.concat([
     {
-      name: "服務費（自動推斷）",
+      name: tipItemName,
       price: tip,
       quantity: 1,
     },
@@ -552,6 +568,28 @@ app.post(
   }
 );
 
+// 獲取 OCR 識別使用量信息
+app.get("/api/bill/ocr-usage", authenticateUser, async (req: any, res) => {
+  try {
+    const userId = req.user.id;
+    const { checkDailyLimit } = await import("./llm/usageTracker.js");
+    const limitCheck = await checkDailyLimit(userId, 10);
+    
+    res.status(200).json({
+      used: limitCheck.used,
+      remaining: limitCheck.remaining,
+      limit: 10,
+      allowed: limitCheck.allowed,
+    });
+  } catch (error) {
+    console.error("獲取使用量信息失敗:", error);
+    res.status(500).json({
+      error: "獲取使用量信息失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 // OCR 賬單識別和解析（上傳圖片，自動識別並解析為結構化數據）
 app.post(
   "/api/bill/ocr-upload",
@@ -565,6 +603,31 @@ app.post(
 
       const imagePath = req.file.path;
       const userId = req.user.id;
+
+      // 0. 檢查每日使用量限制（僅在成功識別時計數）
+      const { checkDailyLimit } = await import("./llm/usageTracker.js");
+      const limitCheck = await checkDailyLimit(userId, 10);
+      
+      // 如果已經超過限制，直接返回錯誤（但允許查看使用量信息）
+      if (!limitCheck.allowed) {
+        return res.status(429).json({
+          success: false,
+          error: "今日識別次數已用完（10次/天），請明天再試",
+          usage: {
+            used: limitCheck.used,
+            remaining: 0,
+            limit: 10,
+            exceeded: true,
+          },
+        });
+      }
+
+      // 返回使用量信息
+      const usageInfo = {
+        used: limitCheck.used,
+        remaining: limitCheck.remaining,
+        limit: 10,
+      };
 
       // 1. 檢查 OCR 服務是否可用（本地 FastAPI + PaddleOCR）
       const ocrServiceAvailable = await checkOCRService();
@@ -599,23 +662,37 @@ app.post(
       } catch (error) {
         console.error("LLM 解析失敗:", error);
         // 即使 LLM 解析失敗，也返回 OCR 文本，讓用戶手動輸入
+        // 注意：解析失敗不計入使用量
         return res.status(200).json({
           success: false,
           ocrText: ocrResult.text,
           error: "自動解析失敗，請手動輸入賬單信息",
           details: error instanceof Error ? error.message : String(error),
+          usage: usageInfo,
         });
       }
 
       // 4. 根據 tip 值做後處理（推斷百分比或轉為消費項目）
       const finalBill = postProcessTip(parsedBill);
 
-      // 5. 返回解析結果
+      // 5. 檢查是否超過限制（成功識別後，重新獲取最新使用量）
+      const finalLimitCheck = await checkDailyLimit(userId, 10);
+      
+      // 6. 返回解析結果（包含使用量信息）
+      // 注意：即使超過限制，也允許本次識別（因為已經成功），但會提示用戶
       res.status(200).json({
         success: true,
         ocrText: ocrResult.text,
         bill: finalBill,
-        message: "賬單識別成功",
+        message: finalLimitCheck.allowed
+          ? "賬單識別成功"
+          : "賬單識別成功，但今日次數已用完，下次請明天再試",
+        usage: {
+          used: finalLimitCheck.used,
+          remaining: finalLimitCheck.remaining,
+          limit: 10,
+          exceeded: !finalLimitCheck.allowed,
+        },
       });
     } catch (error) {
       console.error("OCR 上傳處理失敗:", error);

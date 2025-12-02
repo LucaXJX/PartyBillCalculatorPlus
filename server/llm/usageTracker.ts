@@ -50,12 +50,91 @@ export async function getUsageStats(options?: {
   startDate?: Date;
   endDate?: Date;
 }) {
-  // TODO: 實現使用量統計查詢
-  // 需要等待 migration 創建表後實現
+  try {
+    if (!("llm_api_usage" in proxy)) {
+      return {
+        totalRequests: 0,
+        successfulRequests: 0,
+        failedRequests: 0,
+        totalTokens: 0,
+      };
+    }
+
+    const usageTable = (proxy as any).llm_api_usage;
+    const start = options?.startDate || new Date();
+    start.setHours(0, 0, 0, 0);
+    const end = options?.endDate || new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const records = usageTable.filter((record: any) => {
+      if (options?.userId && record.user_id !== options.userId) {
+        return false;
+      }
+      const recordDate = new Date(record.created_at);
+      return recordDate >= start && recordDate <= end;
+    });
+
+    return {
+      totalRequests: records.length,
+      successfulRequests: records.filter((r: any) => r.success).length,
+      failedRequests: records.filter((r: any) => !r.success).length,
+      totalTokens: records.reduce((sum: number, r: any) => sum + (r.tokens_used || 0), 0),
+    };
+  } catch (error) {
+    console.error("獲取使用量統計失敗:", error);
+    return {
+      totalRequests: 0,
+      successfulRequests: 0,
+      failedRequests: 0,
+      totalTokens: 0,
+    };
+  }
+}
+
+/**
+ * 獲取用戶今日成功識別次數（用於限制檢查）
+ * @param userId 用戶 ID
+ */
+export async function getTodaySuccessfulCount(userId: number): Promise<number> {
+  try {
+    if (!("llm_api_usage" in proxy)) {
+      return 0;
+    }
+
+    const usageTable = (proxy as any).llm_api_usage;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const todayRecords = usageTable.filter((record: any) => {
+      if (record.user_id !== userId) return false;
+      if (!record.success) return false;
+      if (record.request_type !== "bill_parse") return false;
+      const recordDate = new Date(record.created_at);
+      return recordDate >= today && recordDate < tomorrow;
+    });
+
+    return todayRecords.length;
+  } catch (error) {
+    console.error("獲取今日成功次數失敗:", error);
+    return 0;
+  }
+}
+
+/**
+ * 檢查用戶是否超過每日使用限制
+ * @param userId 用戶 ID
+ * @param dailyLimit 每日限制次數（默認 10）
+ */
+export async function checkDailyLimit(
+  userId: number,
+  dailyLimit: number = 10
+): Promise<{ allowed: boolean; used: number; remaining: number }> {
+  const used = await getTodaySuccessfulCount(userId);
   return {
-    totalRequests: 0,
-    successfulRequests: 0,
-    failedRequests: 0,
-    totalTokens: 0,
+    allowed: used < dailyLimit,
+    used,
+    remaining: Math.max(0, dailyLimit - used),
   };
 }
