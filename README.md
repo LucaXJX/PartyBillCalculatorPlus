@@ -108,7 +108,7 @@
 1. **克隆項目**
 
    ```bash
-   git clone https://github.com/LucaXJX/PartyBillCalculator.git
+   git clone https://github.com/LucaXJX/PartyBillCalculatorPlus.git
    cd PartyBillCalculator
    ```
 

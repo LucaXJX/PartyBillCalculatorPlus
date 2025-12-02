@@ -1,8 +1,8 @@
 {
-  "name": "partybillcalculator",
+  "name": "partybillcalculatorplus",
   "version": "1.0.0",
   "type": "module",
-  "description": "PartyBillCalculator（PBC 記賬）是一個由於 DAE 課程而製作的在線網頁，能幫不同的用戶，實現多設備網頁端記賬的功能。主要用於聚會、聚餐之後的計算賬單的計算，讓不同的人可以依照規則計算自己的消費。",
+  "description": "PartyBillCalculatorPlus（PBC+ 記賬）是一個由於 DAE 課程而製作的在線網頁，能幫不同的用戶，實現多設備網頁端記賬的功能。主要用於聚會、聚餐之後的計算賬單的計算，讓不同的人可以依照規則計算自己的消費。",
   "main": "index.js",
   "scripts": {
     "start": "node dist/server.js",
@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LucaXJX/PartyBillCalculator.git"
+    "url": "git+https://github.com/LucaXJX/PartyBillCalculatorPlus.git"
   },
   "keywords": [
     "bill-calculator",
@@ -49,9 +49,9 @@
   "author": "LucaXJX",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/LucaXJX/PartyBillCalculator/issues"
+    "url": "https://github.com/LucaXJX/PartyBillCalculatorPlus/issues"
   },
-  "homepage": "https://github.com/LucaXJX/PartyBillCalculator#readme",
+  "homepage": "https://github.com/LucaXJX/PartyBillCalculatorPlus#readme",
   "dependencies": {
     "@mistralai/mistralai": "^1.10.0",
     "@types/bcrypt": "^6.0.0",
