@@ -37,6 +37,13 @@
 - 小費計算
 - 付款人指定功能
 
+### 🤖 AI 賬單識別（Beta）
+
+- **OCR 圖片識別**：使用 PaddleOCR 識別賬單圖片中的文字
+- **LLM 智能解析**：使用 Mistral AI 將 OCR 文本解析為結構化數據
+- **自動填充**：識別結果自動填充到表單，減少手動輸入
+- 支持中英文混合識別
+
 ### 📊 賬單管理
 
 - 個人賬單列表（創建的和參與的）
@@ -69,10 +76,18 @@
 - **Express.js** - Web 應用框架
 - **TypeScript** - 類型安全的 JavaScript
 - **Multer** - 文件上傳處理
+- **Better-SQLite3** - SQLite 資料庫驅動
+- **Knex.js** - 資料庫遷移和查詢構建器
+
+### AI 服務
+
+- **PaddleOCR** - 中文優化的 OCR 識別引擎（Python microservice）
+- **Mistral AI** - LLM API 用於賬單文本結構化解析
 
 ### 數據存儲
 
-- **JSON 文件** - 當前數據存儲方案
+- **SQLite3** - 使用 `better-sqlite3` 進行數據存儲
+- **Knex.js** - 資料庫遷移和查詢構建器
 
 ### 開發工具
 
@@ -118,14 +133,62 @@
    Copy-Item env.example .env
    ```
 
-   然後編輯 `.env` 文件，配置必要的環境變量（特別是 `SESSION_SECRET`，請設置為隨機字符串）
+   然後編輯 `.env` 文件，配置必要的環境變量：
 
-4. **啟動服務器**
+   - `SESSION_SECRET`：會話密鑰（請設置為隨機字符串）
+   - `MISTRAL_AI_API_KEY`：Mistral AI API 密鑰（用於 AI 賬單識別）
+   - `OCR_SERVICE_URL`：OCR 服務地址（默認：http://localhost:8000）
+
+4. **設置 OCR 服務**（可選，如需使用 AI 賬單識別功能）
+
+   參考 `ocr-service/SETUP.md` 進行設置：
+
+   ```bash
+   cd ocr-service
+
+   # 創建 Python 3.10 虛擬環境
+   py -3.10 -m venv venv
+
+   # 激活虛擬環境（Windows Git Bash）
+   source venv/Scripts/activate
+   # 或 Windows PowerShell/CMD
+   venv\Scripts\activate
+
+   # 安裝依賴
+   python -m pip install --upgrade pip
+   python -m pip install paddlepaddle-gpu==3.2.1 -i https://www.paddlepaddle.org.cn/packages/stable/cu118/
+   python -m pip install "paddleocr[all]"
+   pip install -r requirements.txt
+
+   # 啟動 OCR 服務
+   python main.py
+   ```
+
+   或使用 npm 腳本：
+
+   ```bash
+   npm run ocr:dev
+   ```
+
+5. **初始化資料庫**
+
+   ```bash
+   # 運行資料庫遷移
+   npm run db:migrate
+   ```
+
+6. **啟動服務器**
 
    - **開發模式**（代碼熱更新，適合開發調試）：
 
      ```bash
      npm run dev
+     ```
+
+   - **同時啟動 Node.js 和 OCR 服務**（推薦，如需使用 AI 功能）：
+
+     ```bash
+     npm run dev:all
      ```
 
    - **正式啟動**（生產或模擬真實部署，正式編譯 TypeScript 源碼）：
@@ -135,7 +198,7 @@
      npm start
      ```
 
-5. **訪問應用**
+7. **訪問應用**
    打開瀏覽器訪問 `http://localhost:3000`
 
 ## 📖 使用方法
@@ -151,10 +214,15 @@
 2. **創建賬單**
 
    - 點擊「智能計算」進入計算器頁面
-   - 填寫聚會基本信息（名稱、日期、地點、小費比例）
-   - 添加參與者
-   - 添加消費項目並分配給參與者
-   - 選擇付款人（可選）
+   - **方式一：AI 自動識別**（Beta）
+     - 點擊「AI 賬單識別（Beta）」區域的「選擇圖片」按鈕
+     - 選擇賬單圖片並點擊「識別賬單」
+     - 系統自動填充表單，檢查並編輯後保存
+   - **方式二：手動輸入**
+     - 填寫聚會基本信息（名稱、日期、地點、小費比例）
+     - 添加參與者
+     - 添加消費項目並分配給參與者
+     - 選擇付款人（可選）
 
 3. **計算結果**
 
@@ -209,6 +277,10 @@
 - `POST /api/receipt/upload` - 上傳收據圖片
 - `GET /receipts/:filename` - 獲取收據圖片（需認證）
 
+### AI 功能（Beta）
+
+- `POST /api/bill/ocr-upload` - 上傳賬單圖片進行 OCR + LLM 識別
+
 ## 📁 項目結構
 
 ```
@@ -258,10 +330,31 @@ PartyBillCalculator/
 │       ├── TEST_RESULTS.md
 │       └── README.md
 ├── data/                       # 數據文件
-│   ├── users.json             # 用戶數據
-│   ├── bills.json             # 賬單數據
-│   ├── messages.json          # 消息數據
 │   └── receipts/              # 收據圖片 ⭐
+├── ocr-service/                 # OCR 服務（Python microservice）⭐
+│   ├── main.py                # FastAPI 服務主文件
+│   ├── requirements.txt       # Python 依賴
+│   ├── Dockerfile             # Docker 配置
+│   ├── README.md              # OCR 服務文檔
+│   └── SETUP.md               # 安裝設置指南
+├── server/                     # 後端服務器代碼
+│   ├── server.ts              # 主服務器文件
+│   ├── types.ts               # TypeScript 類型定義
+│   ├── dataManager.ts         # 數據管理
+│   ├── storage.ts             # 數據存儲 ⭐
+│   ├── messageManager.ts      # 消息管理
+│   ├── billCalculator.ts      # 計算邏輯
+│   ├── ocrClient.ts           # OCR 服務客戶端 ⭐
+│   └── llm/                   # LLM 相關模組 ⭐
+│       ├── mistral.ts         # Mistral AI 客戶端
+│       ├── billParser.ts      # 賬單解析邏輯
+│       ├── rateLimit.ts       # API 速率限制
+│       ├── usageTracker.ts    # API 使用量追蹤
+│       ├── prompts.ts         # Prompt 版本管理
+│       ├── types.ts           # 類型定義
+│       └── env.ts             # 環境變數
+├── migrations/                 # 資料庫遷移文件 ⭐
+│   └── 20250101000000_add_llm_api_usage.ts
 ├── tests/                      # 測試文件
 │   ├── api-test.js            # API 功能測試
 │   ├── comprehensive-test.js  # 全面系統測試
@@ -325,8 +418,19 @@ PartyBillCalculator/
 1. 在 `server/types.ts` 中定義相關類型
 2. 在 `server/` 目錄中實現後端邏輯
 3. 在 `public/` 目錄中實現前端界面
-4. 更新 API 文檔
-5. 添加相應測試
+4. 如需資料庫變更，創建 migration 文件
+5. 更新 API 文檔
+6. 添加相應測試
+
+### 開發腳本
+
+- `npm run dev` - 啟動開發服務器
+- `npm run dev:all` - 同時啟動 Node.js 和 OCR 服務
+- `npm run ocr:dev` - 啟動 OCR 服務
+- `npm run ocr:test` - 測試 OCR 服務健康狀態
+- `npm run llm:test` - 測試 LLM prompt（需要指定版本）
+- `npm run db:migrate` - 運行資料庫遷移
+- `npm run db:gen-proxy` - 生成資料庫 proxy 類型
 
 ## 🧪 測試
 

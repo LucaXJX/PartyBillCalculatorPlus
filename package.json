@@ -8,6 +8,7 @@
     "start": "node dist/server.js",
     "dev": "node --loader ts-node/esm server/server.ts",
     "dev:watch": "nodemon --watch 'server/**/*' --exec \"node --loader ts-node/esm\" server/server.ts",
+    "dev:all": "concurrently \"npm run dev\" \"npm run ocr:dev\"",
     "build": "tsc",
     "format": "prettier --write \"**/*.{ts,js,json,md}\"",
     "lint": "eslint \"**/*.{ts,js}\"",
@@ -23,7 +24,14 @@
     "db:update": "run-s db:migrate db:gen-proxy",
     "db:gen-proxy": "erd-to-proxy < erd.txt > server\\proxy.ts && node --loader ts-node/esm scripts/fix-proxy.ts",
     "db:fix-proxy": "node --loader ts-node/esm scripts/fix-proxy.ts",
-    "db:fix-migration": "node --loader ts-node/esm scripts/fix-migration.ts"
+    "db:fix-migration": "node --loader ts-node/esm scripts/fix-migration.ts",
+    "ocr:setup": "cd ocr-service && python -m venv venv && echo 請參考 ocr-service/SETUP.md 完成設置",
+    "ocr:dev": "cd ocr-service && python main.py",
+    "ocr:test": "curl http://localhost:8000/health",
+    "llm:test": "node --loader ts-node/esm scripts/test-prompt.ts",
+    "llm:test:v1": "node --loader ts-node/esm scripts/test-prompt.ts v1",
+    "llm:test:v2": "node --loader ts-node/esm scripts/test-prompt.ts v2",
+    "llm:test:v3": "node --loader ts-node/esm scripts/test-prompt.ts v3"
   },
   "repository": {
     "type": "git",
