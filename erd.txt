@@ -124,6 +124,38 @@ created_at varchar(64)
 updated_at varchar(64)
 
 
+food_images
+-----------
+id integer PK
+bill_id varchar(64) FK >- bill.id
+user_id varchar(64) NULL FK >0- user.id
+original_filename varchar(255)
+stored_path varchar(512)
+original_path varchar(512) NULL
+file_size integer NULL
+width integer NULL
+height integer NULL
+recognition_status integer
+recognition_result text NULL
+recognition_error text NULL
+recognition_at varchar(64) NULL
+created_at varchar(64)
+updated_at varchar(64)
+
+
+food_api_usage
+--------------
+id integer PK
+food_image_id integer NULL FK >0- food_images.id
+user_id varchar(64) NULL FK >0- user.id
+request_type varchar(64)
+success integer
+response_data text NULL
+error_message text NULL
+created_at varchar(64)
+updated_at varchar(64)
+
+
 # zoom: 1.000
 # view: (0, 0)
 # text-bg: #6495ed
