@@ -21,6 +21,14 @@ import type { User, BillRecord, Participant } from "./types.js";
 import { ocrImage, checkOCRService } from "./ocrClient.js";
 import { parseBillFromOCR } from "./llm/billParser.js";
 import type { ParsedBill } from "./llm/types.js";
+import {
+  saveFoodImage,
+  getFoodImagesByBillId,
+  checkImageLimit,
+} from "./foodRecognition/foodImageManager.js";
+import { scheduleRecognition, recognizeBillImagesNow } from "./foodRecognition/recognitionScheduler.js";
+import { performHealthCheck, fixUnrecognizedImages } from "./foodRecognition/healthCheck.js";
+import { checkUsageLimit } from "./foodRecognition/usageTracker.js";
 
 // 解決 ES6 模塊中的 __dirname 問題
 // const __filename = fileURLToPath(import.meta.url);
@@ -880,6 +888,15 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
     // 發送新建賬單通知給所有參與者
     await MessageHelper.sendNewBillNotifications(billRecord);
 
+    // 調度食物圖片識別任務（1 分鐘後執行）
+    // 只有在訂單有食物圖片時才調度
+    if (billRecord.id) {
+      const images = await getFoodImagesByBillId(billRecord.id);
+      if (images.length > 0) {
+        scheduleRecognition(billRecord.id);
+      }
+    }
+
     res.status(200).json({
       message: "賬單已保存",
       billId: billRecord.id,
@@ -1167,11 +1184,23 @@ app.get("/receipts/:filename", authenticateUser, (req: any, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, "../data/receipts", filename);
 
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "文件不存在" });
+  }
+
+  res.sendFile(filePath);
+});
+
+// 獲取食物圖片
+app.get("/food_images/:filename", authenticateUser, (req: any, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, "../data/food_images", filename);
+
   // 檢查文件是否存在
   if (fs.existsSync(filePath)) {
     res.sendFile(filePath);
   } else {
-    res.status(404).json({ error: "收據不存在" });
+    res.status(404).json({ error: "圖片不存在" });
   }
 });
 
@@ -1238,4 +1267,181 @@ app.listen(PORT, () => {
   // 啟動逾期賬單提醒服務
   overdueReminderService.start();
   console.log(`- 逾期提醒服務: 已啟動（每天晚上 8 點檢查）`);
+});
+
+// === 食物圖片相關 API ===
+
+// 上傳食物圖片
+app.post(
+  "/api/food/upload",
+  authenticateUser,
+  upload.single("foodImage"),
+  async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "請選擇圖片文件" });
+      }
+
+      const { billId } = req.body;
+
+      if (!billId) {
+        // 刪除已上傳的文件
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: "缺少訂單 ID" });
+      }
+
+      // 檢查圖片上傳限制（每訂單最多 2 張）
+      const limitCheck = await checkImageLimit(billId, 2);
+      if (!limitCheck.allowed) {
+        // 刪除已上傳的文件
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          error: `已達到上傳限制（每訂單最多 2 張）`,
+          current: limitCheck.current,
+        });
+      }
+
+      // 保存食物圖片
+      const imageRecord = await saveFoodImage(
+        req.file.path,
+        billId,
+        req.userId,
+        req.file.originalname
+      );
+
+      // 調度識別任務（10 秒後執行，暫時改為 10 秒方便測試）
+      // 每次上傳完成後都調度，如果已有任務會自動取消舊任務
+      scheduleRecognition(billId);
+      const allImages = await getFoodImagesByBillId(billId);
+      console.log(`已為訂單 ${billId} 調度識別任務（圖片上傳完成，共 ${allImages.length} 張，10 秒後執行）`);
+
+      res.status(200).json({
+        message: "圖片上傳成功",
+        image: {
+          id: imageRecord.id,
+          filename: imageRecord.originalFilename,
+          storedPath: imageRecord.storedPath,
+          recognitionStatus: imageRecord.recognitionStatus,
+        },
+        limit: {
+          current: limitCheck.current + 1,
+          remaining: limitCheck.remaining - 1,
+        },
+      });
+    } catch (error) {
+      console.error("上傳食物圖片失敗:", error);
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({
+        error: "上傳食物圖片失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 獲取訂單的食物圖片列表
+app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
+  try {
+    const { billId } = req.params;
+    const images = await getFoodImagesByBillId(billId);
+
+    res.status(200).json({
+      images: images.map((img) => ({
+        id: img.id,
+        filename: img.originalFilename,
+        storedPath: img.storedPath,
+        fileSize: img.fileSize,
+        width: img.width,
+        height: img.height,
+        recognitionStatus: img.recognitionStatus,
+        recognitionResult: img.recognitionResult
+          ? JSON.parse(img.recognitionResult)
+          : null,
+        recognitionError: img.recognitionError,
+        recognitionAt: img.recognitionAt,
+        createdAt: img.createdAt,
+      })),
+    });
+  } catch (error) {
+    console.error("獲取食物圖片列表失敗:", error);
+    res.status(500).json({ error: "獲取食物圖片列表失敗" });
+  }
+});
+
+// 手動觸發識別
+app.post("/api/food/recognize/:billId", authenticateUser, async (req: any, res) => {
+  try {
+    const { billId } = req.params;
+
+    // 檢查 API 使用限制
+    const usageCheck = await checkUsageLimit(1000);
+    if (!usageCheck.allowed) {
+      return res.status(429).json({
+        error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+        usage: usageCheck,
+      });
+    }
+
+    await recognizeBillImagesNow(billId);
+
+    res.status(200).json({
+      message: "識別任務已觸發",
+      usage: usageCheck,
+    });
+  } catch (error) {
+    console.error("觸發識別失敗:", error);
+    res.status(500).json({
+      error: "觸發識別失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// 健康檢查（自檢機制）
+app.get("/api/food/health", authenticateUser, async (req: any, res) => {
+  try {
+    const health = await performHealthCheck();
+    res.status(200).json(health);
+  } catch (error) {
+    console.error("健康檢查失敗:", error);
+    res.status(500).json({ error: "健康檢查失敗" });
+  }
+});
+
+// 修復未識別的圖片
+app.post("/api/food/fix-unrecognized", authenticateUser, async (req: any, res) => {
+  try {
+    // 檢查 API 使用限制
+    const usageCheck = await checkUsageLimit(1000);
+    if (!usageCheck.allowed) {
+      return res.status(429).json({
+        error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+        usage: usageCheck,
+      });
+    }
+
+    const result = await fixUnrecognizedImages();
+
+    res.status(200).json({
+      message: "修復完成",
+      result,
+      usage: usageCheck,
+    });
+  } catch (error) {
+    console.error("修復未識別圖片失敗:", error);
+    res.status(500).json({ error: "修復失敗" });
+  }
+});
+
+// 獲取 API 使用量
+app.get("/api/food/usage", authenticateUser, async (req: any, res) => {
+  try {
+    const usage = await checkUsageLimit(1000);
+    res.status(200).json(usage);
+  } catch (error) {
+    console.error("獲取 API 使用量失敗:", error);
+    res.status(500).json({ error: "獲取 API 使用量失敗" });
+  }
 });
