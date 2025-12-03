@@ -106,17 +106,52 @@
 
 - 用戶上傳餐照，系統識別食物類型（例：牛排、壽司、甜品...）
   - 可作「本次聚會吃了什麼」紀錄，也可反饋餐廳推薦
+  - **用於獎勵機制**：用戶上傳真實食物圖片可獲得額外 OCR 識別機會（+1 次/張，每天最多 5 次）
 
 ### 2.2 推薦工具 / Library
 
-- **建議雲端圖像 API**（Google Vision, Azure Custom Vision...）
+- **✅ 調研完成**：詳見 `docs/FOOD_IMAGE_RECOGNITION_RESEARCH.md`
+- **推薦方案：百度菜品識別 API** ⭐⭐⭐⭐⭐
+  - 總共有 1000 次免費調用
+  - 無需信用卡，只需實名認證
+  - 識別超過 5 萬種菜品，支持中文
+  - 返回菜品名稱、卡路里、成分等詳細信息
+- **備選方案**：
+  - Google Cloud Vision API（每月 1000 次免費，需信用卡）
+  - Azure Computer Vision（每月 5000 次免費，需信用卡）
+  - Hugging Face Inference API（完全免費，有限額度）
 - **若要自行訓練模型**：用 `@tensorflow/tfjs-node`、或另開 Python Microservice，採 Transfer learning（ImageNet Food-101 dataset）
 
 ### 2.3 難度與需求
 
 - 雲端 API：中等；模型訓練：中高（須 ML 基礎、資料集）
 - 訓練需 GPU（Colab、Kaggle），推理小模型可 CPU
-- **優先度：★★★☆☆**（非核心、加分項）
+- **優先度：★★★★☆**（提升：用於獎勵機制，增加用戶參與度）
+
+### 2.4 實施計劃
+
+1. **階段 1：API 註冊與測試**
+
+   - 註冊百度智能雲賬號
+   - 申請菜品識別 API
+   - 實現測試接口驗證效果
+
+2. **階段 2：後端集成**
+
+   - 創建 `server/foodRecognition/` 目錄
+   - 實現 `baiduFoodClient.ts`（或選擇的 API 客戶端）
+   - 添加 API 端點 `/api/food/recognize`
+   - 實現獎勵機制邏輯（驗證真實食物、記錄獎勵次數）
+
+3. **階段 3：資料庫更新**
+
+   - 新增 `food_image_rewards` 表
+   - 記錄用戶上傳的食物圖片和獎勵次數
+
+4. **階段 4：前端集成**
+   - 在 `calculator.html` 添加食物圖片上傳功能
+   - 顯示識別結果和獎勵信息
+   - 更新使用量顯示（包含獎勵次數）
 
 ---
 
