@@ -510,6 +510,39 @@
             </div>
           </div>
 
+          <!-- 食物圖片上傳區域 -->
+          <div
+            id="food-images-section"
+            class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg"
+          >
+            <h4 class="font-semibold text-green-900 mb-2">
+              <i class="fa fa-utensils mr-2"></i>分享美食照片
+            </h4>
+            <p class="text-sm text-green-700 mb-3">
+              上傳本次聚會的美食照片，系統會自動識別菜品（每訂單最多 2 張）。
+              <span id="food-image-status" class="text-xs text-gray-600"></span>
+            </p>
+            <input
+              type="file"
+              id="food-image-input"
+              accept="image/*"
+              class="hidden"
+            />
+            <button
+              type="button"
+              id="upload-food-image-btn"
+              class="btn-secondary mb-3"
+            >
+              <i class="fa fa-camera mr-2"></i>選擇美食照片
+              <span id="food-image-count" class="ml-2 text-xs">(0/2)</span>
+            </button>
+            <div
+              id="food-images-preview-container"
+              class="grid grid-cols-2 sm:grid-cols-2 gap-3"
+            ></div>
+            <div id="food-recognition-results" class="mt-3 space-y-2"></div>
+          </div>
+
           <div
             class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0 pt-6 border-t border-gray-200"
           >
@@ -1512,6 +1545,274 @@
           updateReceiptPreview();
         };
 
+        // 食物圖片上傳功能（每訂單最多 2 張）
+        let foodImages = []; // 存儲已上傳的圖片信息 {id, filename, storedPath, recognitionStatus}
+        let currentBillId = null; // 當前訂單 ID（保存後才有）
+        let pendingFoodImages = []; // 臨時存儲的圖片（保存前上傳的）
+
+        const uploadFoodImageBtn = document.getElementById("upload-food-image-btn");
+        const foodImageInput = document.getElementById("food-image-input");
+        const foodImageCount = document.getElementById("food-image-count");
+        const foodImagesPreviewContainer = document.getElementById("food-images-preview-container");
+        const foodImageStatus = document.getElementById("food-image-status");
+        const foodRecognitionResults = document.getElementById("food-recognition-results");
+
+        // 更新食物圖片預覽（定義在 if 塊外，但只在元素存在時使用）
+        function updateFoodImagesPreview() {
+          if (!foodImagesPreviewContainer || !foodImageCount) return;
+
+          const totalImages = foodImages.length + pendingFoodImages.length;
+          foodImageCount.textContent = `(${totalImages}/2)`;
+
+          foodImagesPreviewContainer.innerHTML = "";
+
+          // 顯示已上傳的圖片
+          foodImages.forEach((image, index) => {
+            const previewDiv = document.createElement("div");
+            previewDiv.className = "relative group";
+            const statusText = image.recognitionStatus === 0 ? "待識別" : 
+                             image.recognitionStatus === 1 ? "識別中..." :
+                             image.recognitionStatus === 2 ? "已識別" : "識別失敗";
+            const statusColor = image.recognitionStatus === 0 ? "bg-gray-500" :
+                              image.recognitionStatus === 1 ? "bg-yellow-500" :
+                              image.recognitionStatus === 2 ? "bg-green-500" : "bg-red-500";
+            
+            previewDiv.innerHTML = `
+              <div class="relative">
+                <img src="/food_images/${image.storedPath.split(/[/\\]/).pop()}" 
+                     alt="${image.filename}" 
+                     class="w-full h-32 object-cover rounded-lg border border-gray-300"
+                     onerror="this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' width=\\'200\\' height=\\'200\\'%3E%3Crect fill=\\'%23ddd\\' width=\\'200\\' height=\\'200\\'/%3E%3Ctext x=\\'50%25\\' y=\\'50%25\\' text-anchor=\\'middle\\' dy=\\'.3em\\' fill=\\'%23999\\'%3E圖片加載失敗%3C/text%3E%3C/svg%3E'">
+                <div class="absolute top-1 left-1 ${statusColor} text-white text-xs px-2 py-1 rounded">${statusText}</div>
+                <button onclick="removeFoodImage(${index}, false)" 
+                        class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">
+                  <i class="fa fa-times text-xs"></i>
+                </button>
+              </div>
+              <p class="text-xs text-gray-600 mt-1 truncate">${image.filename}</p>
+            `;
+            foodImagesPreviewContainer.appendChild(previewDiv);
+          });
+
+          // 顯示臨時圖片（保存前選擇的）
+          pendingFoodImages.forEach((image, index) => {
+            const previewDiv = document.createElement("div");
+            previewDiv.className = "relative group";
+            
+            // 使用 FileReader 顯示預覽
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              previewDiv.innerHTML = `
+                <div class="relative">
+                  <img src="${e.target.result}" 
+                       alt="${image.filename}" 
+                       class="w-full h-32 object-cover rounded-lg border border-gray-300">
+                  <div class="absolute top-1 left-1 bg-yellow-500 text-white text-xs px-2 py-1 rounded">待上傳</div>
+                  <button onclick="removeFoodImage(${index}, true)" 
+                          class="absolute top-1 right-1 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600">
+                    <i class="fa fa-times text-xs"></i>
+                  </button>
+                </div>
+                <p class="text-xs text-gray-600 mt-1 truncate">${image.filename}</p>
+              `;
+            };
+            reader.readAsDataURL(image.file);
+            foodImagesPreviewContainer.appendChild(previewDiv);
+          });
+        }
+
+        // 加載訂單的食物圖片（定義在 if 塊外，確保可以在任何地方調用）
+        async function loadFoodImages(billId) {
+          if (!billId) return;
+          currentBillId = billId;
+          
+          // 如果元素不存在，直接返回
+          if (!foodImagesPreviewContainer || !foodImageCount) {
+            return;
+          }
+          
+          try {
+            const response = await authenticatedFetch(`/api/food/images/${billId}`);
+            if (response && response.ok) {
+              const data = await response.json();
+              foodImages = data.images || [];
+              updateFoodImagesPreview();
+              updateFoodRecognitionResults();
+            }
+          } catch (error) {
+            console.error("加載食物圖片失敗:", error);
+          }
+        }
+
+        // 更新識別結果顯示（定義在 if 塊外，確保總是被定義）
+        function updateFoodRecognitionResults() {
+          if (!foodRecognitionResults) return;
+
+          foodRecognitionResults.innerHTML = "";
+
+          foodImages.forEach((image) => {
+            if (image.recognitionStatus === 2 && image.recognitionResult) {
+              const result = Array.isArray(image.recognitionResult) ? image.recognitionResult : 
+                           typeof image.recognitionResult === 'string' ? JSON.parse(image.recognitionResult) : 
+                           image.recognitionResult;
+              
+              if (result && result.length > 0) {
+                const resultDiv = document.createElement("div");
+                resultDiv.className = "p-3 bg-green-50 border border-green-200 rounded-lg";
+                resultDiv.innerHTML = `
+                  <p class="text-sm font-semibold text-green-900 mb-2">
+                    <i class="fa fa-check-circle mr-2"></i>${image.filename}
+                  </p>
+                  <div class="space-y-1">
+                    ${result.map(item => `
+                      <p class="text-sm text-gray-700">
+                        <span class="font-medium">${item.name}</span>
+                        ${item.confidence ? `<span class="text-gray-500">（置信度: ${(item.confidence * 100).toFixed(1)}%）</span>` : ''}
+                        ${item.calories ? `<span class="text-blue-600 ml-2">${item.calories} 卡路里</span>` : ''}
+                      </p>
+                    `).join('')}
+                  </div>
+                `;
+                foodRecognitionResults.appendChild(resultDiv);
+              }
+            } else if (image.recognitionStatus === 3) {
+              const errorDiv = document.createElement("div");
+              errorDiv.className = "p-3 bg-red-50 border border-red-200 rounded-lg";
+              errorDiv.innerHTML = `
+                <p class="text-sm font-semibold text-red-900 mb-1">
+                  <i class="fa fa-exclamation-circle mr-2"></i>${image.filename}
+                </p>
+                <p class="text-xs text-red-700">${image.recognitionError || '識別失敗'}</p>
+              `;
+              foodRecognitionResults.appendChild(errorDiv);
+            }
+          });
+        }
+
+        // 如果元素不存在，跳過食物圖片功能的初始化（避免錯誤）
+        if (uploadFoodImageBtn && foodImageInput && foodImageCount && foodImagesPreviewContainer) {
+
+          // 上傳食物圖片
+          uploadFoodImageBtn.addEventListener("click", () => {
+            // 允許在保存前上傳，圖片會先存儲在臨時變量中
+            foodImageInput.click();
+          });
+
+          foodImageInput.addEventListener("change", async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+
+            // 檢查上傳限制（包括臨時存儲的圖片）
+            const totalImages = foodImages.length + pendingFoodImages.length;
+            if (totalImages >= 2) {
+              alert("每訂單最多只能上傳 2 張食物圖片");
+              foodImageInput.value = "";
+              return;
+            }
+
+            // 如果還沒有保存訂單，先存儲在臨時變量中
+            if (!currentBillId) {
+              // 創建臨時圖片對象
+              const tempImage = {
+                id: null,
+                filename: file.name,
+                storedPath: null,
+                recognitionStatus: 0,
+                file: file, // 保存文件對象，稍後上傳
+                isPending: true,
+              };
+              pendingFoodImages.push(tempImage);
+              
+              // 更新預覽（顯示臨時圖片）
+              updateFoodImagesPreview();
+              
+              if (foodImageStatus) {
+                foodImageStatus.textContent = "圖片已選擇，將在保存訂單後自動上傳";
+                foodImageStatus.className = "text-xs text-yellow-600";
+              }
+              
+              // 清除文件選擇
+              foodImageInput.value = "";
+              return;
+            }
+
+            // 如果已經保存訂單，直接上傳
+            try {
+              // 顯示上傳狀態
+              if (foodImageStatus) {
+                foodImageStatus.textContent = "上傳中...";
+                foodImageStatus.className = "text-xs text-blue-600";
+              }
+
+              const formData = new FormData();
+              formData.append("foodImage", file);
+              formData.append("billId", currentBillId);
+
+              const response = await authenticatedFetch("/api/food/upload", {
+                method: "POST",
+                body: formData,
+              });
+
+              if (response && response.ok) {
+                const data = await response.json();
+                foodImages.push(data.image);
+                updateFoodImagesPreview();
+
+                if (foodImageStatus) {
+                  foodImageStatus.textContent = "上傳成功！系統將在 1 分鐘後自動識別";
+                  foodImageStatus.className = "text-xs text-green-600";
+                }
+
+                // 清除文件選擇
+                foodImageInput.value = "";
+              } else {
+                const errorData = await response.json();
+                alert(errorData.error || "上傳失敗");
+                if (foodImageStatus) {
+                  foodImageStatus.textContent = "";
+                }
+              }
+            } catch (error) {
+              console.error("上傳食物圖片失敗:", error);
+              alert("上傳失敗，請重試");
+              if (foodImageStatus) {
+                foodImageStatus.textContent = "";
+              }
+            }
+          });
+
+          // 刪除食物圖片
+          window.removeFoodImage = async function (index, isPending = false) {
+            if (isPending) {
+              // 刪除臨時圖片
+              if (!confirm("確定要刪除這張圖片嗎？")) return;
+              pendingFoodImages.splice(index, 1);
+              updateFoodImagesPreview();
+              return;
+            }
+
+            // 刪除已上傳的圖片
+            const image = foodImages[index];
+            if (!image) return;
+
+            if (!confirm("確定要刪除這張圖片嗎？")) return;
+
+            try {
+              // TODO: 實現刪除 API
+              // const response = await authenticatedFetch(`/api/food/images/${image.id}`, {
+              //   method: "DELETE",
+              // });
+              
+              foodImages.splice(index, 1);
+              updateFoodImagesPreview();
+              updateFoodRecognitionResults();
+            } catch (error) {
+              console.error("刪除食物圖片失敗:", error);
+              alert("刪除失敗，請重試");
+            }
+          };
+        } // 結束食物圖片功能的 if 檢查
+
         // 上傳賬單功能已註釋（通過保存賬單自動上傳收據）
         /*
         const uploadBillBtn = document.getElementById("upload-bill-btn");
@@ -1534,6 +1835,8 @@
             saveResultBtn.disabled = true;
             saveResultBtn.innerHTML =
               '<i class="fa fa-spinner fa-spin mr-2"></i> 保存中...';
+            
+            let savedBillId = null;
 
             // 驗證付款人
             const payerId = billPayerSelect.value;
@@ -1634,7 +1937,82 @@
                 receiptPreviewContainer.innerHTML = "";
                 receiptPreviewContainer.style.display = "none";
               } else {
-                alert(`賬單已保存，ID: ${billId}`);
+                alert(`賬單已保存（ID: ${billId}）`);
+              }
+
+              // 上傳臨時存儲的食物圖片（如果有的話）
+              // 等待一小段時間確保訂單已完全保存到數據庫
+              if (billId && pendingFoodImages.length > 0) {
+                // 等待 100ms 確保數據庫操作完成
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+                let uploadedCount = 0;
+                let failedCount = 0;
+
+                for (let i = 0; i < pendingFoodImages.length; i++) {
+                  const tempImage = pendingFoodImages[i];
+                  try {
+                    const formData = new FormData();
+                    formData.append("foodImage", tempImage.file);
+                    formData.append("billId", billId);
+
+                    const response = await authenticatedFetch("/api/food/upload", {
+                      method: "POST",
+                      body: formData,
+                    });
+
+                    if (response && response.ok) {
+                      const data = await response.json();
+                      foodImages.push(data.image);
+                      uploadedCount++;
+                    } else {
+                      const errorData = await response.json().catch(() => ({}));
+                      console.error(`臨時圖片 ${i + 1} 上傳失敗:`, errorData.error || "未知錯誤");
+                      failedCount++;
+                    }
+                  } catch (error) {
+                    console.error(`臨時圖片 ${i + 1} 上傳失敗:`, error);
+                    failedCount++;
+                  }
+                }
+
+                // 清空臨時圖片列表
+                pendingFoodImages = [];
+                updateFoodImagesPreview();
+
+                if (uploadedCount > 0) {
+                  console.log(`${uploadedCount} 張臨時圖片已上傳`);
+                }
+                if (failedCount > 0) {
+                  console.warn(`${failedCount} 張臨時圖片上傳失敗`);
+                }
+              }
+
+              // 加載食物圖片（如果已上傳）
+              if (billId) {
+                loadFoodImages(billId);
+                
+                // 啟動輪詢，定期檢查識別結果（每 5 秒檢查一次，持續 2 分鐘）
+                let pollCount = 0;
+                const maxPolls = 24; // 2 分鐘 = 120 秒，每 5 秒一次 = 24 次
+                const pollInterval = setInterval(async () => {
+                  pollCount++;
+                  try {
+                    await loadFoodImages(billId);
+                    // 檢查是否所有圖片都已識別完成
+                    const allRecognized = foodImages.every(
+                      (img) => img.recognitionStatus === 2 || img.recognitionStatus === 3
+                    );
+                    if (allRecognized || pollCount >= maxPolls) {
+                      clearInterval(pollInterval);
+                      if (allRecognized) {
+                        console.log("所有食物圖片識別完成");
+                      }
+                    }
+                  } catch (error) {
+                    console.error("輪詢識別結果失敗:", error);
+                  }
+                }, 5000); // 每 5 秒檢查一次
               }
 
               // 提交成功後自動關閉彈窗
