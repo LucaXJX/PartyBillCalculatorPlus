@@ -26,7 +26,7 @@
     "db:gen-proxy": "erd-to-proxy < erd.txt > server\\proxy.ts && node --loader ts-node/esm scripts/fix-proxy.ts",
     "db:fix-proxy": "node --loader ts-node/esm scripts/fix-proxy.ts",
     "db:fix-migration": "node --loader ts-node/esm scripts/fix-migration.ts",
-    "ocr:setup": "cd ocr-service && source venv310/Scripts/activate && echo 請參考 ocr-service/SETUP.md 完成設置",
+    "ocr:setup": "cd ocr-service && echo 請參考 source venv310/Scripts/activate && python main.py",
     "ocr:dev": "cd ocr-service && source venv310/Scripts/activate && python main.py",
     "ocr:test": "curl http://localhost:8000/health",
     "llm:test": "node --loader ts-node/esm scripts/test-prompt.ts",
@@ -74,7 +74,8 @@
     "knex": "^3.1.0",
     "multer": "^1.4.5-lts.1",
     "pg": "^8.16.3",
-    "populate-env": "^2.3.1"
+    "populate-env": "^2.3.1",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
