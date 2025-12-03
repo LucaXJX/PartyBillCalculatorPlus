@@ -229,13 +229,20 @@
         <!-- 篩選和搜索 -->
         <div class="bg-white rounded-lg p-6 shadow-sm mb-6">
           <div class="flex flex-col md:flex-row gap-4">
-            <div class="flex-1">
+            <div class="flex-1 flex gap-2">
               <input
                 type="text"
                 id="search-input"
                 placeholder="搜索賬單名稱、地點或參與者..."
                 class="w-full px-4 py-2 border border-gray-300 rounded-lg input-focus transition-all duration-300"
               />
+              <button
+                id="sort-date-btn"
+                class="px-4 py-2 border border-gray-300 rounded-lg bg-white hover:bg-gray-50 transition-all duration-300 flex items-center justify-center min-w-[44px]"
+                title="按日期排序"
+              >
+                <i class="fas fa-sort-amount-down text-gray-600"></i>
+              </button>
             </div>
             <div class="flex gap-2">
               <select
@@ -413,9 +420,13 @@
         const searchInput = document.getElementById("search-input");
         const statusFilter = document.getElementById("status-filter");
         const dateFilter = document.getElementById("date-filter");
+        const sortDateBtn = document.getElementById("sort-date-btn");
         const billsContainer = document.getElementById("bills-container");
         const emptyState = document.getElementById("empty-state");
         const totalBillsEl = document.getElementById("total-bills");
+
+        // 排序狀態：true = 降序（最新在上），false = 升序（最舊在上）
+        let sortDescending = true;
         const pendingBillsEl = document.getElementById("pending-bills");
         const paidBillsEl = document.getElementById("paid-bills");
         const receivablesEl = document.getElementById("receivables");
@@ -462,6 +473,16 @@
           statusFilter.addEventListener("change", filterBills);
           dateFilter.addEventListener("change", filterBills);
 
+          // 排序按鈕
+          sortDateBtn.addEventListener("click", () => {
+            sortDescending = !sortDescending;
+            updateSortButtonIcon();
+            filterBills();
+          });
+
+          // 初始化排序按鈕圖標
+          updateSortButtonIcon();
+
           // 支付模態框
           closePaymentModalBtn.addEventListener("click", closePaymentModal);
           cancelPaymentBtn.addEventListener("click", closePaymentModal);
@@ -503,6 +524,13 @@
                 console.error("賬單數據格式錯誤，不是數組:", bills);
                 bills = [];
               }
+
+              // 初始加載時應用排序（默認降序，最新在上）
+              bills.sort((a, b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                return sortDescending ? dateB - dateA : dateA - dateB;
+              });
 
               displayBills(bills);
               updateStatistics(bills);
@@ -839,6 +867,20 @@
           return billDiv;
         }
 
+        // 更新排序按鈕圖標
+        function updateSortButtonIcon() {
+          const icon = sortDateBtn.querySelector("i");
+          if (icon) {
+            if (sortDescending) {
+              icon.className = "fas fa-sort-amount-down text-gray-600";
+              sortDateBtn.title = "按日期降序排列（最新在上）";
+            } else {
+              icon.className = "fas fa-sort-amount-up text-gray-600";
+              sortDateBtn.title = "按日期升序排列（最舊在上）";
+            }
+          }
+        }
+
         // 更新統計信息
         function updateStatistics(billsToShow) {
           const total = billsToShow.length;
@@ -1030,6 +1072,13 @@
             }
 
             return matchesSearch && matchesStatus && matchesDate;
+          });
+
+          // 按日期排序
+          filteredBills.sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return sortDescending ? dateB - dateA : dateA - dateB;
           });
 
           displayBills(filteredBills);

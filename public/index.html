@@ -619,6 +619,7 @@
       // 導航欄滾動效果
       window.addEventListener("scroll", function () {
         const navbar = document.getElementById("navbar");
+        if (!navbar) return; // 如果元素不存在，直接返回
         if (window.scrollY > 50) {
           navbar.classList.add("shadow-md");
           navbar.classList.remove("shadow-sm");
@@ -630,6 +631,7 @@
       // 頁面加載時檢查滾動位置
       window.addEventListener("load", function () {
         const navbar = document.getElementById("navbar");
+        if (!navbar) return; // 如果元素不存在，直接返回
         if (window.scrollY > 50) {
           navbar.classList.add("shadow-md");
           navbar.classList.remove("shadow-sm");
