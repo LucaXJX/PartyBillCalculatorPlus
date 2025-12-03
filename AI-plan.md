@@ -4,6 +4,52 @@
 
 ---
 
+## 核心需求 TodoList
+
+> **說明**：本 TodoList 總結了 PBC AI 功能的核心需求與實施進度。已完成的項目標記為 `[x]`，待實現的項目標記為 `[ ]`。
+
+### Phase 1：核心 AI 功能（短期）✅ 已完成 2/2
+
+- [x] **1. 賬單 OCR + NLP 自動填寫** ✅
+
+  - [x] PaddleOCR 微服務集成
+  - [x] Mistral AI LLM 結構化解析
+  - [x] 前端自動填表功能
+  - [x] API 使用量追蹤與每日限制（10 次/天）
+  - [x] 錯誤處理與降級方案
+  - [ ] ⏳ 獎勵機制（上傳食物圖片獲得額外識別機會）
+
+- [x] **2. 食物圖片識別** ✅
+  - [x] 百度菜品識別 API 集成
+  - [x] 圖片壓縮與存儲
+  - [x] 異步識別調度機制
+  - [x] 前端上傳與結果展示
+  - [x] API 使用量追蹤（1000 次免費限制）
+  - [x] 健康檢查與批量修復機制
+  - [ ] ⏳ 獎勵機制集成（識別成功後增加 OCR 次數）
+
+### Phase 2：餐廳資料與偏好（中期）⏳ 待開始
+
+- [ ] **3. 餐廳資料自動抓取**
+
+  - [ ] 建立餐廳 schema + seed 資料
+  - [ ] Playwright/Puppeteer 爬蟲實現
+  - [ ] 資料清洗與存儲
+
+- [ ] **4. 「心動模式」：Tinder 式滑卡餐廳 UI**
+  - [ ] 前端滑卡 UI 實現
+  - [ ] 後端 API（獲取餐廳、記錄偏好）
+  - [ ] 用戶偏好資料表設計
+
+### Phase 3：推薦系統（中長期）⏳ 待開始
+
+- [ ] **5. 餐廳推薦演算法**
+  - [ ] 規則加權排序實現
+  - [ ] 用戶偏好分析
+  - [ ] ML 推薦模型（可選）
+
+---
+
 ## ✅ 1. 賬單 OCR + NLP 自動填寫（已完成）
 
 ### 1.1 功能構想
@@ -100,23 +146,23 @@
 
 ---
 
-## 2. 食物圖片識別（TensorFlow / 影像分類）
+## ✅ 2. 食物圖片識別（已完成）
 
 ### 2.1 功能構想
 
 - 用戶上傳餐照，系統識別食物類型（例：牛排、壽司、甜品...）
   - 可作「本次聚會吃了什麼」紀錄，也可反饋餐廳推薦
-  - **用於獎勵機制**：用戶上傳真實食物圖片可獲得額外 OCR 識別機會（+1 次/張，每天最多 5 次）
+  - **用於獎勵機制**（待實現）：用戶上傳真實食物圖片可獲得額外 OCR 識別機會（+1 次/張，每天最多 5 次）
 
 ### 2.2 推薦工具 / Library
 
 - **✅ 調研完成**：詳見 `docs/FOOD_IMAGE_RECOGNITION_RESEARCH.md`
-- **推薦方案：百度菜品識別 API** ⭐⭐⭐⭐⭐
+- **✅ 已採用：百度菜品識別 API** ⭐⭐⭐⭐⭐
   - 總共有 1000 次免費調用
   - 無需信用卡，只需實名認證
   - 識別超過 5 萬種菜品，支持中文
   - 返回菜品名稱、卡路里、成分等詳細信息
-- **備選方案**：
+- **備選方案**（未採用）：
   - Google Cloud Vision API（每月 1000 次免費，需信用卡）
   - Azure Computer Vision（每月 5000 次免費，需信用卡）
   - Hugging Face Inference API（完全免費，有限額度）
@@ -130,28 +176,69 @@
 
 ### 2.4 實施計劃
 
-1. **階段 1：API 註冊與測試**
+1. **✅ 階段 1：API 註冊與測試**（已完成）
 
-   - 註冊百度智能雲賬號
-   - 申請菜品識別 API
-   - 實現測試接口驗證效果
+   - ✅ 註冊百度智能雲賬號
+   - ✅ 申請菜品識別 API
+   - ✅ 實現測試接口驗證效果
 
-2. **階段 2：後端集成**
+2. **✅ 階段 2：後端集成**（已完成）
 
-   - 創建 `server/foodRecognition/` 目錄
-   - 實現 `baiduFoodClient.ts`（或選擇的 API 客戶端）
-   - 添加 API 端點 `/api/food/recognize`
-   - 實現獎勵機制邏輯（驗證真實食物、記錄獎勵次數）
+   - ✅ 創建 `server/foodRecognition/` 目錄
+   - ✅ 實現 `baiduClient.ts`（百度 API 客戶端）
+   - ✅ 實現 `imageProcessor.ts`（圖片壓縮處理，使用 Sharp）
+   - ✅ 實現 `foodImageManager.ts`（圖片存儲和管理）
+   - ✅ 實現 `recognitionScheduler.ts`（異步識別調度器，10 秒延遲）
+   - ✅ 實現 `usageTracker.ts`（API 使用量追蹤）
+   - ✅ 實現 `healthCheck.ts`（未識別圖片自檢機制）
+   - ✅ 添加 API 端點：
+     - `POST /api/food/upload`：上傳食物圖片（最多 2 張/訂單）
+     - `GET /api/food/images/:billId`：獲取訂單的食物圖片列表
+     - `POST /api/food/recognize/:billId`：手動觸發識別
+     - `GET /api/food/health`：健康檢查（未識別圖片統計）
+     - `POST /api/food/fix-unrecognized`：批量修復未識別圖片
+     - `GET /api/food/usage`：API 使用量統計
+     - `GET /food_images/:filename`：提供圖片服務
 
-3. **階段 3：資料庫更新**
+3. **✅ 階段 3：資料庫更新**（已完成）
 
-   - 新增 `food_image_rewards` 表
-   - 記錄用戶上傳的食物圖片和獎勵次數
+   - ✅ 新增 `food_images` 表（記錄圖片信息、識別狀態、識別結果）
+   - ✅ 新增 `food_api_usage` 表（記錄百度 API 使用量）
+   - ✅ 更新 `erd.txt` 和 `proxy.ts` 類型定義
 
-4. **階段 4：前端集成**
-   - 在 `calculator.html` 添加食物圖片上傳功能
-   - 顯示識別結果和獎勵信息
-   - 更新使用量顯示（包含獎勵次數）
+4. **✅ 階段 4：前端集成**（已完成）
+   - ✅ 在 `calculator.html` 添加食物圖片上傳功能
+   - ✅ 支持上傳前保存訂單（臨時存儲，保存訂單後關聯）
+   - ✅ 顯示圖片預覽和識別狀態
+   - ✅ 實現自動輪詢機制（每 5 秒刷新識別結果，最多 2 分鐘）
+   - ✅ 顯示識別結果（菜品名稱、置信度、卡路里等）
+   - ⏳ 獎勵機制顯示（待實現）
+
+### 2.5 技術實現細節
+
+- **圖片處理**：
+
+  - 使用 `sharp` 庫進行圖片壓縮（最大 1920x1920，質量 85%）
+  - 壓縮後存儲，原始圖片自動刪除
+  - 支持常見圖片格式（JPG、PNG 等）
+
+- **識別流程**：
+
+  1. 用戶上傳圖片 → 壓縮存儲 → 保存到數據庫（狀態：未識別）
+  2. 訂單保存後，調度識別任務（10 秒延遲，測試用）
+  3. 調用百度 API 進行識別 → 更新數據庫（狀態：已識別/識別失敗）
+  4. 前端自動輪詢更新識別結果
+
+- **使用量追蹤**：
+
+  - 嚴格記錄每次 API 調用（成功/失敗）
+  - 追蹤到 `food_api_usage` 表
+  - 提供使用量統計接口
+
+- **錯誤處理**：
+  - 識別失敗時記錄錯誤信息
+  - 提供健康檢查和批量修復機制
+  - 前端顯示識別狀態和錯誤信息
 
 ---
 
@@ -233,8 +320,13 @@
 2. ✅ **PaddleOCR OCR 服務（Python microservice）建立＋已整合 Node.js 後端＋ Mistral LLM 串接**
    - 完整技術棧包括：`ocr-service/` 微服務（Py, FastAPI），`server/llm` 相關（`mistral.ts` 主 LLM 客戶端，`rateLimit.ts`, `usageTracker.ts`, `billParser.ts`...）
    - 自動填表、前端（calculator.html）集成、錯誤/降級方案完善
+3. ✅ **食物圖片識別（百度 API）集成**
+   - 完整技術棧包括：`server/foodRecognition/` 模塊（`baiduClient.ts`, `imageProcessor.ts`, `foodImageManager.ts`, `recognitionScheduler.ts`, `usageTracker.ts`, `healthCheck.ts`）
+   - 圖片壓縮（Sharp）、異步識別調度、前端輪詢更新結果
 
 **技術架構摘要：**
+
+**賬單 OCR 識別流程：**
 
 ```
 前端 (calculator.html)
@@ -247,6 +339,23 @@ Node.js (billParser.ts)：
   mistral.ts 串 LLM
   回傳結構化 JSON
 前端自動填表
+```
+
+**食物圖片識別流程：**
+
+```
+前端 (calculator.html)
+  ↓ POST /api/food/upload (最多 2 張/訂單)
+Node.js (server.ts)：
+  imageProcessor.ts 壓縮圖片
+  foodImageManager.ts 存儲到 data/food_images/
+  recognitionScheduler.ts 調度識別任務（10 秒延遲）
+  ↓ 異步調用
+baiduClient.ts → 百度菜品識別 API
+  ↓ 識別結果
+foodImageManager.ts 更新數據庫
+前端輪詢 GET /api/food/images/:billId（每 5 秒，最多 2 分鐘）
+  顯示識別結果（菜品名稱、置信度、卡路里等）
 ```
 
 ### 安裝與開發步驟（摘要）
@@ -272,7 +381,12 @@ Node.js (billParser.ts)：
 
    ```bash
    npm install
-   # 複製 env.example 為 .env，設置 MISTRAL_AI_API_KEY、OCR_SERVICE_URL
+   # 複製 env.example 為 .env，設置以下環境變數：
+   # - MISTRAL_AI_API_KEY：Mistral AI API 密鑰
+   # - OCR_SERVICE_URL：OCR 服務地址（默認 http://localhost:8000）
+   # - BAIDU_API_KEY：百度智能雲 API Key（食物圖片識別）
+   # - BAIDU_SECRET_KEY：百度智能雲 Secret Key
+   # - BAIDU_DISH_RECOGNITION_URL：百度菜品識別 API 地址
    npm run db:migrate
    npm run dev
    ```
@@ -283,30 +397,35 @@ Node.js (billParser.ts)：
    - 使用 `npm run ocr:test`、`npm run llm:test v1/v2/v3` 測試健康
 
 4. **使用方法**
-   - http://localhost:3000/calculator.html → 上傳賬單圖片 → AI 識別自動填單
+   - **賬單 OCR 識別**：http://localhost:3000/calculator.html → 上傳賬單圖片 → AI 識別自動填單
+   - **食物圖片識別**：在計算頁面上傳食物圖片（最多 2 張/訂單）→ 保存訂單後自動識別（10 秒延遲）→ 查看識別結果
 
 ---
 
-### 中期（Phase 2）：餐廳資料收集與個人偏好
+### ✅ 中期（Phase 2）：餐廳資料收集與個人偏好（部分完成）
 
-1. 建立餐廳 schema + seed 資料（手動/開放 dataset）
-2. Playwright/Puppeteer 爬蟲，將少量資料寫入 SQLite
-3. 開發心動模式頁面（滑卡 UI, backend API, 偏好儲存）
+1. ⏳ 建立餐廳 schema + seed 資料（手動/開放 dataset）
+2. ⏳ Playwright/Puppeteer 爬蟲，將少量資料寫入 SQLite
+3. ⏳ 開發心動模式頁面（滑卡 UI, backend API, 偏好儲存）
+4. ✅ **食物圖片識別**（已完成，提前完成）
 
 ### 中長期（Phase 3）：推薦系統和影像辨識
 
-1. 加權規則推薦 → 漸進引入推薦 ML
-2. 食物圖片分類（先雲端，後自訓，有餘力再學術探索）
+1. ⏳ 加權規則推薦 → 漸進引入推薦 ML
+2. ✅ **食物圖片分類**（已完成，使用百度 API）
 
 ---
 
 ## 總結
 
 - ✅ **最核心優先建議**：賬單 OCR + LLM，最大化現有體驗，已高效落地
+- ✅ **食物圖片識別**：使用百度 API，已完成集成，支持菜品識別和結果展示
 - PaddleOCR（中文識別佳），Mistral AI（免費/中文支持）實戰驗證
+- 百度菜品識別 API（1000 次免費調用）實戰驗證
 - 若要進一步提升：餐廳資料庫、推薦算法、心動滑卡三件套核心建議
 - 架構選擇以「後端解耦、開源優先、壓力最小本機」原則
 - 技術精要：排隊控速（rateLimit.ts）、JSON 驗證（cast.ts）、錯誤/重試、自動降級、API 使用量記錄
+- 圖片處理：使用 Sharp 進行壓縮，異步調度識別任務，前端輪詢更新結果
 - 其餘 AI 功能初期建議用雲端/預訓練為主，資源充裕再考慮自訓
 - 路徑規劃彈性，依實際開發體感動態調整
 
@@ -610,9 +729,16 @@ export async function down(knex: Knex) {
 ### 環境變數（.env）
 
 ```env
+# OCR 服務
 OCR_SERVICE_URL=http://localhost:8000
-LE_CHAT_API_KEY=your_api_key_here
-LE_CHAT_API_URL=https://api.lechat.ai/v1
+
+# Mistral AI（賬單解析 LLM）
+MISTRAL_AI_API_KEY=your_mistral_api_key_here
+
+# 百度智能雲（食物圖片識別）
+BAIDU_API_KEY=your_baidu_api_key_here
+BAIDU_SECRET_KEY=your_baidu_secret_key_here
+BAIDU_DISH_RECOGNITION_URL=https://aip.baidubce.com/rest/2.0/image-classify/v2/dish
 ```
 
 ### 依賴安裝
