@@ -52,6 +52,8 @@ food-recognition-service/test_models/
 food-recognition-service/test_models_tfjs/
 food-recognition-service/models/
 food-recognition-service/models_tfjs/
+food-recognition-service/__pycache__/
+food-recognition-service/train/__pycache__/
 
 docs/ignore/*
 db.sqlite3
@@ -66,3 +68,4 @@ saved_models/classifier_model
 
 # 臨時測試文件
 tests/
+models/
