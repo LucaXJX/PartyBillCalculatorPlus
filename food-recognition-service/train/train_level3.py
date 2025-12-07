@@ -60,11 +60,11 @@ def load_data(data_dir):
     train_datagen = keras.preprocessing.image.ImageDataGenerator(
         rescale=1./255,
         rotation_range=30,
-        width_shift_range=0.3,
-        height_shift_range=0.3,
+        width_shift_range=0.2,
+        height_shift_range=0.2,
         horizontal_flip=True,
         zoom_range=0.2,
-        brightness_range=[0.8, 1.2],
+        fill_mode='nearest',
         validation_split=0.2
     )
     
@@ -95,8 +95,12 @@ def train_level3(country='chinese'):
     """
     print(f"🚀 開始訓練第三層模型：{country} 細粒度分類")
     
-    data_dir = Path(f'../data/level3/{country}')
-    model_dir = Path(f'../models/level3/{country}')
+    # 獲取項目根目錄
+    script_dir = Path(__file__).resolve().parent  # train/
+    service_dir = script_dir.parent  # food-recognition-service/
+    project_root = service_dir.parent  # PartyBillCalculator/
+    data_dir = project_root / 'data' / 'level3-fine-grained' / country
+    model_dir = project_root / 'models' / 'level3' / country
     model_dir.mkdir(parents=True, exist_ok=True)
     
     if not data_dir.exists():
@@ -130,32 +134,53 @@ def train_level3(country='chinese'):
         ),
         callbacks.EarlyStopping(
             monitor='val_accuracy',
-            patience=5,
+            patience=5,  # 增加 patience 到 5，給模型更多時間收斂
             restore_best_weights=True,
-            verbose=1
+            verbose=1,
+            min_delta=0.0005  # 降低最小改善阈值，允許更小的改善
         ),
         callbacks.ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.5,
-            patience=3,
-            verbose=1
+            patience=3,  # 增加 patience 到 3，避免過早降低學習率
+            verbose=1,
+            min_delta=0.0005  # 降低最小改善阈值
         )
     ]
     
-    print("🎯 開始訓練...")
+    print("[INFO] 開始訓練...")
+    print("[INFO] 使用早停機制：如果驗證準確率5個epoch沒有提升，將自動停止訓練")
+    # CPU 訓練配置：使用多線程加速數據加載
     history = model.fit(
         train_gen,
-        epochs=50,
+        epochs=30,  # 增加到30個epoch，給模型更多訓練機會
         validation_data=val_gen,
         callbacks=callbacks_list,
+        workers=4,  # CPU 多線程數據加載
+        use_multiprocessing=False,  # Windows 上建議設為 False
         verbose=1
     )
     
-    print("💾 保存模型...")
+    print("[INFO] 保存模型...")
     model.save(str(model_dir / 'final_model'))
     
+    # 保存訓練歷史（轉換 numpy 類型為 Python 原生類型）
+    import numpy as np
+    def convert_to_serializable(obj):
+        """將 numpy 類型轉換為 Python 原生類型"""
+        if isinstance(obj, (np.integer, np.floating)):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: convert_to_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_to_serializable(item) for item in obj]
+        return obj
+    
+    serializable_history = convert_to_serializable(history.history)
     with open(model_dir / 'training_history.json', 'w') as f:
-        json.dump(history.history, f, indent=2)
+        json.dump(serializable_history, f, indent=2)
     
     print("✅ 訓練完成！")
     print(f"模型保存在: {model_dir / 'final_model'}")
