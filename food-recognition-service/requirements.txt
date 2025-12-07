@@ -1,5 +1,14 @@
-tensorflow==2.15.0
-tensorflowjs==4.15.0
+# TensorFlow GPU support (requires CUDA Toolkit and cuDNN)
+# If CUDA is not installed, will automatically use CPU version
+tensorflow==2.13.0
+# Note: To use GPU, you need:
+# 1. Install CUDA Toolkit 12.1: https://developer.nvidia.com/cuda-12-1-0-download-archive
+# 2. Install cuDNN 8.9: https://developer.nvidia.com/cudnn
+# 3. Set environment variable CUDA_PATH
+# tensorflowjs==4.13.0
+# Note: tensorflowjs requires tensorflow-decision-forests which we don't need
+# Install manually: pip install tensorflowjs==4.13.0 --no-deps
+# Then create fake_decision_forests.py to bypass import errors
 Pillow>=10.0.0
 opencv-python>=4.8.0
 numpy>=1.24.0,<2.0.0
