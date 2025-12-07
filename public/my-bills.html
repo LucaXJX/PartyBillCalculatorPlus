@@ -1215,7 +1215,7 @@
         }
 
         // 查看賬單詳情
-        function viewBillDetails(billId) {
+        async function viewBillDetails(billId) {
           const bill = bills.find((b) => b.id === billId);
           if (!bill) return;
 
@@ -1227,20 +1227,101 @@
             (r) => r.participantId === userParticipant?.id
           );
           const isPayer = bill.payerId === userParticipant?.id;
+          const isCreator = bill.createdBy === currentUser.id;
           const totalAmount = bill.items.reduce(
             (sum, item) => sum + item.amount,
             0
           );
 
+          // 加載食物圖片
+          let foodImagesHTML = "";
+          try {
+            const foodResponse = await authenticatedFetch(
+              `/api/food/images/${billId}`
+            );
+            if (foodResponse && foodResponse.ok) {
+              const foodData = await foodResponse.json();
+              const images = foodData.images || [];
+
+              if (images && images.length > 0) {
+                foodImagesHTML = `
+                  <div class="p-4 bg-green-50 border-l-4 border-green-500 rounded">
+                    <h4 class="font-bold mb-2 flex items-center">
+                      <i class="fa fa-utensils text-green-600 mr-2"></i>食物圖片
+                    </h4>
+                    <div class="grid grid-cols-2 gap-3 mt-3">
+                      ${images
+                        .map((img) => {
+                          // API 返回的 recognitionResult 已經是解析後的對象
+                          const result = img.recognitionResult || null;
+                          const dishName =
+                            result?.result?.[0]?.name || "識別中...";
+                          const calorie = result?.result?.[0]?.calorie || "";
+                          const statusText =
+                            img.recognitionStatus === 1
+                              ? "已識別"
+                              : img.recognitionStatus === 2
+                              ? "識別失敗"
+                              : "識別中";
+                          const statusClass =
+                            img.recognitionStatus === 1
+                              ? "text-green-600"
+                              : img.recognitionStatus === 2
+                              ? "text-red-600"
+                              : "text-yellow-600";
+
+                          // 從 storedPath 中提取文件名
+                          const filename = img.storedPath
+                            ? img.storedPath.split(/[/\\]/).pop()
+                            : img.filename;
+
+                          return `
+                          <div class="bg-white rounded-lg p-3 border border-gray-200">
+                            <img 
+                              src="/food_images/${filename}" 
+                              alt="${escapeHtml(img.filename || "食物圖片")}"
+                              class="w-full h-32 object-cover rounded mb-2 cursor-pointer"
+                              onclick="viewReceipt('/food_images/${filename}')"
+                            />
+                            <div class="text-xs">
+                              <div class="font-medium truncate">${escapeHtml(
+                                dishName
+                              )}</div>
+                              ${
+                                calorie
+                                  ? `<div class="text-gray-500">${calorie} 卡路里</div>`
+                                  : ""
+                              }
+                              <div class="${statusClass} mt-1">${statusText}</div>
+                            </div>
+                          </div>
+                        `;
+                        })
+                        .join("")}
+                    </div>
+                  </div>
+                `;
+              }
+            } else if (foodResponse && foodResponse.status === 404) {
+              // 404 是正常的，可能沒有食物圖片
+              console.log("該訂單沒有食物圖片");
+            } else {
+              console.warn("加載食物圖片失敗:", foodResponse?.status);
+            }
+          } catch (error) {
+            console.error("加載食物圖片時發生錯誤:", error);
+          }
+
           // 構建項目列表
           let itemsHTML = bill.items
             .map((item) => {
-              const participants = item.participantIds
-                ?.map((pid) => {
-                  const p = bill.participants.find((x) => x.id === pid);
-                  return escapeHtml(p?.name || "未知");
-                })
-                .join(", ") || "未知參與者";
+              const participants =
+                item.participantIds
+                  ?.map((pid) => {
+                    const p = bill.participants.find((x) => x.id === pid);
+                    return escapeHtml(p?.name || "未知");
+                  })
+                  .join(", ") || "未知參與者";
 
               return `
               <div class="flex justify-between items-start py-2 border-b">
@@ -1387,6 +1468,9 @@
                   : ""
               }
 
+              <!-- 食物圖片 -->
+              ${foodImagesHTML}
+
               <!-- 消費項目 -->
               <div>
                 <h4 class="font-bold mb-2 flex items-center">
@@ -1410,10 +1494,56 @@
                   ${participantsHTML}
                 </div>
               </div>
+
+              <!-- 操作按鈕 -->
+              ${
+                isCreator
+                  ? `
+              <div class="pt-4 border-t border-gray-200">
+                <button 
+                  onclick="deleteBill('${billId}')" 
+                  class="w-full px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm font-medium flex items-center justify-center gap-2">
+                  <i class="fa fa-trash"></i>
+                  <span>刪除訂單</span>
+                </button>
+              </div>
+              `
+                  : ""
+              }
             </div>
           `;
 
           showDetailsModal("賬單詳情", content);
+        }
+
+        // 刪除訂單
+        async function deleteBill(billId) {
+          if (!confirm("確定要刪除此訂單嗎？此操作無法撤銷。")) {
+            return;
+          }
+
+          try {
+            const response = await authenticatedFetch(`/api/bill/${billId}`, {
+              method: "DELETE",
+            });
+
+            if (response && response.ok) {
+              alert("訂單已刪除");
+              // 重新加載賬單列表
+              await loadBills();
+              // 關閉模態框
+              const modal = document.getElementById("detailsModal");
+              if (modal) {
+                modal.classList.add("hidden");
+              }
+            } else {
+              const errorData = await response.json();
+              alert(`刪除失敗：${errorData.error || "未知錯誤"}`);
+            }
+          } catch (error) {
+            console.error("刪除訂單失敗:", error);
+            alert("刪除訂單時發生錯誤");
+          }
         }
 
         // 查看應收款詳情（互動模態框）
@@ -1729,6 +1859,7 @@
         // 全局函數，供HTML調用
         window.openPaymentModal = openPaymentModal;
         window.viewBillDetails = viewBillDetails;
+        window.deleteBill = deleteBill;
         window.viewReceivables = viewReceivables;
         window.viewReceipt = viewReceipt;
         window.confirmPayment = confirmPayment;

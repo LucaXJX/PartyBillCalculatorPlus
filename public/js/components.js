@@ -664,7 +664,7 @@ class ComponentManager {
 // 創建全局實例
 window.componentManager = new ComponentManager();
 
-// 導出類（如果使用模組系統）
-if (typeof module !== "undefined" && module.exports) {
+// 導出類（如果使用模組系統，僅在 Node.js 環境中）
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
   module.exports = ComponentManager;
 }

@@ -1,37 +1,15 @@
-// server/messageManager.ts - 消息管理模組
+// server/messageManager.ts - 消息管理模組（已遷移到數據庫）
 
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { proxy } from "./proxy.js";
 import type { Message, MessageType } from "./types.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const DATA_DIR = path.join(__dirname, "../data");
-const MESSAGES_FILE = path.join(DATA_DIR, "messages.json");
-
 /**
- * 確保數據目錄和文件存在
- */
-const ensureMessagesFile = () => {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-  if (!fs.existsSync(MESSAGES_FILE)) {
-    fs.writeFileSync(MESSAGES_FILE, "[]", "utf8");
-  }
-};
-
-/**
- * 消息管理類
+ * 消息管理類（使用數據庫）
  */
 export class MessageManager {
   private static instance: MessageManager;
 
-  private constructor() {
-    ensureMessagesFile();
-  }
+  private constructor() {}
 
   static getInstance(): MessageManager {
     if (!MessageManager.instance) {
@@ -48,25 +26,69 @@ export class MessageManager {
   }
 
   /**
-   * 加載所有消息
+   * 將數據庫 Message 類型轉換為應用 Message 類型
    */
-  async loadMessages(): Promise<Message[]> {
-    ensureMessagesFile();
-    try {
-      const data = fs.readFileSync(MESSAGES_FILE, "utf8");
-      return JSON.parse(data);
-    } catch (error) {
-      console.error("Error loading messages:", error);
-      return [];
-    }
+  private dbToAppMessage(dbMsg: any): Message {
+    return {
+      id: dbMsg.id || "",
+      type: dbMsg.type as MessageType,
+      recipientId: dbMsg.recipient_id,
+      senderId: dbMsg.sender_id || undefined,
+      billId: dbMsg.bill_id || "",
+      billName: dbMsg.bill_name || "",
+      title: dbMsg.title || "",
+      content: dbMsg.content || "",
+      imageUrl: dbMsg.image_url || undefined,
+      metadata: dbMsg.metadata ? JSON.parse(dbMsg.metadata) : undefined,
+      isRead: dbMsg.is_read === 1,
+      createdAt: dbMsg.created_at || new Date().toISOString(),
+      readAt: dbMsg.read_at || undefined,
+      actionable: dbMsg.actionable === 1,
+      actionType: dbMsg.action_type || undefined,
+      actionCompleted: dbMsg.action_completed === 1,
+    };
   }
 
   /**
-   * 保存消息
+   * 將應用 Message 類型轉換為數據庫格式
    */
-  private async saveMessages(messages: Message[]): Promise<void> {
-    ensureMessagesFile();
-    fs.writeFileSync(MESSAGES_FILE, JSON.stringify(messages, null, 2), "utf8");
+  private appToDbMessage(msg: Partial<Message>): any {
+    const recipientId = msg.recipientId || "";
+    const billId = msg.billId || "";
+
+    // 驗證 recipient_id 是否存在於 user 表
+    if (recipientId && !proxy.user.find((u) => u.id === recipientId)) {
+      throw new Error(`Recipient user ${recipientId} does not exist`);
+    }
+
+    // 驗證 sender_id 是否存在（如果不為 null）
+    if (msg.senderId && !proxy.user.find((u) => u.id === msg.senderId)) {
+      throw new Error(`Sender user ${msg.senderId} does not exist`);
+    }
+
+    // 驗證 bill_id 是否存在（bill_id 是必填的外鍵）
+    if (!billId || !proxy.bill.find((b) => b.id === billId)) {
+      throw new Error(`Bill ${billId} does not exist or is empty`);
+    }
+
+    return {
+      id: msg.id || this.generateId(),
+      type: msg.type || "",
+      recipient_id: recipientId,
+      sender_id: msg.senderId || null,
+      bill_id: billId,
+      bill_name: msg.billName || "",
+      title: msg.title || "",
+      content: msg.content || "",
+      image_url: msg.imageUrl || null,
+      metadata: msg.metadata ? JSON.stringify(msg.metadata) : null,
+      is_read: msg.isRead ? 1 : 0,
+      created_at: msg.createdAt || new Date().toISOString(),
+      read_at: msg.readAt || null,
+      actionable: msg.actionable ? 1 : 0,
+      action_type: msg.actionType || null,
+      action_completed: msg.actionCompleted ? 1 : 0,
+    };
   }
 
   /**
@@ -75,19 +97,15 @@ export class MessageManager {
   async createMessage(
     messageData: Omit<Message, "id" | "createdAt" | "isRead">
   ): Promise<Message> {
-    const messages = await this.loadMessages();
-
-    const newMessage: Message = {
-      id: this.generateId(),
+    const dbMessage = this.appToDbMessage({
+      ...messageData,
       isRead: false,
       createdAt: new Date().toISOString(),
-      ...messageData,
-    };
+    });
 
-    messages.unshift(newMessage); // 新消息放在最前面
-    await this.saveMessages(messages);
+    proxy.message.push(dbMessage);
 
-    return newMessage;
+    return this.dbToAppMessage(dbMessage);
   }
 
   /**
@@ -114,16 +132,20 @@ export class MessageManager {
    * 獲取用戶的所有消息
    */
   async getUserMessages(userId: string): Promise<Message[]> {
-    const messages = await this.loadMessages();
-    return messages.filter((msg) => msg.recipientId === userId);
+    const dbMessages = proxy.message.filter(
+      (msg) => msg.recipient_id === userId
+    );
+    return dbMessages.map((msg) => this.dbToAppMessage(msg));
   }
 
   /**
    * 獲取用戶的未讀消息
    */
   async getUnreadMessages(userId: string): Promise<Message[]> {
-    const messages = await this.getUserMessages(userId);
-    return messages.filter((msg) => !msg.isRead);
+    const dbMessages = proxy.message.filter(
+      (msg) => msg.recipient_id === userId && msg.is_read === 0
+    );
+    return dbMessages.map((msg) => this.dbToAppMessage(msg));
   }
 
   /**
@@ -138,17 +160,15 @@ export class MessageManager {
    * 標記消息為已讀
    */
   async markAsRead(messageId: string): Promise<boolean> {
-    const messages = await this.loadMessages();
-    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+    const message = proxy.message.find((msg) => msg.id === messageId);
 
-    if (messageIndex === -1) {
+    if (!message) {
       return false;
     }
 
-    messages[messageIndex].isRead = true;
-    messages[messageIndex].readAt = new Date().toISOString();
+    message.is_read = 1;
+    message.read_at = new Date().toISOString();
 
-    await this.saveMessages(messages);
     return true;
   }
 
@@ -156,21 +176,16 @@ export class MessageManager {
    * 批量標記消息為已讀
    */
   async markMultipleAsRead(messageIds: string[]): Promise<number> {
-    const messages = await this.loadMessages();
     let updatedCount = 0;
 
     messageIds.forEach((id) => {
-      const messageIndex = messages.findIndex((msg) => msg.id === id);
-      if (messageIndex !== -1 && !messages[messageIndex].isRead) {
-        messages[messageIndex].isRead = true;
-        messages[messageIndex].readAt = new Date().toISOString();
+      const message = proxy.message.find((msg) => msg.id === id);
+      if (message && message.is_read === 0) {
+        message.is_read = 1;
+        message.read_at = new Date().toISOString();
         updatedCount++;
       }
     });
-
-    if (updatedCount > 0) {
-      await this.saveMessages(messages);
-    }
 
     return updatedCount;
   }
@@ -179,20 +194,15 @@ export class MessageManager {
    * 標記所有消息為已讀
    */
   async markAllAsRead(userId: string): Promise<number> {
-    const messages = await this.loadMessages();
     let updatedCount = 0;
 
-    messages.forEach((msg) => {
-      if (msg.recipientId === userId && !msg.isRead) {
-        msg.isRead = true;
-        msg.readAt = new Date().toISOString();
+    proxy.message.forEach((msg) => {
+      if (msg.recipient_id === userId && msg.is_read === 0) {
+        msg.is_read = 1;
+        msg.read_at = new Date().toISOString();
         updatedCount++;
       }
     });
-
-    if (updatedCount > 0) {
-      await this.saveMessages(messages);
-    }
 
     return updatedCount;
   }
@@ -201,31 +211,27 @@ export class MessageManager {
    * 刪除消息
    */
   async deleteMessage(messageId: string): Promise<boolean> {
-    const messages = await this.loadMessages();
-    const initialLength = messages.length;
-    const filteredMessages = messages.filter((msg) => msg.id !== messageId);
+    const messageIndex = proxy.message.findIndex((msg) => msg.id === messageId);
 
-    if (filteredMessages.length < initialLength) {
-      await this.saveMessages(filteredMessages);
-      return true;
+    if (messageIndex === -1) {
+      return false;
     }
 
-    return false;
+    proxy.message.splice(messageIndex, 1);
+    return true;
   }
 
   /**
    * 標記操作已完成
    */
   async markActionCompleted(messageId: string): Promise<boolean> {
-    const messages = await this.loadMessages();
-    const messageIndex = messages.findIndex((msg) => msg.id === messageId);
+    const message = proxy.message.find((msg) => msg.id === messageId);
 
-    if (messageIndex === -1) {
+    if (!message) {
       return false;
     }
 
-    messages[messageIndex].actionCompleted = true;
-    await this.saveMessages(messages);
+    message.action_completed = 1;
     return true;
   }
 
@@ -233,10 +239,13 @@ export class MessageManager {
    * 獲取特定賬單的消息
    */
   async getBillMessages(billId: string, userId?: string): Promise<Message[]> {
-    const messages = await this.loadMessages();
-    return messages.filter(
-      (msg) => msg.billId === billId && (!userId || msg.recipientId === userId)
-    );
+    let dbMessages = proxy.message.filter((msg) => msg.bill_id === billId);
+
+    if (userId) {
+      dbMessages = dbMessages.filter((msg) => msg.recipient_id === userId);
+    }
+
+    return dbMessages.map((msg) => this.dbToAppMessage(msg));
   }
 }
 

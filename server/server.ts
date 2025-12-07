@@ -26,9 +26,55 @@ import {
   getFoodImagesByBillId,
   checkImageLimit,
 } from "./foodRecognition/foodImageManager.js";
-import { scheduleRecognition, recognizeBillImagesNow } from "./foodRecognition/recognitionScheduler.js";
-import { performHealthCheck, fixUnrecognizedImages } from "./foodRecognition/healthCheck.js";
+import {
+  scheduleRecognition,
+  recognizeBillImagesNow,
+} from "./foodRecognition/recognitionScheduler.js";
+import {
+  performHealthCheck,
+  fixUnrecognizedImages,
+} from "./foodRecognition/healthCheck.js";
 import { checkUsageLimit } from "./foodRecognition/usageTracker.js";
+import { proxy } from "./proxy.js";
+// 延遲加載 TensorFlow.js 相關模塊（避免構建失敗時服務器無法啟動）
+let ModelLoader: any;
+let ImagePreprocessor: any;
+let RecognitionPipeline: any;
+let modelLoader: any;
+let imagePreprocessor: any;
+let recognitionPipeline: any;
+let tensorflowAvailable = false;
+
+// 嘗試加載 TensorFlow.js 模塊
+async function loadTensorFlowModules() {
+  try {
+    const modules = await import("./food-recognition/models/index.js");
+    ModelLoader = modules.ModelLoader;
+    ImagePreprocessor = modules.ImagePreprocessor;
+    RecognitionPipeline = modules.RecognitionPipeline;
+
+    // 初始化 TensorFlow.js 食物識別系統
+    modelLoader = new ModelLoader(path.join(__dirname, "../models"));
+    imagePreprocessor = new ImagePreprocessor();
+    recognitionPipeline = new RecognitionPipeline(
+      modelLoader,
+      imagePreprocessor
+    );
+
+    tensorflowAvailable = true;
+    console.log("✅ TensorFlow.js 模塊加載成功");
+    return true;
+  } catch (error) {
+    console.warn("⚠️  TensorFlow.js 模塊加載失敗（這是正常的，如果尚未構建）:");
+    console.warn("   錯誤:", error instanceof Error ? error.message : String(error));
+    console.warn("   服務器將正常啟動，但食物識別功能將不可用");
+    console.warn("   要啟用食物識別，請先構建 TensorFlow.js:");
+    console.warn("   - 安裝 Visual Studio Build Tools");
+    console.warn("   - 運行: pnpm rebuild @tensorflow/tfjs-node");
+    tensorflowAvailable = false;
+    return false;
+  }
+}
 
 // 解決 ES6 模塊中的 __dirname 問題
 // const __filename = fileURLToPath(import.meta.url);
@@ -39,6 +85,47 @@ const PORT = process.env.PORT || 3000;
 
 // 初始化計算器 (這將在服務器內存中維護狀態)
 const calculator = new BillCalculator();
+
+// 異步初始化模型（可選，如果模型文件存在則加載）
+async function initializeFoodRecognitionModels() {
+  if (!tensorflowAvailable) {
+    console.log("⏭️  跳過模型初始化（TensorFlow.js 不可用）");
+    return;
+  }
+
+  try {
+    const modelsBasePath = path.join(__dirname, "../models");
+    
+    // 檢查模型文件是否存在，如果存在則加載
+    const level1Path = path.join(modelsBasePath, "level1", "model.json");
+    const level2Path = path.join(modelsBasePath, "level2", "model.json");
+    
+    if (fs.existsSync(level1Path)) {
+      await modelLoader.loadLevel1Model();
+    } else {
+      console.log("ℹ️  第一層模型未找到，跳過加載");
+    }
+    
+    if (fs.existsSync(level2Path)) {
+      await modelLoader.loadLevel2Model();
+    } else {
+      console.log("ℹ️  第二層模型未找到，跳過加載");
+    }
+    
+    // 嘗試加載常見國家的第三層模型
+    const countries = ["chinese", "japanese", "korean"];
+    for (const country of countries) {
+      const countryPath = path.join(modelsBasePath, "level3", country, "model.json");
+      if (fs.existsSync(countryPath)) {
+        await modelLoader.loadCountryModel(country);
+      }
+    }
+    
+    console.log("✅ 食物識別模型初始化完成");
+  } catch (error) {
+    console.warn("⚠️  食物識別模型初始化失敗（模型文件可能不存在）:", error);
+  }
+}
 
 // 配置multer用於文件上傳（存儲在私有目錄）
 const storage = multer.diskStorage({
@@ -252,12 +339,10 @@ app.put("/api/user/username", authenticateUser, async (req: any, res) => {
 
     const user: User = { ...req.user, username };
     await dataStorage.saveUser(user);
-    return res
-      .status(200)
-      .json({
-        message: "用戶名已更新",
-        user: { id: user.id, username: user.username, email: user.email },
-      });
+    return res.status(200).json({
+      message: "用戶名已更新",
+      user: { id: user.id, username: user.username, email: user.email },
+    });
   } catch (error) {
     console.error("Update username error:", error);
     return res.status(500).json({ message: "更新失敗" });
@@ -285,12 +370,10 @@ app.put("/api/user/email", authenticateUser, async (req: any, res) => {
 
     const user: User = { ...req.user, email };
     await dataStorage.saveUser(user);
-    return res
-      .status(200)
-      .json({
-        message: "郵箱已更新",
-        user: { id: user.id, username: user.username, email: user.email },
-      });
+    return res.status(200).json({
+      message: "郵箱已更新",
+      user: { id: user.id, username: user.username, email: user.email },
+    });
   } catch (error) {
     console.error("Update email error:", error);
     return res.status(500).json({ message: "郵箱更新失敗" });
@@ -506,11 +589,13 @@ function postProcessTip(bill: ParsedBill): ParsedBill {
 
   // 判斷是否是「好看」的百分比（接近整數或常見值，包括負數）
   const nicePercents = [-20, -15, -12.5, -10, -8, -5, 5, 8, 10, 12.5, 15, 20];
-  const nearestNice = nicePercents.reduce((best, p) =>
-    Math.abs(p - percentFromAmount) < Math.abs(best - percentFromAmount)
-      ? p
-      : best
-  , nicePercents[0]);
+  const nearestNice = nicePercents.reduce(
+    (best, p) =>
+      Math.abs(p - percentFromAmount) < Math.abs(best - percentFromAmount)
+        ? p
+        : best,
+    nicePercents[0]
+  );
   const diffNice = Math.abs(nearestNice - percentFromAmount);
 
   // 若已知是金額，且反推百分比接近一個「好看」的整數（如 5%, 10% 等，包括負數）
@@ -582,7 +667,7 @@ app.get("/api/bill/ocr-usage", authenticateUser, async (req: any, res) => {
     const userId = req.user.id;
     const { checkDailyLimit } = await import("./llm/usageTracker.js");
     const limitCheck = await checkDailyLimit(userId, 10);
-    
+
     res.status(200).json({
       used: limitCheck.used,
       remaining: limitCheck.remaining,
@@ -615,7 +700,7 @@ app.post(
       // 0. 檢查每日使用量限制（僅在成功識別時計數）
       const { checkDailyLimit } = await import("./llm/usageTracker.js");
       const limitCheck = await checkDailyLimit(userId, 10);
-      
+
       // 如果已經超過限制，直接返回錯誤（但允許查看使用量信息）
       if (!limitCheck.allowed) {
         return res.status(429).json({
@@ -685,7 +770,7 @@ app.post(
 
       // 5. 檢查是否超過限制（成功識別後，重新獲取最新使用量）
       const finalLimitCheck = await checkDailyLimit(userId, 10);
-      
+
       // 6. 返回解析結果（包含使用量信息）
       // 注意：即使超過限制，也允許本次識別（因為已經成功），但會提示用戶
       res.status(200).json({
@@ -920,6 +1005,54 @@ app.get("/api/messages", authenticateUser, async (req: any, res) => {
   }
 });
 
+// 創建測試消息（僅用於開發測試）
+app.post("/api/messages", authenticateUser, async (req: any, res) => {
+  try {
+    const { type, content, billId, relatedUserId } = req.body;
+
+    // 如果沒有提供 billId，使用用戶的第一個賬單，或者創建一個測試賬單
+    let targetBillId = billId;
+    if (!targetBillId || targetBillId === "") {
+      // 查找用戶的第一個賬單
+      const userBills = proxy.bill.filter((b) => b.created_by === req.user.id);
+      if (userBills.length > 0) {
+        targetBillId = userBills[0].id || "";
+      } else {
+        // 如果用戶沒有賬單，返回錯誤
+        return res.status(400).json({
+          error: "無法創建測試消息：請先創建至少一個賬單",
+        });
+      }
+    }
+
+    // 驗證 billId 是否存在
+    const bill = proxy.bill.find((b) => b.id === targetBillId);
+    if (!bill) {
+      return res.status(404).json({ error: "指定的賬單不存在" });
+    }
+
+    // 創建測試消息
+    const message = await messageManager.createMessage({
+      type: type || "new_bill",
+      senderId: req.user.id,
+      recipientId: req.user.id, // 發送給自己
+      billId: targetBillId,
+      billName: bill.name || "測試賬單",
+      title: "測試消息",
+      content: content || "這是一條測試消息",
+      actionable: false,
+    });
+
+    res.status(201).json({ message });
+  } catch (error) {
+    console.error("Create test message error:", error);
+    res.status(500).json({
+      error: "創建測試消息失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
 // 獲取未讀消息數量
 app.get(
   "/api/messages/unread-count",
@@ -1135,6 +1268,376 @@ app.delete("/api/bill/:id", authenticateUser, async (req: any, res) => {
   }
 });
 
+// === 食物圖片相關 API ===
+
+// 獲取訂單的食物圖片列表
+app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
+  try {
+    const { billId } = req.params;
+    const images = await getFoodImagesByBillId(billId);
+
+    res.status(200).json({
+      images: images.map((img) => {
+        // 處理 recognitionResult：如果已經是對象則直接使用，如果是字符串則解析
+        let recognitionResult = null;
+        if (img.recognitionResult) {
+          try {
+            recognitionResult =
+              typeof img.recognitionResult === "string"
+                ? JSON.parse(img.recognitionResult)
+                : img.recognitionResult;
+          } catch (e) {
+            console.warn("解析 recognitionResult 失敗:", e);
+            recognitionResult = null;
+          }
+        }
+
+        return {
+          id: img.id,
+          filename: img.originalFilename,
+          storedPath: img.storedPath,
+          fileSize: img.fileSize,
+          width: img.width,
+          height: img.height,
+          recognitionStatus: img.recognitionStatus,
+          recognitionResult: recognitionResult,
+          recognitionError: img.recognitionError,
+          recognitionAt: img.recognitionAt,
+          createdAt: img.createdAt,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error("獲取食物圖片列表失敗:", error);
+    res.status(500).json({ error: "獲取食物圖片列表失敗" });
+  }
+});
+
+// 手動觸發識別
+app.post(
+  "/api/food/recognize/:billId",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { billId } = req.params;
+
+      // 檢查 API 使用限制
+      const usageCheck = await checkUsageLimit(1000);
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+          usage: usageCheck,
+        });
+      }
+
+      await recognizeBillImagesNow(billId);
+
+      res.status(200).json({
+        message: "識別任務已觸發",
+        usage: usageCheck,
+      });
+    } catch (error) {
+      console.error("觸發識別失敗:", error);
+      res.status(500).json({
+        error: "觸發識別失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 健康檢查（自檢機制）
+app.get("/api/food/health", authenticateUser, async (req: any, res) => {
+  try {
+    const health = await performHealthCheck();
+    res.status(200).json(health);
+  } catch (error) {
+    console.error("健康檢查失敗:", error);
+    res.status(500).json({ error: "健康檢查失敗" });
+  }
+});
+
+// 修復未識別的圖片
+app.post(
+  "/api/food/fix-unrecognized",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      // 檢查 API 使用限制
+      const usageCheck = await checkUsageLimit(1000);
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+          usage: usageCheck,
+        });
+      }
+
+      const result = await fixUnrecognizedImages();
+      res.status(200).json({
+        message: "修復任務已觸發",
+        result,
+        usage: usageCheck,
+      });
+    } catch (error) {
+      console.error("修復失敗:", error);
+      res.status(500).json({ error: "修復失敗" });
+    }
+  }
+);
+
+// 獲取 API 使用量統計
+app.get("/api/food/usage", authenticateUser, async (req: any, res) => {
+  try {
+    const usage = await checkUsageLimit(1000);
+    res.status(200).json(usage);
+  } catch (error) {
+    console.error("獲取 API 使用量失敗:", error);
+    res.status(500).json({ error: "獲取 API 使用量失敗" });
+  }
+});
+
+// === TensorFlow.js 食物識別 API ===
+
+// 單圖識別（使用 TensorFlow.js 模型）
+app.post(
+  "/api/food/recognize-tfjs",
+  authenticateUser,
+  upload.single("image"),
+  async (req: any, res) => {
+    try {
+      if (!tensorflowAvailable) {
+        return res.status(503).json({
+          error: "TensorFlow.js 不可用",
+          message: "請先構建 TensorFlow.js: pnpm rebuild @tensorflow/tfjs-node",
+          details: "需要安裝 Visual Studio Build Tools 並構建 native 模塊",
+        });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: "未提供圖像文件" });
+      }
+
+      // 檢查模型是否已加載
+      if (!modelLoader.isLevel1Loaded()) {
+        return res.status(503).json({
+          error: "識別模型未加載",
+          message: "請先訓練並部署模型文件",
+        });
+      }
+
+      // 讀取圖像文件
+      const imageBuffer = fs.readFileSync(req.file.path);
+
+      // 執行識別
+      const result = await recognitionPipeline.recognizeFoodImage(imageBuffer);
+
+      // 清理臨時文件
+      fs.unlinkSync(req.file.path);
+
+      res.status(200).json({
+        success: true,
+        result,
+      });
+    } catch (error) {
+      console.error("TensorFlow.js 識別錯誤:", error);
+      res.status(500).json({
+        error: "識別失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 批量識別
+app.post(
+  "/api/food/recognize-tfjs-batch",
+  authenticateUser,
+  upload.array("images", 10),
+  async (req: any, res) => {
+    try {
+      if (!tensorflowAvailable) {
+        return res.status(503).json({
+          error: "TensorFlow.js 不可用",
+          message: "請先構建 TensorFlow.js: pnpm rebuild @tensorflow/tfjs-node",
+          details: "需要安裝 Visual Studio Build Tools 並構建 native 模塊",
+        });
+      }
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ error: "未提供圖像文件" });
+      }
+
+      // 檢查模型是否已加載
+      if (!modelLoader.isLevel1Loaded()) {
+        return res.status(503).json({
+          error: "識別模型未加載",
+          message: "請先訓練並部署模型文件",
+        });
+      }
+
+      // 讀取所有圖像文件
+      const imageBuffers = req.files.map((file: any) =>
+        fs.readFileSync(file.path)
+      );
+
+      // 批量識別
+      const results = await recognitionPipeline.recognizeBatch(imageBuffers);
+
+      // 清理臨時文件
+      req.files.forEach((file: any) => {
+        if (fs.existsSync(file.path)) {
+          fs.unlinkSync(file.path);
+        }
+      });
+
+      res.status(200).json({
+        success: true,
+        results,
+        count: results.length,
+      });
+    } catch (error) {
+      console.error("TensorFlow.js 批量識別錯誤:", error);
+      res.status(500).json({
+        error: "批量識別失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 獲取模型狀態
+app.get("/api/food/models/status", authenticateUser, async (req: any, res) => {
+  try {
+    if (!tensorflowAvailable) {
+      return res.status(200).json({
+        available: false,
+        message: "TensorFlow.js 不可用，請先構建",
+        level1: { loaded: false },
+        level2: { loaded: false },
+        level3: { loaded: [] },
+      });
+    }
+
+    const status = {
+      available: true,
+      level1: {
+        loaded: modelLoader.isLevel1Loaded(),
+      },
+      level2: {
+        loaded: modelLoader.isLevel2Loaded(),
+      },
+      level3: {
+        loaded: modelLoader.getLoadedCountries(),
+      },
+    };
+
+    res.status(200).json(status);
+  } catch (error) {
+    console.error("獲取模型狀態失敗:", error);
+    res.status(500).json({ error: "獲取模型狀態失敗" });
+  }
+});
+
+// 獲取數據集統計（只讀，不影響數據庫）
+app.get("/api/food/data/stats", authenticateUser, async (req: any, res) => {
+  try {
+    const dataBase = path.join(__dirname, "../data");
+    const stats: any = {};
+
+    // 第一層數據統計
+    const level1Dir = path.join(dataBase, "level1-food-detection");
+    if (fs.existsSync(level1Dir)) {
+      const foodDir = path.join(level1Dir, "food");
+      const nonFoodDir = path.join(level1Dir, "non-food");
+
+      let foodCount = 0;
+      let nonFoodCount = 0;
+
+      if (fs.existsSync(foodDir)) {
+        const files = fs.readdirSync(foodDir);
+        foodCount = files.filter((file) =>
+          /\.(jpg|jpeg|png)$/i.test(file)
+        ).length;
+      }
+
+      if (fs.existsSync(nonFoodDir)) {
+        const files = fs.readdirSync(nonFoodDir);
+        nonFoodCount = files.filter((file) =>
+          /\.(jpg|jpeg|png)$/i.test(file)
+        ).length;
+      }
+
+      stats.level1 = {
+        food: foodCount,
+        nonFood: nonFoodCount,
+        total: foodCount + nonFoodCount,
+      };
+    }
+
+    // 第二層數據統計
+    const level2Dir = path.join(dataBase, "level2-country-classification");
+    if (fs.existsSync(level2Dir)) {
+      const countries = fs.readdirSync(level2Dir, { withFileTypes: true });
+      const countryStats: { [key: string]: number } = {};
+      let total = 0;
+
+      for (const entry of countries) {
+        if (entry.isDirectory()) {
+          const countryPath = path.join(level2Dir, entry.name);
+          const files = fs.readdirSync(countryPath);
+          const count = files.filter((file) =>
+            /\.(jpg|jpeg|png)$/i.test(file)
+          ).length;
+          countryStats[entry.name] = count;
+          total += count;
+        }
+      }
+
+      stats.level2 = {
+        countries: countryStats,
+        total,
+      };
+    }
+
+    // 第三層數據統計
+    const level3Dir = path.join(dataBase, "level3-fine-grained");
+    if (fs.existsSync(level3Dir)) {
+      const countries = fs.readdirSync(level3Dir, { withFileTypes: true });
+      let total = 0;
+
+      for (const countryEntry of countries) {
+        if (countryEntry.isDirectory()) {
+          const countryPath = path.join(level3Dir, countryEntry.name);
+          const categories = fs.readdirSync(countryPath, { withFileTypes: true });
+
+          for (const categoryEntry of categories) {
+            if (categoryEntry.isDirectory()) {
+              const categoryPath = path.join(
+                countryPath,
+                categoryEntry.name
+              );
+              const files = fs.readdirSync(categoryPath);
+              const count = files.filter((file) =>
+                /\.(jpg|jpeg|png)$/i.test(file)
+              ).length;
+              total += count;
+            }
+          }
+        }
+      }
+
+      stats.level3 = {
+        total,
+      };
+    }
+
+    res.status(200).json(stats);
+  } catch (error) {
+    console.error("獲取數據統計失敗:", error);
+    res.status(500).json({ error: "獲取數據統計失敗" });
+  }
+});
+
 // --- 靜態文件服務和SPA路由支持 ---
 
 // 頁面保護中間件
@@ -1191,8 +1694,8 @@ app.get("/receipts/:filename", authenticateUser, (req: any, res) => {
   res.sendFile(filePath);
 });
 
-// 獲取食物圖片
-app.get("/food_images/:filename", authenticateUser, (req: any, res) => {
+// 獲取食物圖片（不需要認證，因為圖片 URL 本身已經包含文件名，且文件夾是私有的）
+app.get("/food_images/:filename", (req: any, res) => {
   const filename = req.params.filename;
   const filePath = path.join(__dirname, "../data/food_images", filename);
 
@@ -1219,6 +1722,11 @@ app.get("/login-page.html", protectPage("auth"), (req, res) => {
 
 app.get("/registration-page.html", protectPage("auth"), (req, res) => {
   res.sendFile(path.join(__dirname, "../public/registration-page.html"));
+});
+
+// 食物識別系統測試頁面（需要認證）
+app.get("/food-recognition-test.html", protectPage("protected"), (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/food-recognition-test.html"));
 });
 
 // 處理所有其他路由，返回 index.html 支持 SPA
@@ -1259,10 +1767,19 @@ app.use((req, res, next) => {
 });
 
 // 啟動服務器
-app.listen(PORT, () => {
-  console.log(`服務器運行在 http://localhost:${PORT}`);
+app.listen(PORT, async () => {
+  console.log(`🚀 服務器運行在 http://localhost:${PORT}`);
   console.log(`- 靜態資源來源: public 文件夾`);
   console.log(`- API 根路徑: /api`);
+  console.log(`- 測試頁面: http://localhost:${PORT}/food-recognition-test.html`);
+
+  // 嘗試加載 TensorFlow.js 模塊（異步，不阻塞服務器啟動）
+  loadTensorFlowModules().then((loaded) => {
+    if (loaded) {
+      // 初始化食物識別模型（異步，不阻塞服務器啟動）
+      initializeFoodRecognitionModels().catch(console.error);
+    }
+  });
 
   // 啟動逾期賬單提醒服務
   overdueReminderService.start();
@@ -1313,7 +1830,9 @@ app.post(
       // 每次上傳完成後都調度，如果已有任務會自動取消舊任務
       scheduleRecognition(billId);
       const allImages = await getFoodImagesByBillId(billId);
-      console.log(`已為訂單 ${billId} 調度識別任務（圖片上傳完成，共 ${allImages.length} 張，10 秒後執行）`);
+      console.log(
+        `已為訂單 ${billId} 調度識別任務（圖片上傳完成，共 ${allImages.length} 張，10 秒後執行）`
+      );
 
       res.status(200).json({
         message: "圖片上傳成功",
@@ -1371,33 +1890,37 @@ app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
 });
 
 // 手動觸發識別
-app.post("/api/food/recognize/:billId", authenticateUser, async (req: any, res) => {
-  try {
-    const { billId } = req.params;
+app.post(
+  "/api/food/recognize/:billId",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { billId } = req.params;
 
-    // 檢查 API 使用限制
-    const usageCheck = await checkUsageLimit(1000);
-    if (!usageCheck.allowed) {
-      return res.status(429).json({
-        error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+      // 檢查 API 使用限制
+      const usageCheck = await checkUsageLimit(1000);
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+          usage: usageCheck,
+        });
+      }
+
+      await recognizeBillImagesNow(billId);
+
+      res.status(200).json({
+        message: "識別任務已觸發",
         usage: usageCheck,
       });
+    } catch (error) {
+      console.error("觸發識別失敗:", error);
+      res.status(500).json({
+        error: "觸發識別失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
-
-    await recognizeBillImagesNow(billId);
-
-    res.status(200).json({
-      message: "識別任務已觸發",
-      usage: usageCheck,
-    });
-  } catch (error) {
-    console.error("觸發識別失敗:", error);
-    res.status(500).json({
-      error: "觸發識別失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
   }
-});
+);
 
 // 健康檢查（自檢機制）
 app.get("/api/food/health", authenticateUser, async (req: any, res) => {
@@ -1411,29 +1934,33 @@ app.get("/api/food/health", authenticateUser, async (req: any, res) => {
 });
 
 // 修復未識別的圖片
-app.post("/api/food/fix-unrecognized", authenticateUser, async (req: any, res) => {
-  try {
-    // 檢查 API 使用限制
-    const usageCheck = await checkUsageLimit(1000);
-    if (!usageCheck.allowed) {
-      return res.status(429).json({
-        error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+app.post(
+  "/api/food/fix-unrecognized",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      // 檢查 API 使用限制
+      const usageCheck = await checkUsageLimit(1000);
+      if (!usageCheck.allowed) {
+        return res.status(429).json({
+          error: `已超過 API 使用限制（${usageCheck.used}/1000）`,
+          usage: usageCheck,
+        });
+      }
+
+      const result = await fixUnrecognizedImages();
+
+      res.status(200).json({
+        message: "修復完成",
+        result,
         usage: usageCheck,
       });
+    } catch (error) {
+      console.error("修復未識別圖片失敗:", error);
+      res.status(500).json({ error: "修復失敗" });
     }
-
-    const result = await fixUnrecognizedImages();
-
-    res.status(200).json({
-      message: "修復完成",
-      result,
-      usage: usageCheck,
-    });
-  } catch (error) {
-    console.error("修復未識別圖片失敗:", error);
-    res.status(500).json({ error: "修復失敗" });
   }
-});
+);
 
 // 獲取 API 使用量
 app.get("/api/food/usage", authenticateUser, async (req: any, res) => {

@@ -246,7 +246,7 @@ class AuthManager {
 // 創建全局認證管理器實例
 window.authManager = new AuthManager();
 
-// 導出供其他模塊使用
-if (typeof module !== "undefined" && module.exports) {
+// 導出供其他模塊使用（僅在 Node.js 環境中）
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
   module.exports = AuthManager;
 }

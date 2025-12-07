@@ -9,6 +9,7 @@ package-lock.json
 pnpm-lock.yaml
 data*/
 data/receipts/
+!scripts/data-collection/
 
 # 環境變數文件
 .env
@@ -47,3 +48,12 @@ venv*/
 venv/*
 
 docs/ignore/*
+db.sqlite3
+db.sqlite3-shm
+db.sqlite3-wal
+downloaded
+dataset
+classified
+unclassified
+saved_models/base_model
+saved_models/classifier_model

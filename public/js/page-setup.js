@@ -411,7 +411,7 @@ if (typeof window !== "undefined") {
   }
 }
 
-// ES 模組導出（用於支持 import）
+// ES 模組導出（用於支持 import，僅在 Node.js 環境中）
 if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
   module.exports = PageSetup;
 }

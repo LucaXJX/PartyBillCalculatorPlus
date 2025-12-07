@@ -3,14 +3,11 @@
  * 每天晚上 8 點檢查並發送逾期未支付賬單的提醒
  */
 
-import * as fs from "fs/promises";
-import * as path from "path";
-import { fileURLToPath } from "url";
-import { Message, Bill, User } from "./types.js";
-
-// 解決 ES6 模塊中的 __dirname 問題
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { proxy } from "./proxy.js";
+import { dataStorage } from "./storage.js";
+import { messageManager } from "./messageManager.js";
+import { MessageHelper } from "./messageHelper.js";
+import type { BillRecord } from "./types.js";
 
 interface OverdueReminder {
   userId: string;
@@ -22,13 +19,8 @@ interface OverdueReminder {
 }
 
 class OverdueReminderService {
-  private dataPath: string;
   private isRunning: boolean = false;
   private scheduledTask: NodeJS.Timeout | null = null;
-
-  constructor() {
-    this.dataPath = path.join(__dirname, "../data");
-  }
 
   /**
    * 啟動定時提醒服務
@@ -103,19 +95,16 @@ class OverdueReminderService {
     );
 
     try {
-      // 讀取數據
-      const bills = await this.loadBills();
-      const messages = await this.loadMessages();
-
+      // 從數據庫讀取所有賬單（通過 proxy.bill）
+      const allBills = proxy.bill;
       const now = new Date();
-      const overdueReminders: OverdueReminder[] = [];
+      let reminderCount = 0;
 
       // 檢查每個賬單
-      for (const bill of bills) {
-        // 跳過已完成或已取消的賬單
-        if (bill.status === "completed" || bill.status === "cancelled") {
-          continue;
-        }
+      for (const dbBill of allBills) {
+        // 將數據庫格式轉換為 BillRecord 格式
+        const bill = await this.dbBillToBillRecord(dbBill);
+        if (!bill) continue;
 
         // 計算賬單建立日期距今天數
         const billDate = new Date(bill.createdAt);
@@ -134,29 +123,31 @@ class OverdueReminderService {
             ) {
               // 查找參與者信息
               const participant = bill.participants.find(
-                (p: any) => p.id === result.participantId
+                (p) => p.id === result.participantId
               );
 
-              if (participant && participant.userId) {
+              if (participant) {
+                // 通過用戶名查找用戶 ID
+                const user = await dataStorage.getUserByUsername(participant.name);
+                if (!user) continue;
+
                 // 檢查今天是否已經發送過提醒（避免重複發送）
-                const todayReminder = messages.find(
-                  (msg: any) =>
-                    msg.billId === bill.id &&
-                    msg.recipientId === participant.userId &&
+                const todayMessages = proxy.message.filter(
+                  (msg) =>
+                    msg.bill_id === bill.id &&
+                    msg.recipient_id === user.id &&
                     msg.type === "overdue_reminder" &&
-                    this.isToday(new Date(msg.createdAt))
+                    this.isToday(new Date(msg.created_at))
                 );
 
-                // 如果今天還沒發送，則添加到提醒列表
-                if (!todayReminder) {
-                  overdueReminders.push({
-                    userId: participant.userId,
-                    billId: bill.id,
-                    billName: bill.name || "未命名聚會",
-                    amount: result.amount,
-                    daysSinceCreation,
-                    participantName: participant.name,
-                  });
+                // 如果今天還沒發送，則發送提醒
+                if (todayMessages.length === 0) {
+                  await MessageHelper.sendOverdueReminder(
+                    bill,
+                    result.participantId,
+                    daysSinceCreation
+                  );
+                  reminderCount++;
                 }
               }
             }
@@ -164,11 +155,9 @@ class OverdueReminderService {
         }
       }
 
-      // 發送提醒
-      if (overdueReminders.length > 0) {
-        await this.sendReminders(overdueReminders, messages);
-        console.log(`📨 已發送 ${overdueReminders.length} 條逾期提醒`);
-        return overdueReminders.length;
+      if (reminderCount > 0) {
+        console.log(`📨 已發送 ${reminderCount} 條逾期提醒`);
+        return reminderCount;
       } else {
         console.log("✅ 沒有需要提醒的逾期賬單");
         return 0;
@@ -180,43 +169,71 @@ class OverdueReminderService {
   }
 
   /**
-   * 發送提醒消息
+   * 將數據庫 Bill 格式轉換為 BillRecord 格式
    */
-  private async sendReminders(
-    reminders: OverdueReminder[],
-    existingMessages: any[]
-  ): Promise<any[]> {
-    const newMessages = [];
+  private async dbBillToBillRecord(dbBill: any): Promise<BillRecord | null> {
+    try {
+      // 獲取參與者
+      const participants = proxy.bill_participant
+        .filter((bp) => bp.bill_id === dbBill.id)
+        .map((bp) => ({
+          id: bp.participant_id,
+          name: bp.participant_name,
+        }));
 
-    for (const reminder of reminders) {
-      const message = {
-        id: this.generateMessageId(),
-        recipientId: reminder.userId, // 使用 recipientId 而不是 userId
-        billId: reminder.billId,
-        type: "overdue_reminder",
-        title: "⏰ 逾期未支付提醒",
-        content: `您在賬單「${
-          reminder.billName
-        }」中的分攤金額 $${reminder.amount.toFixed(2)} 已逾期 ${
-          reminder.daysSinceCreation
-        } 天未支付。請盡快完成支付，避免影響其他參與者。`,
-        actionText: "前往支付",
-        actionUrl: `/my-bills.html?billId=${reminder.billId}&highlight=true`,
-        isRead: false,
-        createdAt: new Date().toISOString(),
+      // 獲取項目
+      const items = proxy.item
+        .filter((item) => item.bill_id === dbBill.id)
+        .map((item) => {
+          const itemParticipants = proxy.item_participant
+            .filter((ip) => ip.item_id === item.id)
+            .map((ip) => ip.participant_id);
+
+          return {
+            id: item.id || "",
+            name: item.name,
+            amount: item.amount,
+            isShared: item.is_shared === 1,
+            participantIds: itemParticipants,
+          };
+        });
+
+      // 獲取計算結果
+      const results = proxy.calculation_result
+        .filter((cr) => cr.bill_id === dbBill.id)
+        .map((cr) => ({
+          participantId: cr.participant_id,
+          amount: cr.amount,
+          breakdown: cr.breakdown || "",
+          paymentStatus: cr.payment_status as "pending" | "paid" | "confirmed",
+          paidAt: cr.paid_at || undefined,
+          confirmedByPayer: cr.confirmed_by_payer === 1,
+          receiptImageUrl: cr.receipt_image_url || undefined,
+          rejectedReason: cr.rejected_reason || undefined,
+          rejectedAt: cr.rejected_at || undefined,
+        }));
+
+      return {
+        id: dbBill.id || "",
+        name: dbBill.name,
+        date: dbBill.date,
+        location: dbBill.location || "",
+        tipPercentage: dbBill.tip_percentage,
+        participants,
+        items,
+        payerId: dbBill.payer_id,
+        results,
+        createdAt: dbBill.created_at,
+        updatedAt: dbBill.updated_at,
+        createdBy: dbBill.created_by,
+        payerReceiptUrl: dbBill.payer_receipt_url || undefined,
       };
-
-      newMessages.push(message);
+    } catch (error) {
+      console.error("轉換賬單格式失敗:", error);
+      return null;
     }
-
-    // 合併到現有消息
-    const allMessages = [...existingMessages, ...newMessages];
-
-    // 保存到文件
-    await this.saveMessages(allMessages);
-
-    return newMessages;
   }
+
 
   /**
    * 檢查日期是否是今天
@@ -230,61 +247,6 @@ class OverdueReminderService {
     );
   }
 
-  /**
-   * 生成消息 ID
-   */
-  private generateMessageId(): string {
-    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  /**
-   * 讀取賬單數據
-   */
-  private async loadBills(): Promise<any[]> {
-    try {
-      const data = await fs.readFile(
-        path.join(this.dataPath, "bills.json"),
-        "utf-8"
-      );
-      return JSON.parse(data);
-    } catch (error) {
-      console.error("讀取賬單數據失敗:", error);
-      return [];
-    }
-  }
-
-  /**
-   * 讀取消息數據
-   */
-  private async loadMessages(): Promise<any[]> {
-    try {
-      const data = await fs.readFile(
-        path.join(this.dataPath, "messages.json"),
-        "utf-8"
-      );
-      return JSON.parse(data);
-    } catch (error) {
-      console.error("讀取消息數據失敗:", error);
-      return [];
-    }
-  }
-
-  /**
-   * 保存消息數據
-   */
-  private async saveMessages(messages: any[]): Promise<void> {
-    try {
-      await fs.writeFile(
-        path.join(this.dataPath, "messages.json"),
-        JSON.stringify(messages, null, 2),
-        "utf-8"
-      );
-      console.log("✅ 消息數據已保存");
-    } catch (error) {
-      console.error("保存消息數據失敗:", error);
-      throw error;
-    }
-  }
 
   /**
    * 手動觸發檢查（用於測試）
