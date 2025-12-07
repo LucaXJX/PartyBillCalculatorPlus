@@ -10,6 +10,24 @@ import { fileURLToPath } from "url";
 import axios from "axios";
 import sharp from "sharp";
 
+// 添加全局錯誤處理
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("未處理的 Promise 拒絕:", reason);
+  console.error("Promise:", promise);
+  if (reason instanceof Error) {
+    console.error("錯誤詳情:", reason.message);
+    console.error("堆棧:", reason.stack);
+  }
+  process.exit(1);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("未捕獲的異常:", error);
+  console.error("錯誤詳情:", error.message);
+  console.error("堆棧:", error.stack);
+  process.exit(1);
+});
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -101,11 +119,40 @@ const LEVEL3_DATASETS: DatasetConfig[] = [
 
 /**
  * 檢查 Food-101 數據集是否已下載
+ * 返回: { exists: boolean, isExtracted: boolean, tarPath: string, imagesDir: string }
+ */
+async function checkFood101Status(): Promise<{
+  exists: boolean;
+  isExtracted: boolean;
+  tarPath: string;
+  imagesDir: string;
+}> {
+  const food101Dir = path.join(DATA_BASE, "raw", "food-101");
+  const tarPath = path.join(food101Dir, "food-101.tar.gz");
+  
+  // 檢查兩種可能的目錄結構
+  const imagesDir1 = path.join(food101Dir, "images");
+  const imagesDir2 = path.join(food101Dir, "food-101", "images");
+  const imagesDir = (await fs.pathExists(imagesDir1)) ? imagesDir1 : 
+                   (await fs.pathExists(imagesDir2)) ? imagesDir2 : imagesDir1; // 默認使用第一種
+  
+  const tarExists = await fs.pathExists(tarPath);
+  const imagesExists = await fs.pathExists(imagesDir1) || await fs.pathExists(imagesDir2);
+  
+  return {
+    exists: tarExists || imagesExists,
+    isExtracted: imagesExists,
+    tarPath,
+    imagesDir: imagesExists ? (await fs.pathExists(imagesDir1) ? imagesDir1 : imagesDir2) : imagesDir1,
+  };
+}
+
+/**
+ * 檢查 Food-101 數據集是否已下載（兼容舊接口）
  */
 async function checkFood101Exists(): Promise<boolean> {
-  const food101Dir = path.join(DATA_BASE, "raw", "food-101");
-  const imagesDir = path.join(food101Dir, "images");
-  return await fs.pathExists(imagesDir);
+  const status = await checkFood101Status();
+  return status.isExtracted; // 只有解壓後才認為存在
 }
 
 /**
@@ -222,20 +269,45 @@ async function organizeLevel1Data() {
   await fs.ensureDir(foodDir);
   await fs.ensureDir(nonFoodDir);
 
-  // 檢查 Food-101 是否已下載
-  const food101Dir = path.join(DATA_BASE, "raw", "food-101");
-  const food101ImagesDir = path.join(food101Dir, "images");
-
-  if (!(await checkFood101Exists())) {
-    console.warn("⚠️  Food-101 數據集未找到");
-    console.log("💡 請先下載 Food-101 數據集：");
-    console.log("   1. 訪問 https://www.vision.ee.ethz.ch/datasets_extra/food-101/");
-    console.log("   2. 下載 food-101.tar.gz");
-    console.log(`   3. 解壓到: ${food101Dir}`);
-    console.log("   4. 確保目錄結構為: food-101/images/...");
-    console.log("\n   或運行自動下載（如果可用）:");
-    await downloadFood101();
-    return;
+  // 檢查 Food-101 狀態
+  const status = await checkFood101Status();
+  
+  if (!status.isExtracted) {
+    if (status.exists) {
+      console.warn("⚠️  Food-101 tar.gz 文件已存在，但未解壓");
+      console.log(`   文件位置: ${status.tarPath}`);
+      console.log("💡 請手動解壓縮：");
+      console.log(`   解壓到: ${path.dirname(status.tarPath)}`);
+      console.log("   解壓後目錄結構應為: food-101/images/類別名/圖片文件");
+      console.log("\n   提示：可以使用以下命令解壓（在 Git Bash 中）：");
+      console.log(`   cd ${path.dirname(status.tarPath)}`);
+      console.log("   tar -xzf food-101.tar.gz");
+      return;
+    } else {
+      console.warn("⚠️  Food-101 數據集未找到");
+      console.log("💡 請先下載 Food-101 數據集：");
+      console.log("   1. 訪問 https://www.vision.ee.ethz.ch/datasets_extra/food-101/");
+      console.log("   2. 下載 food-101.tar.gz");
+      console.log(`   3. 解壓到: ${path.dirname(status.tarPath)}`);
+      console.log("   4. 確保目錄結構為: food-101/images/...");
+      console.log("\n   或運行自動下載（如果可用）:");
+      const downloaded = await downloadFood101();
+      if (!downloaded) {
+        return; // 下載失敗或需要解壓
+      }
+    }
+  }
+  
+  // 使用正確的 images 目錄路徑
+  let food101ImagesDir = status.imagesDir;
+  
+  // 如果默認路徑不存在，嘗試 food-101/food-101/images
+  if (!(await fs.pathExists(food101ImagesDir))) {
+    const altPath = path.join(DATA_BASE, "raw", "food-101", "food-101", "images");
+    if (await fs.pathExists(altPath)) {
+      food101ImagesDir = altPath;
+      console.log(`  ℹ️  使用替代路徑: ${altPath}`);
+    }
   }
 
   console.log("✅ Food-101 數據集已找到");
@@ -255,8 +327,9 @@ async function organizeLevel1Data() {
       );
 
       const sourceFiles: string[] = [];
-      for (const file of imageFiles.slice(0, 100)) {
-        // 限制每個類別 100 張
+      // 增加到 120 張（與第二層一致）
+      const maxImages = 120;
+      for (const file of imageFiles.slice(0, maxImages)) {
         const sourceFile = path.join(categoryPath, file);
         sourceFiles.push(sourceFile);
       }
@@ -358,8 +431,13 @@ async function organizeLevel2Data() {
     ],
   };
 
-  const food101Dir = path.join(DATA_BASE, "raw", "food-101", "images");
-  if (!(await fs.pathExists(food101Dir))) {
+  // 檢查兩種可能的目錄結構
+  const food101Dir1 = path.join(DATA_BASE, "raw", "food-101", "images");
+  const food101Dir2 = path.join(DATA_BASE, "raw", "food-101", "food-101", "images");
+  const food101Dir = (await fs.pathExists(food101Dir1)) ? food101Dir1 : 
+                    (await fs.pathExists(food101Dir2)) ? food101Dir2 : null;
+  
+  if (!food101Dir) {
     console.warn("⚠️  Food-101 數據集未找到，請先運行第一層數據組織");
     return;
   }
@@ -382,8 +460,9 @@ async function organizeLevel2Data() {
       );
 
       const sourceFiles: string[] = [];
-      for (const file of imageFiles.slice(0, 50)) {
-        // 每個類別最多 50 張
+      // 增加到 120 張（平衡數據量和處理時間）
+      const maxImages = 120;
+      for (const file of imageFiles.slice(0, maxImages)) {
         const sourceFile = path.join(categoryPath, file);
         sourceFiles.push(sourceFile);
       }
@@ -419,22 +498,82 @@ async function organizeLevel3Data() {
   const targetDir = path.join(DATA_BASE, "level3-fine-grained");
   await fs.ensureDir(targetDir);
 
-  const food101Dir = path.join(DATA_BASE, "raw", "food-101", "images");
-  if (!(await fs.pathExists(food101Dir))) {
+  // 檢查兩種可能的目錄結構
+  const food101Dir1 = path.join(DATA_BASE, "raw", "food-101", "images");
+  const food101Dir2 = path.join(DATA_BASE, "raw", "food-101", "food-101", "images");
+  const food101Dir = (await fs.pathExists(food101Dir1)) ? food101Dir1 : 
+                    (await fs.pathExists(food101Dir2)) ? food101Dir2 : null;
+  
+  if (!food101Dir) {
     console.warn("⚠️  Food-101 數據集未找到");
     return;
   }
 
-  // 按國家組織細粒度數據
+  // 按國家組織細粒度數據（擴展到所有國家，僅使用 Food-101 中實際存在的類別）
   const countryCategories: { [country: string]: string[] } = {
     chinese: [
       "chicken_curry",
       "chicken_wings",
       "fried_rice",
       "spring_rolls",
-      "wonton_soup",
+      "hot_and_sour_soup",
     ],
-    japanese: ["sushi", "ramen", "miso_soup", "tempura", "teriyaki_chicken"],
+    japanese: [
+      "sushi",
+      "ramen",
+      "miso_soup",
+      "seaweed_salad",
+      "edamame",
+    ],
+    american: [
+      "hamburger",
+      "hot_dog",
+      "french_fries",
+      "apple_pie",
+      "waffles",
+    ],
+    italian: [
+      "pizza",
+      "lasagna",
+      "bruschetta",
+      "ravioli",
+      "spaghetti_bolognese",
+    ],
+    mexican: [
+      "tacos",
+      "breakfast_burrito",
+      "nachos",
+      "chicken_quesadilla",
+      "churros",
+    ],
+    french: [
+      "french_toast",
+      "french_onion_soup",
+      "creme_brulee",
+      "croque_madame",
+      "macarons",
+    ],
+    indian: [
+      "chicken_curry", // 與 chinese 共享，但可用於訓練
+      "samosa",
+      "lamb_chops",
+      "beef_carpaccio",
+      "beef_tartare",
+    ],
+    korean: [
+      "bibimbap",
+      "beef_tartare",
+      "beef_carpaccio",
+      "lamb_chops",
+      "seaweed_salad",
+    ],
+    thai: [
+      "pad_thai",
+      "beef_carpaccio",
+      "beef_tartare",
+      "lamb_chops",
+      "fried_rice", // 與 chinese 共享
+    ],
   };
 
   for (const [country, categories] of Object.entries(countryCategories)) {
@@ -455,8 +594,9 @@ async function organizeLevel3Data() {
         /\.(jpg|jpeg|png)$/i.test(file)
       );
 
-      // 批量處理圖片
-      const sourceFiles = imageFiles.map((file) =>
+      // 限制每個類別最多 120 張（與第二層一致）
+      const maxImages = 120;
+      const sourceFiles = imageFiles.slice(0, maxImages).map((file) =>
         path.join(sourceCategoryPath, file)
       );
 
@@ -488,6 +628,22 @@ async function organizeLevel3Data() {
 async function downloadFood101(): Promise<boolean> {
   console.log("\n📥 嘗試下載 Food-101 數據集...");
 
+  // 檢查狀態
+  const status = await checkFood101Status();
+  
+  if (status.isExtracted) {
+    console.log("  ✅ Food-101 數據集已解壓，跳過下載");
+    return true;
+  }
+  
+  if (status.exists && !status.isExtracted) {
+    console.log("  ⚠️  Food-101 tar.gz 文件已存在，但未解壓");
+    console.log(`     文件位置: ${status.tarPath}`);
+    console.log("  💡 請手動解壓縮，或等待腳本自動解壓（如果實現了）");
+    console.log(`     解壓到: ${path.dirname(status.tarPath)}`);
+    return false; // 返回 false，讓調用者知道需要解壓
+  }
+
   const food101Dir = path.join(DATA_BASE, "raw", "food-101");
   await fs.ensureDir(food101Dir);
 
@@ -495,6 +651,17 @@ async function downloadFood101(): Promise<boolean> {
   const downloadUrl =
     "https://data.vision.ee.ethz.ch/cvl/food-101.tar.gz";
   const tarPath = path.join(food101Dir, "food-101.tar.gz");
+
+  // 檢查是否已經部分下載
+  let downloadedBytes = 0;
+  if (await fs.pathExists(tarPath)) {
+    const stats = await fs.stat(tarPath);
+    downloadedBytes = stats.size;
+    if (downloadedBytes > 0) {
+      console.log(`  ℹ️  發現部分下載的文件 (${(downloadedBytes / 1024 / 1024).toFixed(2)} MB)`);
+      console.log("  💡 將繼續下載...");
+    }
+  }
 
   try {
     console.log("  ⬇️  正在下載 Food-101...");
@@ -504,25 +671,78 @@ async function downloadFood101(): Promise<boolean> {
       method: "GET",
       url: downloadUrl,
       responseType: "stream",
-      timeout: 300000, // 5 分鐘超時
+      timeout: 0, // 無超時（大文件下載）
+      headers: downloadedBytes > 0 ? {
+        Range: `bytes=${downloadedBytes}-`
+      } : undefined,
     });
 
-    const writer = fs.createWriteStream(tarPath);
+    const totalBytes = parseInt(response.headers["content-length"] || "0") + downloadedBytes;
+    let receivedBytes = downloadedBytes;
+    const startTime = Date.now();
+
+    const writer = fs.createWriteStream(tarPath, {
+      flags: downloadedBytes > 0 ? "a" : "w", // 追加模式（如果部分下載）
+    });
+    
+    response.data.on("data", (chunk: Buffer) => {
+      receivedBytes += chunk.length;
+      const elapsed = (Date.now() - startTime) / 1000; // 秒
+      const speed = receivedBytes / elapsed / 1024 / 1024; // MB/s
+      const progress = totalBytes > 0 ? ((receivedBytes / totalBytes) * 100).toFixed(1) : "?";
+      const receivedMB = (receivedBytes / 1024 / 1024).toFixed(2);
+      const totalMB = totalBytes > 0 ? (totalBytes / 1024 / 1024).toFixed(2) : "?";
+      
+      // 每 10MB 顯示一次進度
+      if (receivedBytes % (10 * 1024 * 1024) < chunk.length || receivedBytes === totalBytes) {
+        process.stdout.write(
+          `\r  📥 進度: ${progress}% (${receivedMB} MB / ${totalMB} MB) | 速度: ${speed.toFixed(2)} MB/s`
+        );
+      }
+    });
+
     response.data.pipe(writer);
 
-    await new Promise((resolve, reject) => {
-      writer.on("finish", resolve);
-      writer.on("error", reject);
+    await new Promise<void>((resolve, reject) => {
+      writer.on("finish", async () => {
+        console.log("\n  ✅ 下載完成");
+        
+        // 驗證文件完整性
+        const finalStats = await fs.stat(tarPath);
+        const finalSize = finalStats.size;
+        const expectedSize = totalBytes;
+        
+        console.log(`  📊 文件大小: ${(finalSize / 1024 / 1024).toFixed(2)} MB`);
+        if (expectedSize > 0) {
+          const sizeDiff = Math.abs(finalSize - expectedSize);
+          const sizeDiffMB = sizeDiff / 1024 / 1024;
+          if (sizeDiffMB > 10) {
+            console.warn(`  ⚠️  文件大小不匹配（差異: ${sizeDiffMB.toFixed(2)} MB）`);
+            console.warn(`     預期: ${(expectedSize / 1024 / 1024).toFixed(2)} MB`);
+            console.warn(`     實際: ${(finalSize / 1024 / 1024).toFixed(2)} MB`);
+            console.warn(`  💡 文件可能下載不完整，建議重新下載`);
+          } else {
+            console.log(`  ✅ 文件大小驗證通過`);
+          }
+        }
+        
+        resolve();
+      });
+      writer.on("error", (err) => reject(err));
+      response.data.on("error", (err) => reject(err));
     });
 
     console.log("  ✅ 下載完成");
-    console.log("  💡 請手動解壓縮 food-101.tar.gz");
-    console.log(`     解壓到: ${food101Dir}`);
-    console.log("     解壓後目錄結構應為: food-101/images/類別名/圖片文件");
+    console.log("  💡 下載完成後，請運行解壓腳本：");
+    console.log("     pnpm run data:extract");
+    console.log(`     或手動解壓到: ${food101Dir}`);
 
     return true;
   } catch (error) {
     console.warn("  ⚠️  自動下載失敗");
+    if (error instanceof Error) {
+      console.warn(`     錯誤: ${error.message}`);
+    }
     console.log("  💡 請手動下載 Food-101 數據集：");
     console.log("     https://www.vision.ee.ethz.ch/datasets_extra/food-101/");
     console.log(`     解壓到: ${food101Dir}`);
@@ -674,5 +894,16 @@ async function main() {
 }
 
 // 執行
-main();
+main().catch((error) => {
+  console.error("\n❌ 未捕獲的錯誤:");
+  console.error("錯誤類型:", typeof error);
+  console.error("錯誤值:", error);
+  if (error instanceof Error) {
+    console.error("錯誤詳情:", error.message);
+    console.error("堆棧:", error.stack);
+  } else {
+    console.error("錯誤對象:", JSON.stringify(error, null, 2));
+  }
+  process.exit(1);
+});
 

@@ -44,7 +44,10 @@
     "test:python:training": "cd food-recognition-service && python test_training.py",
     "test:python:model": "cd food-recognition-service && python test_nodejs_load.py",
     "test:model:load": "node --loader ts-node/esm scripts/test-model-load.ts",
-    "data:download": "node --loader ts-node/esm scripts/data-collection/download-datasets.ts",
+    "data:download": "tsx scripts/data-collection/download-datasets.ts",
+    "data:extract": "tsx scripts/data-collection/extract-food101.ts",
+    "data:status": "tsx scripts/data-collection/check-status.ts",
+    "data:watch": "bash scripts/data-collection/watch-status.sh",
     "build:tensorflow": "bash scripts/build-tensorflow.sh",
     "build:tensorflow:cmd": "scripts\\build-tensorflow.cmd",
     "build:tensorflow:ps1": "powershell -ExecutionPolicy Bypass -File scripts\\build-tensorflow.ps1",
@@ -120,6 +123,7 @@
     "quick-erd": "^4.29.1",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "pnpm": {
