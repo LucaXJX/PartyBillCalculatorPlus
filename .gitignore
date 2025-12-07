@@ -63,3 +63,6 @@ classified
 unclassified
 saved_models/base_model
 saved_models/classifier_model
+
+# 臨時測試文件
+tests/

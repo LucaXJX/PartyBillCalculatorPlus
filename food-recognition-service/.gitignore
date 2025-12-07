@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# 模型文件
+models/
+models_tfjs/
+*.h5
+*.pb
+*.tflite
+
+# 數據
+data/
+*.jpg
+*.jpeg
+*.png
+*.bmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日誌
+*.log
+logs/
+
+# 臨時文件
+*.tmp
+*.temp
+.DS_Store
+
+
