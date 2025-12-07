@@ -41,9 +41,11 @@ import { proxy } from "./proxy.js";
 let ModelLoader: any;
 let ImagePreprocessor: any;
 let RecognitionPipeline: any;
+let ModelVersionManager: any;
 let modelLoader: any;
 let imagePreprocessor: any;
 let recognitionPipeline: any;
+let modelVersionManager: any;
 let tensorflowAvailable = false;
 
 // 嘗試加載 TensorFlow.js 模塊
@@ -65,16 +67,23 @@ async function loadTensorFlowModules() {
     ModelLoader = modules.ModelLoader;
     ImagePreprocessor = modules.ImagePreprocessor;
     RecognitionPipeline = modules.RecognitionPipeline;
+    ModelVersionManager = modules.ModelVersionManager;
 
     // 初始化 TensorFlow.js 食物識別系統
     // 使用轉換後的模型路徑（從 Python 訓練服務轉換）
-    const modelsPath = path.join(__dirname, "../../food-recognition-service/models_tfjs");
+    const modelsPath = path.join(
+      __dirname,
+      "../../food-recognition-service/models_tfjs"
+    );
     modelLoader = new ModelLoader(modelsPath);
     imagePreprocessor = new ImagePreprocessor();
     recognitionPipeline = new RecognitionPipeline(
       modelLoader,
       imagePreprocessor
     );
+
+    // 初始化模型版本管理器
+    modelVersionManager = new ModelVersionManager();
 
     tensorflowAvailable = true;
     console.log("✅ TensorFlow.js 模塊加載成功");
@@ -83,10 +92,15 @@ async function loadTensorFlowModules() {
     return true;
   } catch (error) {
     console.warn("⚠️  TensorFlow.js 模塊加載失敗:");
-    console.warn("   錯誤:", error instanceof Error ? error.message : String(error));
+    console.warn(
+      "   錯誤:",
+      error instanceof Error ? error.message : String(error)
+    );
     console.warn("   服務器將正常啟動，但食物識別功能將不可用");
     console.warn("   要啟用食物識別，請:");
-    console.warn("   1. 運行 Python 訓練腳本: cd food-recognition-service && python train/train_level1.py");
+    console.warn(
+      "   1. 運行 Python 訓練腳本: cd food-recognition-service && python train/train_level1.py"
+    );
     console.warn("   2. 轉換模型: python convert/convert_to_tfjs.py");
     console.warn("   3. 重啟服務器");
     tensorflowAvailable = false;
@@ -104,7 +118,7 @@ const PORT = process.env.PORT || 3000;
 // 初始化計算器 (這將在服務器內存中維護狀態)
 const calculator = new BillCalculator();
 
-// 異步初始化模型（可選，如果模型文件存在則加載）
+// 異步初始化模型（從數據庫加載活動版本）
 async function initializeFoodRecognitionModels() {
   if (!tensorflowAvailable) {
     console.log("⏭️  跳過模型初始化（TensorFlow.js 不可用）");
@@ -112,46 +126,62 @@ async function initializeFoodRecognitionModels() {
   }
 
   try {
-    // 優先使用 Python 訓練服務轉換後的模型
-    // 如果不存在，則使用原來的 models 目錄
-    const pythonModelsPath = path.join(__dirname, "../../food-recognition-service/models_tfjs");
-    const fallbackModelsPath = path.join(__dirname, "../models");
-    const modelsBasePath = fs.existsSync(pythonModelsPath) ? pythonModelsPath : fallbackModelsPath;
-    
-    console.log(`📦 使用模型路徑: ${modelsBasePath}`);
-    
-    // 檢查模型文件是否存在，如果存在則加載
-    const level1Path = path.join(modelsBasePath, "level1", "model.json");
-    const level2Path = path.join(modelsBasePath, "level2", "model.json");
-    
-    if (fs.existsSync(level1Path)) {
-      await modelLoader.loadLevel1Model(path.join(modelsBasePath, "level1"));
-      console.log("✅ 第一層模型已加載");
-    } else {
-      console.log("ℹ️  第一層模型未找到，跳過加載");
-      console.log(`   預期路徑: ${level1Path}`);
+    if (!modelLoader || !modelVersionManager) {
+      console.warn("⚠️  模型加載器或版本管理器未初始化，跳過模型加載");
+      return;
     }
-    
-    if (fs.existsSync(level2Path)) {
-      await modelLoader.loadLevel2Model(path.join(modelsBasePath, "level2"));
-      console.log("✅ 第二層模型已加載");
+
+    // 加載第一層模型（從數據庫獲取活動版本）
+    const level1Version = await modelVersionManager.getActiveVersion(1);
+    if (level1Version) {
+      await modelLoader.loadLevel1Model(level1Version.model_path);
+      console.log(
+        `✅ 已加載第一層模型: ${level1Version.version} (${level1Version.model_path})`
+      );
     } else {
-      console.log("ℹ️  第二層模型未找到，跳過加載");
-      console.log(`   預期路徑: ${level2Path}`);
-    }
-    
-    // 嘗試加載常見國家的第三層模型
-    const countries = ["chinese", "japanese", "korean"];
-    for (const country of countries) {
-      const countryPath = path.join(modelsBasePath, "level3", country, "model.json");
-      if (fs.existsSync(countryPath)) {
-        await modelLoader.loadCountryModel(country);
+      // 如果沒有活動版本，嘗試使用默認路徑
+      const defaultPath = path.join(
+        __dirname,
+        "../../food-recognition-service/models_tfjs/level1"
+      );
+      try {
+        await modelLoader.loadLevel1Model(defaultPath);
+        console.log("✅ 已加載第一層模型（默認路徑）");
+      } catch (error) {
+        console.warn(
+          "⚠️  第一層模型加載失敗（使用默認路徑）:",
+          error instanceof Error ? error.message : String(error)
+        );
       }
     }
-    
-    console.log("✅ 食物識別模型初始化完成");
+
+    // 加載第二層模型
+    const level2Version = await modelVersionManager.getActiveVersion(2);
+    if (level2Version) {
+      await modelLoader.loadLevel2Model(level2Version.model_path);
+      console.log(
+        `✅ 已加載第二層模型: ${level2Version.version} (${level2Version.model_path})`
+      );
+    } else {
+      const defaultPath = path.join(
+        __dirname,
+        "../../food-recognition-service/models_tfjs/level2"
+      );
+      try {
+        await modelLoader.loadLevel2Model(defaultPath);
+        console.log("✅ 已加載第二層模型（默認路徑）");
+      } catch (error) {
+        console.warn(
+          "⚠️  第二層模型加載失敗（使用默認路徑）:",
+          error instanceof Error ? error.message : String(error)
+        );
+      }
+    }
+
+    // 第三層模型按需加載（在識別時加載）
+    console.log("✅ 模型初始化完成（第三層模型將按需加載）");
   } catch (error) {
-    console.warn("⚠️  食物識別模型初始化失敗（模型文件可能不存在）:", error);
+    console.error("❌ 模型初始化失敗:", error);
   }
 }
 
@@ -1636,14 +1666,13 @@ app.get("/api/food/data/stats", authenticateUser, async (req: any, res) => {
       for (const countryEntry of countries) {
         if (countryEntry.isDirectory()) {
           const countryPath = path.join(level3Dir, countryEntry.name);
-          const categories = fs.readdirSync(countryPath, { withFileTypes: true });
+          const categories = fs.readdirSync(countryPath, {
+            withFileTypes: true,
+          });
 
           for (const categoryEntry of categories) {
             if (categoryEntry.isDirectory()) {
-              const categoryPath = path.join(
-                countryPath,
-                categoryEntry.name
-              );
+              const categoryPath = path.join(countryPath, categoryEntry.name);
               const files = fs.readdirSync(categoryPath);
               const count = files.filter((file) =>
                 /\.(jpg|jpeg|png)$/i.test(file)
@@ -1799,7 +1828,9 @@ app.listen(PORT, async () => {
   console.log(`🚀 服務器運行在 http://localhost:${PORT}`);
   console.log(`- 靜態資源來源: public 文件夾`);
   console.log(`- API 根路徑: /api`);
-  console.log(`- 測試頁面: http://localhost:${PORT}/food-recognition-test.html`);
+  console.log(
+    `- 測試頁面: http://localhost:${PORT}/food-recognition-test.html`
+  );
 
   // 嘗試加載 TensorFlow.js 模塊（異步，不阻塞服務器啟動）
   loadTensorFlowModules().then((loaded) => {
@@ -1808,10 +1839,6 @@ app.listen(PORT, async () => {
       initializeFoodRecognitionModels().catch(console.error);
     }
   });
-
-  // 啟動逾期賬單提醒服務
-  overdueReminderService.start();
-  console.log(`- 逾期提醒服務: 已啟動（每天晚上 8 點檢查）`);
 });
 
 // === 食物圖片相關 API ===
@@ -1998,5 +2025,168 @@ app.get("/api/food/usage", authenticateUser, async (req: any, res) => {
   } catch (error) {
     console.error("獲取 API 使用量失敗:", error);
     res.status(500).json({ error: "獲取 API 使用量失敗" });
+  }
+});
+
+// === 模型版本管理 API ===
+
+// 獲取所有模型版本
+app.get(
+  "/api/food/models/versions",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      if (!modelVersionManager) {
+        return res.status(503).json({ error: "模型版本管理器未初始化" });
+      }
+
+      const { level, country, limit } = req.query;
+      const levelNum = level ? parseInt(level as string) : undefined;
+      const limitNum = limit ? parseInt(limit as string) : undefined;
+
+      const versions = await modelVersionManager.getVersionHistory(
+        levelNum,
+        country as string | undefined,
+        limitNum
+      );
+
+      res.status(200).json({ versions });
+    } catch (error) {
+      console.error("獲取模型版本失敗:", error);
+      res.status(500).json({
+        error: "獲取模型版本失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 獲取當前活動版本
+app.get("/api/food/models/current", authenticateUser, async (req: any, res) => {
+  try {
+    if (!modelVersionManager) {
+      return res.status(503).json({ error: "模型版本管理器未初始化" });
+    }
+
+    const { level, country } = req.query;
+    if (!level) {
+      return res.status(400).json({ error: "缺少 level 參數" });
+    }
+
+    const levelNum = parseInt(level as string);
+    const version = await modelVersionManager.getActiveVersion(
+      levelNum,
+      country as string | undefined
+    );
+
+    if (!version) {
+      return res.status(404).json({ error: "未找到活動版本" });
+    }
+
+    res.status(200).json({ version });
+  } catch (error) {
+    console.error("獲取當前活動版本失敗:", error);
+    res.status(500).json({
+      error: "獲取當前活動版本失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// 切換模型版本
+app.post("/api/food/models/switch", authenticateUser, async (req: any, res) => {
+  try {
+    if (!modelVersionManager) {
+      return res.status(503).json({ error: "模型版本管理器未初始化" });
+    }
+
+    const { versionId } = req.body;
+    if (!versionId) {
+      return res.status(400).json({ error: "缺少 versionId 參數" });
+    }
+
+    const version = await modelVersionManager.switchVersion(versionId);
+
+    res.status(200).json({
+      message: "版本切換成功",
+      version,
+    });
+  } catch (error) {
+    console.error("切換模型版本失敗:", error);
+    res.status(500).json({
+      error: "切換模型版本失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// 記錄新模型版本
+app.post(
+  "/api/food/models/versions",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      if (!modelVersionManager) {
+        return res.status(503).json({ error: "模型版本管理器未初始化" });
+      }
+
+      const {
+        level,
+        version,
+        modelPath,
+        country,
+        accuracy,
+        trainingDate,
+        setActive,
+      } = req.body;
+
+      if (!level || !version || !modelPath) {
+        return res.status(400).json({
+          error: "缺少必填參數: level, version, modelPath",
+        });
+      }
+
+      const versionRecord = await modelVersionManager.recordVersion(
+        parseInt(level),
+        version,
+        modelPath,
+        {
+          country,
+          accuracy: accuracy ? parseFloat(accuracy) : undefined,
+          trainingDate,
+          setActive: setActive === true || setActive === "true",
+        }
+      );
+
+      res.status(201).json({
+        message: "版本記錄成功",
+        version: versionRecord,
+      });
+    } catch (error) {
+      console.error("記錄模型版本失敗:", error);
+      res.status(500).json({
+        error: "記錄模型版本失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 獲取所有活動版本
+app.get("/api/food/models/active", authenticateUser, async (req: any, res) => {
+  try {
+    if (!modelVersionManager) {
+      return res.status(503).json({ error: "模型版本管理器未初始化" });
+    }
+
+    const versions = await modelVersionManager.getAllActiveVersions();
+
+    res.status(200).json({ versions });
+  } catch (error) {
+    console.error("獲取活動版本失敗:", error);
+    res.status(500).json({
+      error: "獲取活動版本失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
   }
 });

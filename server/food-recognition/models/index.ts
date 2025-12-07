@@ -9,6 +9,7 @@ export {
   RecognitionPipeline,
   type RecognitionResult,
 } from "./RecognitionPipeline.js";
+export { ModelVersionManager } from "./ModelVersionManager.js";
 
 
 
