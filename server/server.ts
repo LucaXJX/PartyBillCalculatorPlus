@@ -37,6 +37,7 @@ import {
 import { checkUsageLimit } from "./foodRecognition/usageTracker.js";
 import { proxy } from "./proxy.js";
 // 延遲加載 TensorFlow.js 相關模塊（避免構建失敗時服務器無法啟動）
+// 優先嘗試使用純 JavaScript 版本（@tensorflow/tfjs），不需要構建 native 模塊
 let ModelLoader: any;
 let ImagePreprocessor: any;
 let RecognitionPipeline: any;
@@ -48,13 +49,27 @@ let tensorflowAvailable = false;
 // 嘗試加載 TensorFlow.js 模塊
 async function loadTensorFlowModules() {
   try {
+    // 優先嘗試純 JavaScript 版本（不需要構建）
+    // 如果失敗，嘗試 node 版本（需要構建）
+    let tfjsModule;
+    try {
+      tfjsModule = await import("@tensorflow/tfjs");
+      console.log("✅ 使用純 JavaScript 版本的 TensorFlow.js（不需要構建）");
+    } catch (e) {
+      console.log("⚠️  純 JavaScript 版本不可用，嘗試 node 版本...");
+      tfjsModule = await import("@tensorflow/tfjs-node");
+      console.log("✅ 使用 Node.js 版本的 TensorFlow.js");
+    }
+
     const modules = await import("./food-recognition/models/index.js");
     ModelLoader = modules.ModelLoader;
     ImagePreprocessor = modules.ImagePreprocessor;
     RecognitionPipeline = modules.RecognitionPipeline;
 
     // 初始化 TensorFlow.js 食物識別系統
-    modelLoader = new ModelLoader(path.join(__dirname, "../models"));
+    // 使用轉換後的模型路徑（從 Python 訓練服務轉換）
+    const modelsPath = path.join(__dirname, "../../food-recognition-service/models_tfjs");
+    modelLoader = new ModelLoader(modelsPath);
     imagePreprocessor = new ImagePreprocessor();
     recognitionPipeline = new RecognitionPipeline(
       modelLoader,
@@ -63,14 +78,17 @@ async function loadTensorFlowModules() {
 
     tensorflowAvailable = true;
     console.log("✅ TensorFlow.js 模塊加載成功");
+    console.log("   模型路徑: " + modelsPath);
+    console.log("   提示: 如果模型不存在，請先運行 Python 訓練腳本並轉換模型");
     return true;
   } catch (error) {
-    console.warn("⚠️  TensorFlow.js 模塊加載失敗（這是正常的，如果尚未構建）:");
+    console.warn("⚠️  TensorFlow.js 模塊加載失敗:");
     console.warn("   錯誤:", error instanceof Error ? error.message : String(error));
     console.warn("   服務器將正常啟動，但食物識別功能將不可用");
-    console.warn("   要啟用食物識別，請先構建 TensorFlow.js:");
-    console.warn("   - 安裝 Visual Studio Build Tools");
-    console.warn("   - 運行: pnpm rebuild @tensorflow/tfjs-node");
+    console.warn("   要啟用食物識別，請:");
+    console.warn("   1. 運行 Python 訓練腳本: cd food-recognition-service && python train/train_level1.py");
+    console.warn("   2. 轉換模型: python convert/convert_to_tfjs.py");
+    console.warn("   3. 重啟服務器");
     tensorflowAvailable = false;
     return false;
   }
@@ -94,22 +112,32 @@ async function initializeFoodRecognitionModels() {
   }
 
   try {
-    const modelsBasePath = path.join(__dirname, "../models");
+    // 優先使用 Python 訓練服務轉換後的模型
+    // 如果不存在，則使用原來的 models 目錄
+    const pythonModelsPath = path.join(__dirname, "../../food-recognition-service/models_tfjs");
+    const fallbackModelsPath = path.join(__dirname, "../models");
+    const modelsBasePath = fs.existsSync(pythonModelsPath) ? pythonModelsPath : fallbackModelsPath;
+    
+    console.log(`📦 使用模型路徑: ${modelsBasePath}`);
     
     // 檢查模型文件是否存在，如果存在則加載
     const level1Path = path.join(modelsBasePath, "level1", "model.json");
     const level2Path = path.join(modelsBasePath, "level2", "model.json");
     
     if (fs.existsSync(level1Path)) {
-      await modelLoader.loadLevel1Model();
+      await modelLoader.loadLevel1Model(path.join(modelsBasePath, "level1"));
+      console.log("✅ 第一層模型已加載");
     } else {
       console.log("ℹ️  第一層模型未找到，跳過加載");
+      console.log(`   預期路徑: ${level1Path}`);
     }
     
     if (fs.existsSync(level2Path)) {
-      await modelLoader.loadLevel2Model();
+      await modelLoader.loadLevel2Model(path.join(modelsBasePath, "level2"));
+      console.log("✅ 第二層模型已加載");
     } else {
       console.log("ℹ️  第二層模型未找到，跳過加載");
+      console.log(`   預期路徑: ${level2Path}`);
     }
     
     // 嘗試加載常見國家的第三層模型

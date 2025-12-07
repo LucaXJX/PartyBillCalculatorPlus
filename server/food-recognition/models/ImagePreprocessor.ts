@@ -36,7 +36,11 @@ export class ImagePreprocessor {
 
       return batched as tf.Tensor4D;
     } catch (error) {
-      throw new Error(`圖像預處理失敗: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `圖像預處理失敗: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
     }
   }
 
@@ -101,6 +105,3 @@ export class ImagePreprocessor {
     }
   }
 }
-
-
-

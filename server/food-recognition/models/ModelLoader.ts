@@ -1,4 +1,6 @@
-import * as tf from "@tensorflow/tfjs-node";
+// 使用純 JavaScript 版本的 TensorFlow.js（不需要構建 native 模塊）
+// 如果 @tensorflow/tfjs-node 構建失敗，可以使用 @tensorflow/tfjs
+import * as tf from "@tensorflow/tfjs";
 import path from "path";
 import fs from "fs-extra";
 
