@@ -46,6 +46,12 @@ dump.sql
 *.xz
 venv*/
 venv/*
+food-recognition-service/venv/
+food-recognition-service/test_data/
+food-recognition-service/test_models/
+food-recognition-service/test_models_tfjs/
+food-recognition-service/models/
+food-recognition-service/models_tfjs/
 
 docs/ignore/*
 db.sqlite3
