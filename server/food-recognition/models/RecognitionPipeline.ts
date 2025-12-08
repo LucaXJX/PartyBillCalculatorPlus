@@ -37,7 +37,11 @@ const COUNTRIES = [
 ] as const;
 
 /**
- * 三層級聯識別管道
+ * 兩層級聯識別管道（第三層暫時隱藏）
+ * - 第一層：食物檢測（是食物/不是食物）
+ * - 第二層：國家分類（識別食物來源國家）
+ * 
+ * 注意：第三層細粒度識別已暫時隱藏，代碼保留在註釋中以便將來恢復
  */
 export class RecognitionPipeline {
   private modelLoader: ModelLoader;
@@ -50,7 +54,7 @@ export class RecognitionPipeline {
   }
 
   /**
-   * 三層級聯識別流程
+   * 兩層級聯識別流程（第三層暫時隱藏）
    * @param imageBuffer 圖像緩衝區
    * @returns 識別結果
    */
@@ -79,7 +83,7 @@ export class RecognitionPipeline {
         imageTensor.dispose();
         return {
           is_food: false,
-          confidence: level1Result.confidence ?? 0, // confidence 已經是"不是食物"的置信度
+          confidence: level1Result.confidence ?? 0,
           message: "圖像中未檢測到食物",
         };
       }
@@ -96,6 +100,9 @@ export class RecognitionPipeline {
         };
       }
 
+      // ========== 第三層細粒度識別暫時隱藏 ==========
+      // 以下代碼已註釋，保留以便將來恢復
+      /*
       // 第三層：細粒度識別（根據國家選擇對應模型）
       const level3Result = await this.level3Inference(
         imageTensor,
@@ -111,14 +118,13 @@ export class RecognitionPipeline {
         );
       }
 
-      // 計算總體置信度
-      // 如果第三層模型未加載，只使用前兩層的置信度
+      // 計算總體置信度（包含第三層）
       const overallConfidence = level3Result.food_confidence > 0
         ? (level1Result.confidence ?? 0) *
           (level2Result.country_confidence ?? 0) *
           (level3Result.food_confidence ?? 0)
         : (level1Result.confidence ?? 0) *
-          (level2Result.country_confidence ?? 0) * 0.5; // 第三層未加載時使用默認值 0.5
+          (level2Result.country_confidence ?? 0) * 0.5;
 
       return {
         is_food: true,
@@ -132,6 +138,27 @@ export class RecognitionPipeline {
         message: level3Result.food_confidence === 0 
           ? `${level2Result.country} 國家的細粒度識別模型未加載，無法識別具體食物名稱`
           : undefined,
+      };
+      */
+      // ========== 第三層代碼結束 ==========
+
+      // 只使用前兩層的結果
+      // 計算總體置信度（僅使用前兩層）
+      const overallConfidence = (level1Result.confidence ?? 0) * (level2Result.country_confidence ?? 0);
+
+      imageTensor.dispose();
+
+      return {
+        is_food: true,
+        country: level2Result.country,
+        country_confidence: level2Result.country_confidence,
+        confidence: level1Result.confidence,
+        overall_confidence: overallConfidence,
+        // 第三層相關字段設為 undefined 或默認值
+        food_name: undefined,
+        food_confidence: 0,
+        calories: undefined,
+        ingredients: undefined,
       };
     } catch (error) {
       console.error("識別過程出錯:", error);
@@ -209,9 +236,10 @@ export class RecognitionPipeline {
     }
   }
 
-  /**
-   * 第三層推理：細粒度食物識別
-   */
+  // ========== 第三層細粒度識別相關方法暫時隱藏 ==========
+  // 以下代碼已註釋，保留以便將來恢復
+  /*
+  // 第三層推理：細粒度食物識別
   private async level3Inference(
     imageTensor: tf.Tensor4D,
     country: string
@@ -268,11 +296,9 @@ export class RecognitionPipeline {
     }
   }
 
-  /**
-   * 從數據庫獲取食物信息（需要根據實際數據庫結構實現）
-   * @param country 國家
-   * @param foodIndex 食物索引
-   */
+  // 從數據庫獲取食物信息（需要根據實際數據庫結構實現）
+  // @param country 國家
+  // @param foodIndex 食物索引
   private async getFoodInfo(
     country: string,
     foodIndex: number
@@ -287,6 +313,8 @@ export class RecognitionPipeline {
     // 暫時返回 null，等待數據庫集成
     return null;
   }
+  */
+  // ========== 第三層代碼結束 ==========
 
   /**
    * 批量識別

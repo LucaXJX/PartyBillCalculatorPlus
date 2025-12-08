@@ -198,8 +198,8 @@ async function initializeFoodRecognitionModels() {
       }
     }
 
-    // 第三層模型按需加載（在識別時加載）
-    console.log("✅ 模型初始化完成（第三層模型將按需加載）");
+    // 第三層模型暫時隱藏（已註釋，保留代碼以便將來恢復）
+    console.log("✅ 模型初始化完成（目前使用兩層識別：食物檢測 + 國家分類）");
   } catch (error) {
     console.error("❌ 模型初始化失敗:", error);
   }
