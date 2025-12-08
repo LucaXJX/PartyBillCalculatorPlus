@@ -15,6 +15,23 @@ import { recognizeFood } from "./baiduClient.js";
 import { checkUsageLimit } from "./usageTracker.js";
 import { dataStorage } from "../storage.js";
 
+// 模型識別管道（可選，如果 TensorFlow.js 可用）
+let recognitionPipeline: any = null;
+
+/**
+ * 設置模型識別管道（從 server.ts 調用）
+ */
+export function setRecognitionPipeline(pipeline: any): void {
+  recognitionPipeline = pipeline;
+}
+
+/**
+ * 檢查模型識別是否可用
+ */
+export function isModelRecognitionAvailable(): boolean {
+  return recognitionPipeline !== null;
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -37,9 +54,14 @@ export interface FoodImageRecord {
   width?: number;
   height?: number;
   recognitionStatus: 0 | 1 | 2 | 3; // 0=未識別, 1=識別中, 2=已識別, 3=識別失敗
-  recognitionResult?: string; // JSON
+  recognitionResult?: string; // JSON - API識別結果
   recognitionError?: string;
   recognitionAt?: string;
+  // 模型識別結果
+  modelRecognitionResult?: string; // JSON - 模型識別結果
+  modelRecognitionConfidence?: number; // 模型識別置信度
+  modelRecognitionAt?: string;
+  modelRecognitionError?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -71,7 +93,10 @@ export async function saveFoodImage(
   // 因為 storage.ts 使用 JSON 文件存儲，需要手動同步到 proxy.bill
   if ("bill" in proxy) {
     const bills = (proxy as any).bill;
-    const billExists = bills.some((b: any) => b.id === billId);
+    // 過濾掉 undefined 或 null 元素
+    const validBills = bills.filter((b: any) => b != null);
+    const billExists = validBills.some((b: any) => b && b.id === billId);
+    
     if (!billExists) {
       console.log(`同步 bill ${billId} 到 proxy.bill...`);
 
@@ -91,12 +116,6 @@ export async function saveFoodImage(
           const existingCreatorById = validUsers.find(
             (u: any) => u && u.id === bill.createdBy
           );
-          const existingCreatorByEmail = existingCreatorById
-            ? null
-            : users.find((u: any) => {
-                // 需要先獲取 creator 的 email 才能檢查
-                return false; // 暫時返回 false，下面會處理
-              });
 
           if (!existingCreatorById) {
             console.log(`同步 creator ${bill.createdBy} 到 proxy.user...`);
@@ -145,28 +164,47 @@ export async function saveFoodImage(
         }
       }
 
-      // 將 bill 記錄轉換為 proxy 格式並添加到 proxy.bill
-      // 注意：payer_id 使用 bill.createdBy（創建者/登錄用戶的 ID），而不是 bill.payerId（參與者 ID）
-      const proxyBill: any = {
-        id: bill.id,
-        name: bill.name,
-        date: bill.date,
-        location: bill.location || null,
-        tip_percentage: bill.tipPercentage || 0,
-        payer_id: bill.createdBy, // 使用創建者/登錄用戶的 ID
-        created_by: bill.createdBy,
-        payer_receipt_url: bill.payerReceiptUrl || null,
-        created_at: bill.createdAt || new Date().toISOString(),
-        updated_at: bill.updatedAt || new Date().toISOString(),
-      };
-      console.log(
-        `準備添加 bill 到 proxy:`,
-        JSON.stringify(proxyBill, null, 2)
-      );
-      bills.push(proxyBill);
-      console.log(
-        `bill ${billId} 已同步到 proxy.bill，當前 proxy.bill 長度: ${bills.length}`
-      );
+      // 再次檢查賬單是否存在（防止並發插入）
+      const checkAgain = validBills.some((b: any) => b && b.id === billId);
+      if (checkAgain) {
+        console.log(`bill ${billId} 已存在於 proxy.bill，跳過插入`);
+      } else {
+        // 將 bill 記錄轉換為 proxy 格式並添加到 proxy.bill
+        // 注意：payer_id 使用 bill.createdBy（創建者/登錄用戶的 ID），而不是 bill.payerId（參與者 ID）
+        const proxyBill: any = {
+          id: bill.id,
+          name: bill.name,
+          date: bill.date,
+          location: bill.location || null,
+          tip_percentage: bill.tipPercentage || 0,
+          payer_id: bill.createdBy, // 使用創建者/登錄用戶的 ID
+          created_by: bill.createdBy,
+          payer_receipt_url: bill.payerReceiptUrl || null,
+          created_at: bill.createdAt || new Date().toISOString(),
+          updated_at: bill.updatedAt || new Date().toISOString(),
+        };
+        console.log(
+          `準備添加 bill 到 proxy:`,
+          JSON.stringify(proxyBill, null, 2)
+        );
+        
+        try {
+          bills.push(proxyBill);
+          console.log(
+            `bill ${billId} 已同步到 proxy.bill，當前 proxy.bill 長度: ${bills.length}`
+          );
+        } catch (error: any) {
+          // 如果插入失敗（可能是並發插入導致 UNIQUE constraint），檢查是否已存在
+          const finalCheck = validBills.some((b: any) => b && b.id === billId);
+          if (finalCheck) {
+            console.log(`bill ${billId} 插入失敗但已存在，跳過`);
+          } else {
+            throw error; // 重新拋出其他錯誤
+          }
+        }
+      }
+    } else {
+      console.log(`bill ${billId} 已存在於 proxy.bill，跳過同步`);
     }
   }
 
@@ -301,6 +339,47 @@ export async function saveFoodImage(
 }
 
 /**
+ * 根據 ID 獲取單張食物圖片
+ */
+export async function getFoodImageById(
+  foodImageId: number
+): Promise<FoodImageRecord | null> {
+  if (!("food_images" in proxy)) {
+    return null;
+  }
+
+  const images = (proxy as any).food_images;
+  const validImages = images.filter((img: any) => img != null);
+  const image = validImages.find((img: any) => img && img.id === foodImageId);
+
+  if (!image) {
+    return null;
+  }
+
+  return {
+    id: image.id,
+    billId: image.bill_id,
+    userId: image.user_id,
+    originalFilename: image.original_filename,
+    storedPath: image.stored_path,
+    originalPath: image.original_path,
+    fileSize: image.file_size,
+    width: image.width,
+    height: image.height,
+    recognitionStatus: image.recognition_status,
+    recognitionResult: image.recognition_result,
+    recognitionError: image.recognition_error,
+    recognitionAt: image.recognition_at,
+    modelRecognitionResult: image.model_recognition_result,
+    modelRecognitionConfidence: image.model_recognition_confidence,
+    modelRecognitionAt: image.model_recognition_at,
+    modelRecognitionError: image.model_recognition_error,
+    createdAt: image.created_at,
+    updatedAt: image.updated_at,
+  };
+}
+
+/**
  * 獲取訂單的食物圖片列表
  */
 export async function getFoodImagesByBillId(
@@ -352,7 +431,51 @@ export async function checkImageLimit(
 }
 
 /**
- * 識別食物圖片（異步）
+ * 使用模型識別食物圖片
+ * @param imagePath 圖片路徑
+ * @returns 模型識別結果
+ */
+async function recognizeFoodWithModel(imagePath: string): Promise<{
+  result: any;
+  confidence: number;
+} | null> {
+  if (!recognitionPipeline) {
+    console.warn("⚠️  識別管道不可用（recognitionPipeline 為 null）");
+    return null;
+  }
+  
+  if (!fs.existsSync(imagePath)) {
+    console.warn(`⚠️  圖片文件不存在: ${imagePath}`);
+    return null;
+  }
+
+  try {
+    const imageBuffer = fs.readFileSync(imagePath);
+    console.log(`📸 讀取圖片: ${imagePath}, 大小: ${imageBuffer.length} bytes`);
+    
+    const modelResult = await recognitionPipeline.recognizeFoodImage(imageBuffer);
+    console.log(`🔍 模型識別原始結果:`, JSON.stringify(modelResult).substring(0, 200));
+
+    if (!modelResult.is_food) {
+      console.log("ℹ️  模型判斷不是食物");
+      return null;
+    }
+
+    const confidence = modelResult.overall_confidence || modelResult.confidence || 0;
+    console.log(`✅ 模型識別成功: is_food=true, confidence=${confidence}, food_name=${modelResult.food_name || 'unknown'}`);
+    
+    return {
+      result: modelResult,
+      confidence: confidence,
+    };
+  } catch (error) {
+    console.error("❌ 模型識別失敗:", error);
+    return null;
+  }
+}
+
+/**
+ * 識別食物圖片（異步）- 同時調用 API 和模型識別
  * @param foodImageId 食物圖片 ID
  */
 export async function recognizeFoodImage(foodImageId: number): Promise<void> {
@@ -374,42 +497,104 @@ export async function recognizeFoodImage(foodImageId: number): Promise<void> {
     return; // 已識別，跳過
   }
 
-  // 檢查 API 使用限制
-  const usageCheck = await checkUsageLimit(1000);
-  if (!usageCheck.allowed) {
-    throw new Error(`已超過 API 使用限制（${usageCheck.used}/1000）`);
-  }
-
   // 更新狀態為識別中
   image.recognition_status = 1;
   image.updated_at = new Date().toISOString();
 
-  try {
-    // 調用識別 API
-    const results = await recognizeFood(
-      image.stored_path,
-      image.user_id,
-      foodImageId
-    );
+  // 並行調用 API 和模型識別
+  const apiPromise = (async () => {
+    try {
+      // 檢查 API 使用限制
+      const usageCheck = await checkUsageLimit(1000);
+      if (!usageCheck.allowed) {
+        throw new Error(`已超過 API 使用限制（${usageCheck.used}/1000）`);
+      }
 
-    // 更新識別結果
-    image.recognition_status = 2;
-    image.recognition_result = JSON.stringify(results);
-    image.recognition_at = new Date().toISOString();
-    image.updated_at = new Date().toISOString();
-
-    // 刪除原始圖片（如果存在）
-    if (image.original_path && image.original_path !== image.stored_path) {
-      await safeDeleteFile(image.original_path);
-      image.original_path = null;
+      // 調用識別 API
+      const results = await recognizeFood(
+        image.stored_path,
+        image.user_id,
+        foodImageId
+      );
+      return { success: true, results };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
-  } catch (error) {
-    // 識別失敗
+  })();
+
+  const modelPromise = (async () => {
+    try {
+      console.log(`🔍 開始模型識別: ${image.stored_path}`);
+      const modelResult = await recognizeFoodWithModel(image.stored_path);
+      if (modelResult) {
+        console.log(`✅ 模型識別成功: confidence=${modelResult.confidence}`);
+        return { success: true, result: modelResult };
+      } else {
+        console.log("ℹ️  模型識別返回 null（可能不是食物）");
+        return { success: true, result: null };
+      }
+    } catch (error) {
+      console.error("❌ 模型識別異常:", error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  })();
+
+  // 等待兩個識別完成
+  const [apiResult, modelResult] = await Promise.all([apiPromise, modelPromise]);
+
+  // 更新 API 識別結果
+  if (apiResult.success) {
+    image.recognition_result = JSON.stringify(apiResult.results);
+    image.recognition_at = new Date().toISOString();
+  } else {
+    image.recognition_error = apiResult.error;
+  }
+
+  // 更新模型識別結果
+  if (modelResult.success && modelResult.result) {
+    // modelResult.result 的結構是 { result: RecognitionResult, confidence: number }
+    // 所以需要訪問 modelResult.result.result 來獲取實際的識別結果
+    image.model_recognition_result = JSON.stringify(modelResult.result.result);
+    image.model_recognition_confidence = modelResult.result.confidence;
+    image.model_recognition_at = new Date().toISOString();
+    console.log(`✅ 模型識別結果已保存到數據庫: confidence=${modelResult.result.confidence}, result=${JSON.stringify(modelResult.result.result).substring(0, 100)}...`);
+  } else if (!modelResult.success) {
+    image.model_recognition_error = modelResult.error;
+    console.warn(`⚠️  模型識別失敗: ${modelResult.error}`);
+  } else {
+    console.log("ℹ️  模型識別未返回結果（可能不是食物或識別管道不可用）");
+  }
+
+  // 如果至少有一個識別成功，標記為已識別
+  if (apiResult.success || (modelResult.success && modelResult.result)) {
+    image.recognition_status = 2;
+  } else {
+    // 兩個都失敗
     image.recognition_status = 3;
-    image.recognition_error =
-      error instanceof Error ? error.message : String(error);
-    image.updated_at = new Date().toISOString();
-    throw error;
+    if (!image.recognition_error) {
+      image.recognition_error = "API 和模型識別都失敗";
+    }
+  }
+
+  image.updated_at = new Date().toISOString();
+
+  // 刪除原始圖片（如果存在）
+  if (image.original_path && image.original_path !== image.stored_path) {
+    await safeDeleteFile(image.original_path);
+    image.original_path = null;
+  }
+
+  // 如果兩個都失敗，拋出錯誤
+  if (!apiResult.success && (!modelResult.success || !modelResult.result)) {
+    throw new Error(
+      `識別失敗: API=${apiResult.error || "未知錯誤"}, Model=${modelResult.error || "未知錯誤"}`
+    );
   }
 }
 
@@ -439,6 +624,10 @@ export async function getUnrecognizedImages(): Promise<FoodImageRecord[]> {
     recognitionResult: img.recognition_result,
     recognitionError: img.recognition_error,
     recognitionAt: img.recognition_at,
+    modelRecognitionResult: img.model_recognition_result,
+    modelRecognitionConfidence: img.model_recognition_confidence,
+    modelRecognitionAt: img.model_recognition_at,
+    modelRecognitionError: img.model_recognition_error,
     createdAt: img.created_at,
     updatedAt: img.updated_at,
   }));

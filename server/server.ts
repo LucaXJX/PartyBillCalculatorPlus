@@ -24,8 +24,15 @@ import type { ParsedBill } from "./llm/types.js";
 import {
   saveFoodImage,
   getFoodImagesByBillId,
+  getFoodImageById,
   checkImageLimit,
+  setRecognitionPipeline,
 } from "./foodRecognition/foodImageManager.js";
+import {
+  getRecommendedFoods,
+  getDiverseRecommendations,
+  formatRecommendations,
+} from "./foodRecognition/foodRecommendationService.js";
 import {
   scheduleRecognition,
   recognizeBillImagesNow,
@@ -36,6 +43,13 @@ import {
 } from "./foodRecognition/healthCheck.js";
 import { checkUsageLimit } from "./foodRecognition/usageTracker.js";
 import { proxy } from "./proxy.js";
+import type {
+  Bill as DBBill,
+  BillParticipant,
+  Item as DBItem,
+  ItemParticipant,
+  CalculationResult as DBCalculationResult,
+} from "./proxy.js";
 // 延遲加載 TensorFlow.js 相關模塊（避免構建失敗時服務器無法啟動）
 // 優先嘗試使用純 JavaScript 版本（@tensorflow/tfjs），不需要構建 native 模塊
 let ModelLoader: any;
@@ -51,16 +65,15 @@ let tensorflowAvailable = false;
 // 嘗試加載 TensorFlow.js 模塊
 async function loadTensorFlowModules() {
   try {
-    // 優先嘗試純 JavaScript 版本（不需要構建）
-    // 如果失敗，嘗試 node 版本（需要構建）
+    // 只使用純 JavaScript 版本（不需要構建 native 模塊）
+    // 這樣可以避免 Windows 上的構建問題
     let tfjsModule;
     try {
       tfjsModule = await import("@tensorflow/tfjs");
       console.log("✅ 使用純 JavaScript 版本的 TensorFlow.js（不需要構建）");
     } catch (e) {
-      console.log("⚠️  純 JavaScript 版本不可用，嘗試 node 版本...");
-      tfjsModule = await import("@tensorflow/tfjs-node");
-      console.log("✅ 使用 Node.js 版本的 TensorFlow.js");
+      console.error("❌ 無法加載 TensorFlow.js:", e);
+      throw new Error("TensorFlow.js 加載失敗");
     }
 
     const modules = await import("./food-recognition/models/index.js");
@@ -71,9 +84,11 @@ async function loadTensorFlowModules() {
 
     // 初始化 TensorFlow.js 食物識別系統
     // 使用轉換後的模型路徑（從 Python 訓練服務轉換）
+    // 修復路徑：__dirname 指向 server 目錄，所以只需要上一級就是項目根目錄
+    const projectRoot = path.resolve(__dirname, "..");
     const modelsPath = path.join(
-      __dirname,
-      "../../food-recognition-service/models_tfjs"
+      projectRoot,
+      "food-recognition-service/models_tfjs"
     );
     modelLoader = new ModelLoader(modelsPath);
     imagePreprocessor = new ImagePreprocessor();
@@ -81,6 +96,9 @@ async function loadTensorFlowModules() {
       modelLoader,
       imagePreprocessor
     );
+
+    // 設置模型識別管道到 foodImageManager（用於雙重識別）
+    setRecognitionPipeline(recognitionPipeline);
 
     // 初始化模型版本管理器
     modelVersionManager = new ModelVersionManager();
@@ -140,9 +158,10 @@ async function initializeFoodRecognitionModels() {
       );
     } else {
       // 如果沒有活動版本，嘗試使用默認路徑
+      const projectRoot = path.resolve(__dirname, "..");
       const defaultPath = path.join(
-        __dirname,
-        "../../food-recognition-service/models_tfjs/level1"
+        projectRoot,
+        "food-recognition-service/models_tfjs/level1"
       );
       try {
         await modelLoader.loadLevel1Model(defaultPath);
@@ -163,9 +182,10 @@ async function initializeFoodRecognitionModels() {
         `✅ 已加載第二層模型: ${level2Version.version} (${level2Version.model_path})`
       );
     } else {
+      const projectRoot = path.resolve(__dirname, "..");
       const defaultPath = path.join(
-        __dirname,
-        "../../food-recognition-service/models_tfjs/level2"
+        projectRoot,
+        "food-recognition-service/models_tfjs/level2"
       );
       try {
         await modelLoader.loadLevel2Model(defaultPath);
@@ -203,7 +223,7 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: 5 * 1024 * 1024, // 5MB限制
+    fileSize: 20 * 1024 * 1024, // 20MB限制（增加以支持高分辨率圖片）
   },
   fileFilter: (req: any, file: any, cb: any) => {
     if (file.mimetype.startsWith("image/")) {
@@ -984,6 +1004,213 @@ app.get("/api/calculate", authenticateUser, (req: any, res) => {
 
 // === 數據存儲相關 ===
 
+// 生成唯一 ID 的工具函數
+function generateId(): string {
+  return Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
+}
+
+/**
+ * 將 BillRecord 同步到數據庫（用於消息系統的外鍵引用）
+ */
+async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
+  try {
+    const billId = billRecord.id;
+    if (!billId) {
+      throw new Error("Bill ID is required");
+    }
+
+    // 驗證必要的字段
+    if (!billRecord.participants || !Array.isArray(billRecord.participants)) {
+      console.warn("⚠️  賬單缺少參與者信息，跳過數據庫同步");
+      return;
+    }
+
+    if (!billRecord.items || !Array.isArray(billRecord.items)) {
+      console.warn("⚠️  賬單缺少項目信息，跳過數據庫同步");
+      return;
+    }
+
+    if (!billRecord.results || !Array.isArray(billRecord.results)) {
+      console.warn("⚠️  賬單缺少計算結果，跳過數據庫同步");
+      return;
+    }
+
+    // 檢查賬單是否已存在於數據庫
+    // 確保 proxy.bill 存在且是數組
+    if (!proxy.bill || !Array.isArray(proxy.bill)) {
+      console.warn("⚠️  proxy.bill 不存在或不是數組，跳過數據庫同步");
+      return;
+    }
+    const existingBill = proxy.bill.find((b) => b && b.id === billId);
+    
+    // 獲取參與者對應的用戶 ID（通過用戶名查找）
+    const participantUserIds: Map<string, string> = new Map();
+    for (const participant of billRecord.participants) {
+      if (!participant || !participant.name) {
+        console.warn(`⚠️  跳過無效的參與者: ${JSON.stringify(participant)}`);
+        continue;
+      }
+      const user = await dataStorage.getUserByUsername(participant.name);
+      if (user) {
+        participantUserIds.set(participant.id, user.id);
+      }
+    }
+
+    // 獲取付款人的用戶 ID
+    const payerParticipant = billRecord.participants.find(
+      (p) => p && p.id === billRecord.payerId
+    );
+    const payerUserId = payerParticipant
+      ? participantUserIds.get(billRecord.payerId) || billRecord.payerId
+      : billRecord.payerId;
+
+    // 轉換為數據庫格式的 Bill
+    const dbBill: DBBill = {
+      id: billId,
+      name: billRecord.name,
+      date: billRecord.date,
+      location: billRecord.location || null,
+      tip_percentage: billRecord.tipPercentage,
+      payer_id: payerUserId,
+      created_by: billRecord.createdBy,
+      payer_receipt_url: billRecord.payerReceiptUrl || null,
+      created_at: billRecord.createdAt,
+      updated_at: billRecord.updatedAt,
+    };
+
+    if (existingBill) {
+      // 更新現有賬單
+      Object.assign(existingBill, dbBill);
+    } else {
+      // 創建新賬單
+      proxy.bill.push(dbBill);
+    }
+
+    // 同步參與者
+    // 先刪除舊的參與者記錄（如果存在）
+    const existingParticipants = proxy.bill_participant.filter(
+      (bp) => bp.bill_id === billId
+    );
+    for (const ep of existingParticipants) {
+      const index = proxy.bill_participant.indexOf(ep);
+      if (index !== -1) {
+        proxy.bill_participant.splice(index, 1);
+      }
+    }
+
+    // 添加新的參與者記錄
+    for (const participant of billRecord.participants) {
+      if (!participant || !participant.id || !participant.name) {
+        console.warn(`⚠️  跳過無效的參與者: ${JSON.stringify(participant)}`);
+        continue;
+      }
+      const userId = participantUserIds.get(participant.id) || participant.id;
+      const dbParticipant: BillParticipant = {
+        id: generateId(),
+        bill_id: billId,
+        participant_id: userId,
+        participant_name: participant.name,
+        created_at: billRecord.createdAt,
+      };
+      proxy.bill_participant.push(dbParticipant);
+    }
+
+    // 同步項目
+    // 先刪除舊的項目記錄（如果存在）
+    const existingItems = proxy.item.filter((item) => item.bill_id === billId);
+    for (const item of existingItems) {
+      const index = proxy.item.indexOf(item);
+      if (index !== -1) {
+        proxy.item.splice(index, 1);
+      }
+      // 同時刪除相關的 item_participant 記錄
+      const itemParticipants = proxy.item_participant.filter(
+        (ip) => ip.item_id === item.id
+      );
+      for (const ip of itemParticipants) {
+        const ipIndex = proxy.item_participant.indexOf(ip);
+        if (ipIndex !== -1) {
+          proxy.item_participant.splice(ipIndex, 1);
+        }
+      }
+    }
+
+    // 添加新的項目記錄
+    for (const item of billRecord.items) {
+      if (!item || !item.id || !item.name) {
+        console.warn(`⚠️  跳過無效的項目: ${JSON.stringify(item)}`);
+        continue;
+      }
+      const dbItem: DBItem = {
+        id: item.id,
+        bill_id: billId,
+        name: item.name,
+        amount: item.amount,
+        is_shared: item.isShared ? 1 : 0,
+        created_at: billRecord.createdAt,
+      };
+      proxy.item.push(dbItem);
+
+      // 添加項目參與者
+      if (item.participantIds && Array.isArray(item.participantIds)) {
+        for (const participantId of item.participantIds) {
+          const userId = participantUserIds.get(participantId) || participantId;
+          const dbItemParticipant: ItemParticipant = {
+            id: generateId(),
+            item_id: item.id,
+            participant_id: userId,
+            created_at: billRecord.createdAt,
+          };
+          proxy.item_participant.push(dbItemParticipant);
+        }
+      }
+    }
+
+    // 同步計算結果
+    // 先刪除舊的計算結果記錄（如果存在）
+    const existingResults = proxy.calculation_result.filter(
+      (cr) => cr.bill_id === billId
+    );
+    for (const result of existingResults) {
+      const index = proxy.calculation_result.indexOf(result);
+      if (index !== -1) {
+        proxy.calculation_result.splice(index, 1);
+      }
+    }
+
+    // 添加新的計算結果記錄
+    for (const result of billRecord.results) {
+      if (!result || !result.participantId) {
+        console.warn(`⚠️  跳過無效的計算結果: ${JSON.stringify(result)}`);
+        continue;
+      }
+      const userId = participantUserIds.get(result.participantId) || result.participantId;
+      const dbResult: DBCalculationResult = {
+        id: generateId(),
+        bill_id: billId,
+        participant_id: userId,
+        amount: result.amount,
+        breakdown: result.breakdown || null,
+        payment_status: result.paymentStatus || "pending",
+        paid_at: result.paidAt || null,
+        confirmed_by_payer: result.confirmedByPayer ? 1 : 0,
+        receipt_image_url: result.receiptImageUrl || null,
+        rejected_reason: result.rejectedReason || null,
+        rejected_at: result.rejectedAt || null,
+        created_at: billRecord.createdAt,
+        updated_at: billRecord.updatedAt,
+      };
+      proxy.calculation_result.push(dbResult);
+    }
+
+    console.log(`✅ 賬單 ${billId} 已同步到數據庫`);
+  } catch (error) {
+    console.error("同步賬單到數據庫失敗:", error);
+    // 不拋出錯誤，因為 JSON 文件已經保存成功
+    // 消息系統會使用 dataStorage 驗證，所以即使數據庫同步失敗，消息也能正常工作
+  }
+}
+
 // 保存賬單到數據庫
 app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
   try {
@@ -1018,8 +1245,12 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
       payerResult.paidAt = new Date().toISOString();
     }
 
+    // 如果 bill 沒有 id，生成一個新的 id（新建賬單）
+    const billId = bill.id || generateId();
+    
     const billRecord: BillRecord = {
       ...bill,
+      id: billId,
       results,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -1028,8 +1259,28 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
 
     await dataStorage.saveBill(billRecord);
 
-    // 發送新建賬單通知給所有參與者
-    await MessageHelper.sendNewBillNotifications(billRecord);
+    // 同步賬單到數據庫（用於消息系統的外鍵引用）
+    // 如果同步失敗，跳過消息發送（避免外鍵約束錯誤）
+    let dbSyncSuccess = false;
+    try {
+      await syncBillToDatabase(billRecord);
+      dbSyncSuccess = true;
+    } catch (error) {
+      console.error("同步賬單到數據庫失敗:", error);
+      // 不拋出錯誤，因為 JSON 文件已經保存成功
+    }
+
+    // 只有在數據庫同步成功後才發送消息（避免外鍵約束錯誤）
+    if (dbSyncSuccess) {
+      try {
+        await MessageHelper.sendNewBillNotifications(billRecord);
+      } catch (error) {
+        console.error("發送消息失敗:", error);
+        // 不影響賬單保存的成功響應
+      }
+    } else {
+      console.warn("⚠️  跳過消息發送（數據庫同步失敗）");
+    }
 
     // 調度食物圖片識別任務（1 分鐘後執行）
     // 只有在訂單有食物圖片時才調度
@@ -1350,6 +1601,20 @@ app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
           }
         }
 
+        // 處理 modelRecognitionResult
+        let modelRecognitionResult = null;
+        if (img.modelRecognitionResult) {
+          try {
+            modelRecognitionResult =
+              typeof img.modelRecognitionResult === "string"
+                ? JSON.parse(img.modelRecognitionResult)
+                : img.modelRecognitionResult;
+          } catch (e) {
+            console.warn("解析 modelRecognitionResult 失敗:", e);
+            modelRecognitionResult = null;
+          }
+        }
+
         return {
           id: img.id,
           filename: img.originalFilename,
@@ -1361,6 +1626,10 @@ app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
           recognitionResult: recognitionResult,
           recognitionError: img.recognitionError,
           recognitionAt: img.recognitionAt,
+          modelRecognitionResult: modelRecognitionResult,
+          modelRecognitionConfidence: img.modelRecognitionConfidence,
+          modelRecognitionAt: img.modelRecognitionAt,
+          modelRecognitionError: img.modelRecognitionError,
           createdAt: img.createdAt,
         };
       }),
@@ -1370,6 +1639,79 @@ app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
     res.status(500).json({ error: "獲取食物圖片列表失敗" });
   }
 });
+
+// 上傳食物圖片
+app.post(
+  "/api/food/upload",
+  authenticateUser,
+  upload.single("foodImage"), // 前端使用 "foodImage" 字段名
+  async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "請上傳圖片文件" });
+      }
+
+      const { billId } = req.body;
+      if (!billId) {
+        // 清理上傳的文件
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({ error: "缺少訂單 ID" });
+      }
+
+      // 驗證訂單是否存在
+      const bill = await dataStorage.getBillById(billId);
+      if (!bill) {
+        fs.unlinkSync(req.file.path);
+        return res.status(404).json({ error: "訂單不存在，請先保存訂單" });
+      }
+
+      // 檢查圖片數量限制
+      const limitCheck = await checkImageLimit(billId, 10);
+      if (!limitCheck.allowed) {
+        fs.unlinkSync(req.file.path);
+        return res.status(400).json({
+          error: `已達到圖片上傳限制（${limitCheck.current}/10）`,
+          limit: limitCheck,
+        });
+      }
+
+      // 保存圖片
+      const imageRecord = await saveFoodImage(
+        req.file.path,
+        billId,
+        req.user.id,
+        req.file.originalname
+      );
+
+      // 調度識別任務（10秒後執行）
+      scheduleRecognition(billId);
+
+      res.status(200).json({
+        message: "圖片上傳成功",
+        image: {
+          id: imageRecord.id,
+          filename: imageRecord.originalFilename,
+          storedPath: imageRecord.storedPath,
+        },
+        limit: await checkImageLimit(billId, 10),
+      });
+    } catch (error) {
+      console.error("上傳食物圖片失敗:", error);
+      // 清理上傳的文件（如果存在）
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (e) {
+          // 忽略清理錯誤
+        }
+      }
+      res.status(500).json({
+        error: "上傳食物圖片失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
 
 // 手動觸發識別
 app.post(
@@ -2186,6 +2528,84 @@ app.get("/api/food/models/active", authenticateUser, async (req: any, res) => {
     console.error("獲取活動版本失敗:", error);
     res.status(500).json({
       error: "獲取活動版本失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// === 食物推薦 API ===
+
+// 獲取訂單的食物推薦（基於 API 和模型識別結果）
+app.get("/api/bills/:billId/food-recommendations", authenticateUser, async (req: any, res) => {
+  try {
+    const { billId } = req.params;
+
+    // 驗證訂單存在且用戶有權限
+    const bill = await dataStorage.getBillById(billId);
+    if (!bill) {
+      return res.status(404).json({ error: "訂單不存在" });
+    }
+
+    if (bill.createdBy !== req.user.id) {
+      return res.status(403).json({ error: "無權限訪問此訂單" });
+    }
+
+    // 獲取訂單的所有食物圖片
+    const images = await getFoodImagesByBillId(billId);
+
+    if (images.length === 0) {
+      return res.status(200).json({
+        recommendations: [],
+        message: "該訂單沒有食物圖片",
+      });
+    }
+
+    // 獲取多樣性推薦
+    const recommendations = getDiverseRecommendations(images);
+
+    res.status(200).json({
+      recommendations,
+      formatted: formatRecommendations(recommendations),
+      imageCount: images.length,
+    });
+  } catch (error) {
+    console.error("獲取食物推薦失敗:", error);
+    res.status(500).json({
+      error: "獲取食物推薦失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// 獲取單張圖片的食物推薦
+app.get("/api/food-images/:imageId/recommendations", authenticateUser, async (req: any, res) => {
+  try {
+    const { imageId } = req.params;
+
+    // 獲取圖片記錄
+    const image = await getFoodImageById(parseInt(imageId));
+
+    if (!image) {
+      return res.status(404).json({ error: "圖片不存在" });
+    }
+
+    // 驗證權限
+    const bill = await dataStorage.getBillById(image.billId);
+    if (!bill || bill.createdBy !== req.user.id) {
+      return res.status(403).json({ error: "無權限訪問此圖片" });
+    }
+
+    // 獲取推薦
+    const recommendations = getRecommendedFoods(image);
+
+    res.status(200).json({
+      recommendations,
+      formatted: formatRecommendations(recommendations),
+    });
+  } catch (error) {
+    console.error("獲取食物推薦失敗:", error);
+    res.status(500).json({
+      error: "獲取食物推薦失敗",
       details: error instanceof Error ? error.message : String(error),
     });
   }

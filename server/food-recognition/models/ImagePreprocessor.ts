@@ -1,4 +1,5 @@
-import * as tf from "@tensorflow/tfjs-node";
+// 使用純 JavaScript 版本的 TensorFlow.js（不需要構建 native 模塊）
+import * as tf from "@tensorflow/tfjs";
 import sharp from "sharp";
 
 /**
@@ -17,21 +18,34 @@ export class ImagePreprocessor {
     targetSize: [number, number] = [224, 224]
   ): Promise<tf.Tensor4D> {
     try {
-      // 使用 TensorFlow.js 的 node.decodeImage 解碼圖像
-      const imageTensor = tf.node.decodeImage(imageBuffer, 3); // 3 channels (RGB)
+      // 使用 sharp 處理圖像（因為純 JS 版本的 TensorFlow.js 沒有 node.decodeImage）
+      const processedBuffer = await sharp(imageBuffer)
+        .resize(targetSize[0], targetSize[1], {
+          fit: "fill",
+          background: { r: 0, g: 0, b: 0 },
+        })
+        .removeAlpha() // 移除 alpha 通道，確保只有 RGB
+        .raw()
+        .toBuffer();
 
-      // 調整大小
-      const resized = tf.image.resizeBilinear(imageTensor, targetSize);
+      // 將 Buffer 轉換為 Uint8Array
+      const imageData = new Uint8Array(processedBuffer);
+
+      // 創建張量 [height, width, channels]
+      const imageTensor = tf.tensor3d(
+        imageData,
+        [targetSize[1], targetSize[0], 3],
+        "int32"
+      );
 
       // 歸一化到 [0, 1] 範圍
-      const normalized = resized.div(255.0);
+      const normalized = imageTensor.div(255.0);
 
       // 添加批次維度 [1, height, width, channels]
       const batched = normalized.expandDims(0);
 
       // 清理中間張量（避免內存洩漏）
       imageTensor.dispose();
-      resized.dispose();
       normalized.dispose();
 
       return batched as tf.Tensor4D;

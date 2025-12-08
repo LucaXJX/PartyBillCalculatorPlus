@@ -28,6 +28,7 @@
     "db:fix-migration": "node --loader ts-node/esm scripts/fix-migration.ts",
     "ocr:setup": "cd ocr-service && echo 請參考 source venv310/Scripts/activate && python main.py",
     "ocr:dev": "cd ocr-service && source venv310/Scripts/activate && python main.py",
+    "test:dual-recognition": "node --loader ts-node/esm scripts/test-dual-recognition.ts",
     "ocr:test": "curl http://localhost:8000/health",
     "llm:test": "node --loader ts-node/esm scripts/test-prompt.ts",
     "llm:test:v1": "node --loader ts-node/esm scripts/test-prompt.ts v1",

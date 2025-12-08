@@ -1,4 +1,5 @@
-import * as tf from "@tensorflow/tfjs-node";
+// 使用純 JavaScript 版本的 TensorFlow.js（不需要構建 native 模塊）
+import * as tf from "@tensorflow/tfjs";
 import { ModelLoader } from "./ModelLoader.js";
 import { ImagePreprocessor } from "./ImagePreprocessor.js";
 
@@ -78,7 +79,7 @@ export class RecognitionPipeline {
         imageTensor.dispose();
         return {
           is_food: false,
-          confidence: 1 - (level1Result.confidence ?? 0),
+          confidence: level1Result.confidence ?? 0, // confidence 已經是"不是食物"的置信度
           message: "圖像中未檢測到食物",
         };
       }
@@ -101,27 +102,36 @@ export class RecognitionPipeline {
         level2Result.country!
       );
 
-      // 獲取食物詳細信息
-      const foodInfo = await this.getFoodInfo(
-        level2Result.country!,
-        level3Result.food_index ?? 0
-      );
+      // 獲取食物詳細信息（只有在第三層識別成功時才獲取）
+      let foodInfo = null;
+      if (level3Result.food_confidence > 0) {
+        foodInfo = await this.getFoodInfo(
+          level2Result.country!,
+          level3Result.food_index ?? 0
+        );
+      }
 
       // 計算總體置信度
-      const overallConfidence =
-        (level1Result.confidence ?? 0) *
-        (level2Result.country_confidence ?? 0) *
-        (level3Result.food_confidence ?? 0);
+      // 如果第三層模型未加載，只使用前兩層的置信度
+      const overallConfidence = level3Result.food_confidence > 0
+        ? (level1Result.confidence ?? 0) *
+          (level2Result.country_confidence ?? 0) *
+          (level3Result.food_confidence ?? 0)
+        : (level1Result.confidence ?? 0) *
+          (level2Result.country_confidence ?? 0) * 0.5; // 第三層未加載時使用默認值 0.5
 
       return {
         is_food: true,
         country: level2Result.country,
         country_confidence: level2Result.country_confidence,
-        food_name: foodInfo?.name || level3Result.food_name,
+        food_name: foodInfo?.name || level3Result.food_name || (level3Result.food_confidence === 0 ? "unknown" : undefined),
         food_confidence: level3Result.food_confidence,
         calories: foodInfo?.calories,
         ingredients: foodInfo?.ingredients,
         overall_confidence: overallConfidence,
+        message: level3Result.food_confidence === 0 
+          ? `${level2Result.country} 國家的細粒度識別模型未加載，無法識別具體食物名稱`
+          : undefined,
       };
     } catch (error) {
       console.error("識別過程出錯:", error);
@@ -140,6 +150,12 @@ export class RecognitionPipeline {
 
   /**
    * 第一層推理：食物檢測
+   * 
+   * 注意：模型使用 binary 分類模式，輸出是 sigmoid 值（0-1）
+   * - 類別順序：[food (0), non-food (1)]
+   * - 輸出接近 0 = food（第一個類別）
+   * - 輸出接近 1 = non-food（第二個類別）
+   * 所以：isFood = output < 0.5（輸出小於 0.5 表示是食物）
    */
   private async level1Inference(
     imageTensor: tf.Tensor4D
@@ -149,12 +165,18 @@ export class RecognitionPipeline {
 
     try {
       const probabilities = await prediction.data();
-      const foodProbability = probabilities[0];
-      const isFood = foodProbability > 0.5;
+      const output = probabilities[0]; // sigmoid 輸出值
+      
+      // 在 binary 模式下，輸出 < 0.5 表示第一個類別（food）
+      // 輸出 > 0.5 表示第二個類別（non-food）
+      const isFood = output < 0.5;
+      
+      // 置信度：如果是食物，使用 (1 - output)；如果不是食物，使用 output
+      const confidence = isFood ? 1 - output : output;
 
       return {
         is_food: isFood,
-        confidence: foodProbability,
+        confidence: confidence,
       };
     } finally {
       prediction.dispose();
@@ -199,7 +221,26 @@ export class RecognitionPipeline {
     food_index: number;
   }> {
     try {
-      const model = this.modelLoader.getCountryModel(country);
+      // 嘗試獲取模型，如果不存在則按需加載
+      let model: tf.LayersModel | tf.GraphModel;
+      try {
+        model = this.modelLoader.getCountryModel(country);
+      } catch (error) {
+        // 模型未加載，嘗試按需加載
+        console.log(`📦 按需加載 ${country} 國家模型...`);
+        try {
+          await this.modelLoader.loadCountryModel(country);
+          model = this.modelLoader.getCountryModel(country);
+          console.log(`✅ ${country} 國家模型按需加載成功`);
+        } catch (loadError) {
+          console.warn(`⚠️  無法加載 ${country} 國家模型:`, loadError instanceof Error ? loadError.message : String(loadError));
+          return {
+            food_confidence: 0,
+            food_index: 0,
+          };
+        }
+      }
+
       const prediction = model.predict(imageTensor) as tf.Tensor;
 
       try {
@@ -218,8 +259,8 @@ export class RecognitionPipeline {
         prediction.dispose();
       }
     } catch (error) {
-      // 如果該國家的模型未加載，返回默認結果
-      console.warn(`國家模型 ${country} 未加載，跳過第三層識別`);
+      // 如果該國家的模型未加載或識別失敗，返回默認結果
+      console.warn(`國家模型 ${country} 識別失敗:`, error instanceof Error ? error.message : String(error));
       return {
         food_confidence: 0,
         food_index: 0,

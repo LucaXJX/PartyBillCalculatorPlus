@@ -3,6 +3,7 @@
 
 # OCR Engine
 paddleocr>=2.7.0
+paddlepaddle>=3.2.1
 
 # Web Framework
 fastapi>=0.104.0

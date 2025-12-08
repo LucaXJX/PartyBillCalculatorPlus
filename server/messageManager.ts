@@ -1,6 +1,7 @@
 // server/messageManager.ts - 消息管理模組（已遷移到數據庫）
 
 import { proxy } from "./proxy.js";
+import { dataStorage } from "./storage.js";
 import type { Message, MessageType } from "./types.js";
 
 /**
@@ -52,23 +53,33 @@ export class MessageManager {
   /**
    * 將應用 Message 類型轉換為數據庫格式
    */
-  private appToDbMessage(msg: Partial<Message>): any {
+  private async appToDbMessage(msg: Partial<Message>): Promise<any> {
     const recipientId = msg.recipientId || "";
     const billId = msg.billId || "";
 
     // 驗證 recipient_id 是否存在於 user 表
-    if (recipientId && !proxy.user.find((u) => u.id === recipientId)) {
-      throw new Error(`Recipient user ${recipientId} does not exist`);
+    if (recipientId) {
+      const recipient = await dataStorage.getUserById(recipientId);
+      if (!recipient) {
+        throw new Error(`Recipient user ${recipientId} does not exist`);
+      }
     }
 
     // 驗證 sender_id 是否存在（如果不為 null）
-    if (msg.senderId && !proxy.user.find((u) => u.id === msg.senderId)) {
-      throw new Error(`Sender user ${msg.senderId} does not exist`);
+    if (msg.senderId) {
+      const sender = await dataStorage.getUserById(msg.senderId);
+      if (!sender) {
+        throw new Error(`Sender user ${msg.senderId} does not exist`);
+      }
     }
 
     // 驗證 bill_id 是否存在（bill_id 是必填的外鍵）
-    if (!billId || !proxy.bill.find((b) => b.id === billId)) {
-      throw new Error(`Bill ${billId} does not exist or is empty`);
+    if (!billId) {
+      throw new Error(`Bill ID is required`);
+    }
+    const bill = await dataStorage.getBillById(billId);
+    if (!bill) {
+      throw new Error(`Bill ${billId} does not exist`);
     }
 
     return {
@@ -97,7 +108,7 @@ export class MessageManager {
   async createMessage(
     messageData: Omit<Message, "id" | "createdAt" | "isRead">
   ): Promise<Message> {
-    const dbMessage = this.appToDbMessage({
+    const dbMessage = await this.appToDbMessage({
       ...messageData,
       isRead: false,
       createdAt: new Date().toISOString(),

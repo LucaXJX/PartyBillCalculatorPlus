@@ -46,8 +46,8 @@ source venv/Scripts/activate
 # 升級 pip
 python -m pip install --upgrade pip
 
-# 安裝 PaddlePaddle（CPU 版本）
-python -m pip install paddlepaddle==2.6.1 -i https://www.paddlepaddle.org.cn/simple
+# 安裝 PaddlePaddle（CPU 版本，與 PaddleOCR 3.3.2 兼容）
+python -m pip install paddlepaddle==3.2.1 -i https://pypi.tuna.tsinghua.edu.cn/simple
 
 # 安裝其他依賴
 pip install -r requirements.txt
