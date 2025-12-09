@@ -178,6 +178,39 @@ export type ModelVersions = {
   created_at: string
 }
 
+export type Restaurant = {
+  id?: null | string
+  name: string
+  name_en: null | string
+  description: null | string
+  cuisine_type: null | string
+  price_range: null | string
+  rating: null | number
+  review_count: number // default: 0
+  address: null | string
+  city: null | string
+  latitude: null | number
+  longitude: null | number
+  phone: null | string
+  website: null | string
+  image_url: null | string
+  tags: null | string
+  is_active: number // default: 1
+  created_at: string
+  updated_at: string
+}
+
+export type UserRestaurantPreference = {
+  id?: null | string
+  user_id: string
+  user?: User
+  restaurant_id: string
+  restaurant?: Restaurant
+  preference: string
+  created_at: string
+  updated_at: string
+}
+
 export type DBProxy = {
   user: User[]
   bill: Bill[]
@@ -192,6 +225,8 @@ export type DBProxy = {
   food_api_usage: FoodApiUsage[]
   food_info: FoodInfo[]
   model_versions: ModelVersions[]
+  restaurant: Restaurant[]
+  user_restaurant_preference: UserRestaurantPreference[]
 }
 
 export let proxy = proxySchema<DBProxy>({
@@ -248,5 +283,11 @@ export let proxy = proxySchema<DBProxy>({
     ],
     food_info: [],
     model_versions: [],
+    restaurant: [],
+    user_restaurant_preference: [
+      /* foreign references */
+      ['user', { field: 'user_id', table: 'user' }],
+      ['restaurant', { field: 'restaurant_id', table: 'restaurant' }],
+    ],
   },
 })

@@ -187,6 +187,39 @@ is_active integer DEFAULT 0
 created_at varchar(64)
 
 
+restaurant
+----------
+id varchar(64) PK
+name varchar(255) NOT NULL
+name_en varchar(255) NULL
+description text NULL
+cuisine_type varchar(100) NULL
+price_range varchar(10) NULL
+rating decimal(3,2) NULL
+review_count integer DEFAULT 0
+address varchar(512) NULL
+city varchar(100) NULL
+latitude decimal(10,8) NULL
+longitude decimal(11,8) NULL
+phone varchar(50) NULL
+website varchar(512) NULL
+image_url varchar(512) NULL
+tags text NULL
+is_active integer DEFAULT 1
+created_at varchar(64)
+updated_at varchar(64)
+
+
+user_restaurant_preference
+--------------------------
+id varchar(64) PK
+user_id varchar(64) FK >- user.id
+restaurant_id varchar(64) FK >- restaurant.id
+preference varchar(20) NOT NULL
+created_at varchar(64)
+updated_at varchar(64)
+
+
 # zoom: 1.000
 # view: (0, 0)
 # text-bg: #6495ed
