@@ -1041,7 +1041,9 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
       console.warn("⚠️  proxy.bill 不存在或不是數組，跳過數據庫同步");
       return;
     }
-    const existingBill = proxy.bill.find((b) => b && b.id === billId);
+    // 過濾掉 null/undefined 元素
+    const validBills = proxy.bill.filter((b: any) => b != null);
+    const existingBill = validBills.find((b: any) => b && b.id === billId);
     
     // 獲取參與者對應的用戶 ID（通過用戶名查找）
     const participantUserIds: Map<string, string> = new Map();
@@ -1088,13 +1090,17 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
 
     // 同步參與者
     // 先刪除舊的參與者記錄（如果存在）
-    const existingParticipants = proxy.bill_participant.filter(
-      (bp) => bp.bill_id === billId
-    );
-    for (const ep of existingParticipants) {
-      const index = proxy.bill_participant.indexOf(ep);
-      if (index !== -1) {
-        proxy.bill_participant.splice(index, 1);
+    // 確保 proxy.bill_participant 存在且是數組
+    if (proxy.bill_participant && Array.isArray(proxy.bill_participant)) {
+      const validParticipants = proxy.bill_participant.filter((bp: any) => bp != null);
+      const existingParticipants = validParticipants.filter(
+        (bp: any) => bp && bp.bill_id === billId
+      );
+      for (const ep of existingParticipants) {
+        const index = proxy.bill_participant.indexOf(ep);
+        if (index !== -1) {
+          proxy.bill_participant.splice(index, 1);
+        }
       }
     }
 
@@ -1112,95 +1118,120 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
         participant_name: participant.name,
         created_at: billRecord.createdAt,
       };
-      proxy.bill_participant.push(dbParticipant);
+      // 確保 proxy.bill_participant 存在且是數組
+      if (proxy.bill_participant && Array.isArray(proxy.bill_participant)) {
+        proxy.bill_participant.push(dbParticipant);
+      } else {
+        console.warn("⚠️  proxy.bill_participant 不存在或不是數組，跳過參與者同步");
+      }
     }
 
     // 同步項目
     // 先刪除舊的項目記錄（如果存在）
-    const existingItems = proxy.item.filter((item) => item.bill_id === billId);
-    for (const item of existingItems) {
-      const index = proxy.item.indexOf(item);
-      if (index !== -1) {
-        proxy.item.splice(index, 1);
-      }
-      // 同時刪除相關的 item_participant 記錄
-      const itemParticipants = proxy.item_participant.filter(
-        (ip) => ip.item_id === item.id
-      );
-      for (const ip of itemParticipants) {
-        const ipIndex = proxy.item_participant.indexOf(ip);
-        if (ipIndex !== -1) {
-          proxy.item_participant.splice(ipIndex, 1);
+    // 確保 proxy.item 存在且是數組
+    if (!proxy.item || !Array.isArray(proxy.item)) {
+      console.warn("⚠️  proxy.item 不存在或不是數組，跳過項目同步");
+    } else {
+      const validItems = proxy.item.filter((item: any) => item != null);
+      const existingItems = validItems.filter((item: any) => item && item.bill_id === billId);
+      for (const item of existingItems) {
+        const index = proxy.item.indexOf(item);
+        if (index !== -1) {
+          proxy.item.splice(index, 1);
+        }
+        // 同時刪除相關的 item_participant 記錄
+        if (proxy.item_participant && Array.isArray(proxy.item_participant)) {
+          const validItemParticipants = proxy.item_participant.filter((ip: any) => ip != null);
+          const itemParticipants = validItemParticipants.filter(
+            (ip: any) => ip && ip.item_id === item.id
+          );
+          for (const ip of itemParticipants) {
+            const ipIndex = proxy.item_participant.indexOf(ip);
+            if (ipIndex !== -1) {
+              proxy.item_participant.splice(ipIndex, 1);
+            }
+          }
         }
       }
     }
 
     // 添加新的項目記錄
-    for (const item of billRecord.items) {
-      if (!item || !item.id || !item.name) {
-        console.warn(`⚠️  跳過無效的項目: ${JSON.stringify(item)}`);
-        continue;
-      }
-      const dbItem: DBItem = {
-        id: item.id,
-        bill_id: billId,
-        name: item.name,
-        amount: item.amount,
-        is_shared: item.isShared ? 1 : 0,
-        created_at: billRecord.createdAt,
-      };
-      proxy.item.push(dbItem);
+    if (proxy.item && Array.isArray(proxy.item)) {
+      for (const item of billRecord.items) {
+        if (!item || !item.id || !item.name) {
+          console.warn(`⚠️  跳過無效的項目: ${JSON.stringify(item)}`);
+          continue;
+        }
+        const dbItem: DBItem = {
+          id: item.id,
+          bill_id: billId,
+          name: item.name,
+          amount: item.amount,
+          is_shared: item.isShared ? 1 : 0,
+          created_at: billRecord.createdAt,
+        };
+        proxy.item.push(dbItem);
 
-      // 添加項目參與者
-      if (item.participantIds && Array.isArray(item.participantIds)) {
-        for (const participantId of item.participantIds) {
-          const userId = participantUserIds.get(participantId) || participantId;
-          const dbItemParticipant: ItemParticipant = {
-            id: generateId(),
-            item_id: item.id,
-            participant_id: userId,
-            created_at: billRecord.createdAt,
-          };
-          proxy.item_participant.push(dbItemParticipant);
+        // 添加項目參與者
+        if (item.participantIds && Array.isArray(item.participantIds)) {
+          if (proxy.item_participant && Array.isArray(proxy.item_participant)) {
+            for (const participantId of item.participantIds) {
+              const userId = participantUserIds.get(participantId) || participantId;
+              const dbItemParticipant: ItemParticipant = {
+                id: generateId(),
+                item_id: item.id,
+                participant_id: userId,
+                created_at: billRecord.createdAt,
+              };
+              proxy.item_participant.push(dbItemParticipant);
+            }
+          }
         }
       }
+    } else {
+      console.warn("⚠️  proxy.item 不存在或不是數組，跳過項目添加");
     }
 
     // 同步計算結果
     // 先刪除舊的計算結果記錄（如果存在）
-    const existingResults = proxy.calculation_result.filter(
-      (cr) => cr.bill_id === billId
-    );
-    for (const result of existingResults) {
-      const index = proxy.calculation_result.indexOf(result);
-      if (index !== -1) {
-        proxy.calculation_result.splice(index, 1);
+    if (!proxy.calculation_result || !Array.isArray(proxy.calculation_result)) {
+      console.warn("⚠️  proxy.calculation_result 不存在或不是數組，跳過計算結果同步");
+    } else {
+      const validResults = proxy.calculation_result.filter((cr: any) => cr != null);
+      const existingResults = validResults.filter(
+        (cr: any) => cr && cr.bill_id === billId
+      );
+      for (const result of existingResults) {
+        const index = proxy.calculation_result.indexOf(result);
+        if (index !== -1) {
+          proxy.calculation_result.splice(index, 1);
+        }
       }
-    }
 
-    // 添加新的計算結果記錄
-    for (const result of billRecord.results) {
-      if (!result || !result.participantId) {
-        console.warn(`⚠️  跳過無效的計算結果: ${JSON.stringify(result)}`);
-        continue;
+      // 添加新的計算結果記錄
+      for (const result of billRecord.results) {
+        if (!result || !result.participantId) {
+          console.warn(`⚠️  跳過無效的計算結果: ${JSON.stringify(result)}`);
+          continue;
+        }
+        const userId = participantUserIds.get(result.participantId) || result.participantId;
+        const dbResult: DBCalculationResult = {
+          id: generateId(),
+          bill_id: billId,
+          participant_id: userId,
+          amount: result.amount,
+          breakdown: result.breakdown || null,
+          payment_status: result.paymentStatus || "pending",
+          paid_at: result.paidAt || null,
+          confirmed_by_payer: result.confirmedByPayer ? 1 : 0,
+          receipt_image_url: result.receiptImageUrl || null,
+          rejected_reason: result.rejectedReason || null,
+          rejected_at: result.rejectedAt || null,
+          created_at: billRecord.createdAt,
+          updated_at: billRecord.updatedAt,
+        };
+        proxy.calculation_result.push(dbResult);
       }
-      const userId = participantUserIds.get(result.participantId) || result.participantId;
-      const dbResult: DBCalculationResult = {
-        id: generateId(),
-        bill_id: billId,
-        participant_id: userId,
-        amount: result.amount,
-        breakdown: result.breakdown || null,
-        payment_status: result.paymentStatus || "pending",
-        paid_at: result.paidAt || null,
-        confirmed_by_payer: result.confirmedByPayer ? 1 : 0,
-        receipt_image_url: result.receiptImageUrl || null,
-        rejected_reason: result.rejectedReason || null,
-        rejected_at: result.rejectedAt || null,
-        created_at: billRecord.createdAt,
-        updated_at: billRecord.updatedAt,
-      };
-      proxy.calculation_result.push(dbResult);
     }
 
     console.log(`✅ 賬單 ${billId} 已同步到數據庫`);
@@ -1322,8 +1353,18 @@ app.post("/api/messages", authenticateUser, async (req: any, res) => {
     // 如果沒有提供 billId，使用用戶的第一個賬單，或者創建一個測試賬單
     let targetBillId = billId;
     if (!targetBillId || targetBillId === "") {
+      // 確保 proxy.bill 存在且是數組
+      if (!proxy.bill || !Array.isArray(proxy.bill)) {
+        return res.status(400).json({
+          error: "無法創建測試消息：數據庫未初始化",
+        });
+      }
+      
+      // 過濾掉 null/undefined 元素
+      const validBills = proxy.bill.filter((b: any) => b != null);
+      
       // 查找用戶的第一個賬單
-      const userBills = proxy.bill.filter((b) => b.created_by === req.user.id);
+      const userBills = validBills.filter((b: any) => b && b.created_by === req.user.id);
       if (userBills.length > 0) {
         targetBillId = userBills[0].id || "";
       } else {
@@ -1335,7 +1376,14 @@ app.post("/api/messages", authenticateUser, async (req: any, res) => {
     }
 
     // 驗證 billId 是否存在
-    const bill = proxy.bill.find((b) => b.id === targetBillId);
+    // 確保 proxy.bill 存在且是數組
+    if (!proxy.bill || !Array.isArray(proxy.bill)) {
+      return res.status(500).json({ error: "數據庫未初始化" });
+    }
+    
+    // 過濾掉 null/undefined 元素
+    const validBills = proxy.bill.filter((b: any) => b != null);
+    const bill = validBills.find((b: any) => b && b.id === targetBillId);
     if (!bill) {
       return res.status(404).json({ error: "指定的賬單不存在" });
     }
@@ -2609,4 +2657,36 @@ app.get("/api/food-images/:imageId/recommendations", authenticateUser, async (re
       details: error instanceof Error ? error.message : String(error),
     });
   }
+});
+
+// === 服務器啟動 ===
+
+// 異步初始化函數
+async function startServer() {
+  try {
+    // 加載 TensorFlow.js 模塊（如果可用）
+    await loadTensorFlowModules();
+
+    // 初始化食物識別模型（如果 TensorFlow.js 可用）
+    if (tensorflowAvailable) {
+      await initializeFoodRecognitionModels();
+    }
+
+    // 啟動服務器
+    app.listen(PORT, () => {
+      console.log(`🚀 服務器運行在 http://localhost:${PORT}`);
+      console.log(`- 靜態資源來源: public 文件夾`);
+      console.log(`- API 根路徑: /api`);
+      console.log(`- 測試頁面: http://localhost:${PORT}/food-recognition-test.html`);
+    });
+  } catch (error) {
+    console.error("❌ 服務器啟動失敗:", error);
+    process.exit(1);
+  }
+}
+
+// 啟動服務器
+startServer().catch((error) => {
+  console.error("❌ 服務器啟動異常:", error);
+  process.exit(1);
 });

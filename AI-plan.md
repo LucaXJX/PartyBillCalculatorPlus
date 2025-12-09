@@ -2,6 +2,10 @@
 
 本文件總結 PBC 在完成資料庫升級（JSON → SQLite）後，進一步引入 AI 能力的可能方向。內容涵蓋「方向建議」、「推薦技術與 Library」、「難度」、「電腦與計算需求」等面向，作為後續開發參考路線圖。
 
+> **更新日期**：2025-01-XX  
+> **當前狀態**：Phase 1 核心 AI 功能已完成（OCR + 食物識別），Phase 2-3 待開始  
+> **主要變更**：食物識別已從百度 API 遷移到 TensorFlow.js 分層識別架構（兩層實現，第三層暫時隱藏）
+
 ---
 
 ## 核心需求 TodoList
@@ -20,11 +24,16 @@
   - [ ] ⏳ 獎勵機制（上傳食物圖片獲得額外識別機會）
 
 - [x] **2. 食物圖片識別** ✅
-  - [x] 百度菜品識別 API 集成
-  - [x] 圖片壓縮與存儲
+  - [x] 百度菜品識別 API 集成（備選方案）
+  - [x] TensorFlow.js 分層識別模型（主要方案）✅
+    - [x] 第一層：食物檢測（Food/Non-Food 二分類）
+    - [x] 第二層：國家分類（10 個國家/地區）
+    - [x] 第三層：細粒度分類（暫時隱藏，代碼保留）
+  - [x] 圖片壓縮與存儲（Sharp）
   - [x] 異步識別調度機制
   - [x] 前端上傳與結果展示
-  - [x] API 使用量追蹤（1000 次免費限制）
+  - [x] 模型加載與管理（自定義 FileSystemIOHandler）
+  - [x] 圖像預處理（Sharp + TensorFlow.js）
   - [x] 健康檢查與批量修復機制
   - [ ] ⏳ 獎勵機制集成（識別成功後增加 OCR 次數）
 
@@ -146,7 +155,7 @@
 
 ---
 
-## ✅ 2. 食物圖片識別（已完成 - 使用百度 API，計劃遷移到 TensorFlow）
+## ✅ 2. 食物圖片識別（已完成 - TensorFlow.js 分層識別架構）
 
 ### 2.1 功能構想
 
@@ -156,20 +165,39 @@
 
 ### 2.2 推薦工具 / Library
 
-- **✅ 調研完成**：詳見 `docs/FOOD_IMAGE_RECOGNITION_RESEARCH.md`
-- **✅ 當前採用：百度菜品識別 API** ⭐⭐⭐⭐⭐
-- **⏳ 計劃遷移：TensorFlow 分層識別架構** ⭐⭐⭐⭐⭐
+- **✅ 主要方案：TensorFlow.js 分層識別架構** ⭐⭐⭐⭐⭐
+
   - 詳見 `docs/FOOD_RECOGNITION_ARCHITECTURE.md`
-  - 三層架構：食物檢測 → 國家識別 → 細粒度分類
+  - **兩層架構**（第三層暫時隱藏）：
+    1. **第一層：食物檢測**（Food/Non-Food 二分類）
+       - 使用輕量級 CNN 模型
+       - 快速過濾非食物圖像，減少後續計算
+       - 輸出：`{is_food: boolean, confidence: number}`
+    2. **第二層：國家分類**（10 個國家/地區）
+       - 識別食物來源國家（中國、日本、韓國、泰國、印度、意大利、法國、墨西哥、美國、其他）
+       - 輸出：`{country: string, country_confidence: number}`
+    3. **第三層：細粒度分類**（暫時隱藏，代碼保留）
+       - 按國家識別具體食物種類
+       - 代碼已註釋，可隨時恢復
+  - **技術棧**：
+    - `@tensorflow/tfjs`（純 JavaScript 版本，無需 native 模塊）
+    - `sharp`（圖像預處理）
+    - 自定義 `FileSystemIOHandler`（文件系統模型加載）
+  - **模型格式**：支持 `layers-model` 和 `graph-model` 格式
+  - **模型轉換**：使用 Python `tensorflowjs` 工具將 H5/SavedModel 轉換為 TensorFlow.js 格式
+
+- **✅ 備選方案：百度菜品識別 API** ⭐⭐⭐⭐
+
   - 總共有 1000 次免費調用
   - 無需信用卡，只需實名認證
   - 識別超過 5 萬種菜品，支持中文
   - 返回菜品名稱、卡路里、成分等詳細信息
-- **備選方案**（未採用）：
+  - 已實現完整集成，可作為備選或對比驗證
+
+- **其他備選方案**（未採用）：
   - Google Cloud Vision API（每月 1000 次免費，需信用卡）
   - Azure Computer Vision（每月 5000 次免費，需信用卡）
   - Hugging Face Inference API（完全免費，有限額度）
-- **若要自行訓練模型**：用 `@tensorflow/tfjs-node`、或另開 Python Microservice，採 Transfer learning（ImageNet Food-101 dataset）
 
 ### 2.3 難度與需求
 
@@ -185,7 +213,7 @@
    - ✅ 申請菜品識別 API
    - ✅ 實現測試接口驗證效果
 
-2. **✅ 階段 2：後端集成**（已完成）
+2. **✅ 階段 2：後端集成（百度 API）**（已完成）
 
    - ✅ 創建 `server/foodRecognition/` 目錄
    - ✅ 實現 `baiduClient.ts`（百度 API 客戶端）
@@ -195,7 +223,7 @@
    - ✅ 實現 `usageTracker.ts`（API 使用量追蹤）
    - ✅ 實現 `healthCheck.ts`（未識別圖片自檢機制）
    - ✅ 添加 API 端點：
-     - `POST /api/food/upload`：上傳食物圖片（最多 2 張/訂單）
+     - `POST /api/food/upload`：上傳食物圖片（最多 1 張/訂單）
      - `GET /api/food/images/:billId`：獲取訂單的食物圖片列表
      - `POST /api/food/recognize/:billId`：手動觸發識別
      - `GET /api/food/health`：健康檢查（未識別圖片統計）
@@ -203,18 +231,42 @@
      - `GET /api/food/usage`：API 使用量統計
      - `GET /food_images/:filename`：提供圖片服務
 
-3. **✅ 階段 3：資料庫更新**（已完成）
+3. **✅ 階段 3：TensorFlow.js 模型集成**（已完成）
+
+   - ✅ 創建 `server/food-recognition/models/` 目錄結構
+   - ✅ 實現 `ModelLoader.ts`（模型加載器，支持 layers-model 和 graph-model）
+     - ✅ 自定義 `FileSystemIOHandler`（解決 Node.js 中 `file://` 協議不支持的問題）
+     - ✅ 支持按需加載第三層模型（按國家）
+   - ✅ 實現 `ImagePreprocessor.ts`（圖像預處理）
+     - ✅ 使用 `sharp` 進行圖像解碼和預處理
+     - ✅ 圖像驗證、縮放、歸一化
+     - ✅ 支持批量預處理
+   - ✅ 實現 `RecognitionPipeline.ts`（兩層級聯識別管道）
+     - ✅ 第一層：食物檢測（Food/Non-Food）
+     - ✅ 第二層：國家分類（10 個國家/地區）
+     - ✅ 第三層：細粒度分類（暫時隱藏，代碼保留）
+     - ✅ 早期拒絕機制（非食物圖像直接返回）
+     - ✅ 張量內存管理（避免內存洩漏）
+   - ✅ 模型轉換工具（Python）
+     - ✅ `food-recognition-service/convert/convert_to_tfjs.py`
+     - ✅ 支持 H5 和 SavedModel 格式轉換
+     - ✅ 處理依賴問題（tensorflow_decision_forests、jax）
+   - ✅ 服務器啟動時自動初始化模型
+   - ✅ 錯誤處理和降級方案
+
+4. **✅ 階段 4：資料庫更新**（已完成）
 
    - ✅ 新增 `food_images` 表（記錄圖片信息、識別狀態、識別結果）
    - ✅ 新增 `food_api_usage` 表（記錄百度 API 使用量）
    - ✅ 更新 `erd.txt` 和 `proxy.ts` 類型定義
+   - ✅ 支持存儲 TensorFlow.js 模型識別結果
 
-4. **✅ 階段 4：前端集成**（已完成）
+5. **✅ 階段 5：前端集成**（已完成）
    - ✅ 在 `calculator.html` 添加食物圖片上傳功能
    - ✅ 支持上傳前保存訂單（臨時存儲，保存訂單後關聯）
    - ✅ 顯示圖片預覽和識別狀態
    - ✅ 實現自動輪詢機制（每 5 秒刷新識別結果，最多 2 分鐘）
-   - ✅ 顯示識別結果（菜品名稱、置信度、卡路里等）
+   - ✅ 顯示識別結果（是否食物、國家、置信度等）
    - ⏳ 獎勵機制顯示（待實現）
 
 ### 2.5 技術實現細節
@@ -224,8 +276,37 @@
   - 使用 `sharp` 庫進行圖片壓縮（最大 1920x1920，質量 85%）
   - 壓縮後存儲，原始圖片自動刪除
   - 支持常見圖片格式（JPG、PNG 等）
+  - 圖像預處理：縮放到模型輸入尺寸（224x224），歸一化到 [0, 1]
 
-- **識別流程**：
+- **TensorFlow.js 模型加載**：
+
+  - **問題**：純 JavaScript 版本的 TensorFlow.js 在 Node.js 中不支持 `file://` 協議
+  - **解決方案**：實現自定義 `FileSystemIOHandler`
+    - 使用 `fs.readFile` 直接讀取模型文件
+    - 支持 `layers-model` 和 `graph-model` 兩種格式
+    - 正確解析 `model.json` 中的 `modelTopology`
+  - **模型格式檢測**：自動檢測模型格式並使用對應的加載函數
+    - `layers-model`：使用 `tf.loadLayersModel()`
+    - `graph-model`：使用 `tf.loadGraphModel()`
+
+- **識別流程（TensorFlow.js）**：
+
+  1. 用戶上傳圖片 → 壓縮存儲 → 保存到數據庫（狀態：未識別）
+  2. 訂單保存後，調度識別任務（10 秒延遲，測試用）
+  3. **第一層推理**：食物檢測
+     - 如果 `output < 0.5`：判定為食物（模型輸出為 `[food (0), non-food (1)]`）
+     - 如果 `output >= 0.5`：判定為非食物，直接返回
+  4. **第二層推理**：國家分類
+     - 獲取 10 個國家的概率分佈
+     - 選擇最高概率的國家
+     - 如果置信度 < 0.3：返回 `country: "unknown"`
+  5. **第三層推理**（暫時隱藏）：
+     - 根據第二層識別的國家，按需加載對應的細粒度模型
+     - 如果模型不存在或加載失敗：返回 `food_confidence: 0`，但流程繼續
+  6. 更新數據庫（狀態：已識別/識別失敗）
+  7. 前端自動輪詢更新識別結果
+
+- **識別流程（百度 API，備選）**：
 
   1. 用戶上傳圖片 → 壓縮存儲 → 保存到數據庫（狀態：未識別）
   2. 訂單保存後，調度識別任務（10 秒延遲，測試用）
@@ -235,13 +316,22 @@
 - **使用量追蹤**：
 
   - 嚴格記錄每次 API 調用（成功/失敗）
-  - 追蹤到 `food_api_usage` 表
+  - 追蹤到 `food_api_usage` 表（僅百度 API）
+  - TensorFlow.js 模型推理不計入 API 使用量
   - 提供使用量統計接口
 
 - **錯誤處理**：
+
   - 識別失敗時記錄錯誤信息
   - 提供健康檢查和批量修復機制
   - 前端顯示識別狀態和錯誤信息
+  - 模型加載失敗時提供降級方案（可切換到百度 API）
+
+- **性能優化**：
+  - 早期拒絕機制：非食物圖像在第一層就被過濾
+  - 張量內存管理：及時釋放中間張量，避免內存洩漏
+  - 按需加載：第三層模型按國家按需加載，減少內存佔用
+  - 批量處理：支持批量圖像預處理（未來可擴展批量推理）
 
 ---
 
@@ -323,8 +413,14 @@
 2. ✅ **PaddleOCR OCR 服務（Python microservice）建立＋已整合 Node.js 後端＋ Mistral LLM 串接**
    - 完整技術棧包括：`ocr-service/` 微服務（Py, FastAPI），`server/llm` 相關（`mistral.ts` 主 LLM 客戶端，`rateLimit.ts`, `usageTracker.ts`, `billParser.ts`...）
    - 自動填表、前端（calculator.html）集成、錯誤/降級方案完善
-3. ✅ **食物圖片識別（百度 API）集成**
-   - 完整技術棧包括：`server/foodRecognition/` 模塊（`baiduClient.ts`, `imageProcessor.ts`, `foodImageManager.ts`, `recognitionScheduler.ts`, `usageTracker.ts`, `healthCheck.ts`）
+3. ✅ **食物圖片識別（TensorFlow.js + 百度 API）集成**
+   - **TensorFlow.js 分層識別**：
+     - `server/food-recognition/models/` 模塊（`ModelLoader.ts`, `ImagePreprocessor.ts`, `RecognitionPipeline.ts`）
+     - 自定義 `FileSystemIOHandler` 解決模型加載問題
+     - 兩層級聯識別（第三層暫時隱藏）
+     - 模型轉換工具（Python）
+   - **百度 API 備選方案**：
+     - `server/foodRecognition/` 模塊（`baiduClient.ts`, `imageProcessor.ts`, `foodImageManager.ts`, `recognitionScheduler.ts`, `usageTracker.ts`, `healthCheck.ts`）
    - 圖片壓縮（Sharp）、異步識別調度、前端輪詢更新結果
 
 **技術架構摘要：**
@@ -344,11 +440,37 @@ Node.js (billParser.ts)：
 前端自動填表
 ```
 
-**食物圖片識別流程：**
+**食物圖片識別流程（TensorFlow.js）**：
 
 ```
 前端 (calculator.html)
-  ↓ POST /api/food/upload (最多 2 張/訂單)
+  ↓ POST /api/food/upload (最多 10 張/訂單)
+Node.js (server.ts)：
+  imageProcessor.ts 壓縮圖片
+  foodImageManager.ts 存儲到 data/food_images/
+  recognitionScheduler.ts 調度識別任務（10 秒延遲）
+  ↓ 異步調用
+RecognitionPipeline.ts：
+  1. ImagePreprocessor.ts 預處理圖像（Sharp + TensorFlow.js）
+  2. 第一層：食物檢測模型（Food/Non-Food）
+     ├─ 非食物 → 返回 {is_food: false}
+     └─ 是食物 → 繼續
+  3. 第二層：國家分類模型（10 個國家）
+     ├─ 置信度 < 0.3 → 返回 {country: "unknown"}
+     └─ 置信度 ≥ 0.3 → 返回國家信息
+  4. 第三層：細粒度分類（暫時隱藏）
+     └─ 按國家按需加載模型
+  ↓ 識別結果
+foodImageManager.ts 更新數據庫
+前端輪詢 GET /api/food/images/:billId（每 5 秒，最多 2 分鐘）
+  顯示識別結果（是否食物、國家、置信度等）
+```
+
+**食物圖片識別流程（百度 API，備選）**：
+
+```
+前端 (calculator.html)
+  ↓ POST /api/food/upload (最多 10 張/訂單)
 Node.js (server.ts)：
   imageProcessor.ts 壓縮圖片
   foodImageManager.ts 存儲到 data/food_images/
@@ -401,7 +523,11 @@ foodImageManager.ts 更新數據庫
 
 4. **使用方法**
    - **賬單 OCR 識別**：http://localhost:3000/calculator.html → 上傳賬單圖片 → AI 識別自動填單
-   - **食物圖片識別**：在計算頁面上傳食物圖片（最多 2 張/訂單）→ 保存訂單後自動識別（10 秒延遲）→ 查看識別結果
+   - **食物圖片識別**：
+     - 在計算頁面上傳食物圖片（最多 10 張/訂單）
+     - 保存訂單後自動識別（10 秒延遲）
+     - 查看識別結果（是否食物、國家、置信度等）
+     - TensorFlow.js 模型識別（主要方案）或百度 API 識別（備選方案）
 
 ---
 
@@ -422,12 +548,17 @@ foodImageManager.ts 更新數據庫
 ## 總結
 
 - ✅ **最核心優先建議**：賬單 OCR + LLM，最大化現有體驗，已高效落地
-- ✅ **食物圖片識別**：使用百度 API，已完成集成，支持菜品識別和結果展示
+- ✅ **食物圖片識別**：
+  - **TensorFlow.js 分層識別**：已完成兩層模型集成（食物檢測 + 國家分類），第三層暫時隱藏
+  - **百度 API 備選**：已完成集成，支持菜品識別和結果展示
 - PaddleOCR（中文識別佳），Mistral AI（免費/中文支持）實戰驗證
+- TensorFlow.js 模型加載和推理（純 JavaScript 版本，無需 native 模塊）實戰驗證
 - 百度菜品識別 API（1000 次免費調用）實戰驗證
 - 若要進一步提升：餐廳資料庫、推薦算法、心動滑卡三件套核心建議
 - 架構選擇以「後端解耦、開源優先、壓力最小本機」原則
-- 技術精要：排隊控速（rateLimit.ts）、JSON 驗證（cast.ts）、錯誤/重試、自動降級、API 使用量記錄
+- 技術精要：
+  - OCR/LLM：排隊控速（rateLimit.ts）、JSON 驗證（cast.ts）、錯誤/重試、自動降級、API 使用量記錄
+  - 食物識別：TensorFlow.js 模型加載（自定義 FileSystemIOHandler）、圖像預處理（Sharp + TensorFlow.js）、兩層級聯推理、早期拒絕機制、張量內存管理
 - 圖片處理：使用 Sharp 進行壓縮，異步調度識別任務，前端輪詢更新結果
 - 其餘 AI 功能初期建議用雲端/預訓練為主，資源充裕再考慮自訓
 - 路徑規劃彈性，依實際開發體感動態調整
