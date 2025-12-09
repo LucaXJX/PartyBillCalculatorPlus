@@ -69,3 +69,9 @@ saved_models/classifier_model
 # 臨時測試文件
 tests/
 models/
+
+# 爬蟲數據目錄
+scraper/data/
+scraper/logs/
+scraper/temp/
+scraper/tmp/

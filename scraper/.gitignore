@@ -1,0 +1,27 @@
+# 爬取的原始資料
+data/raw/
+data/processed/
+*.json
+*.csv
+
+# 日誌文件
+logs/
+*.log
+
+# 臨時文件
+temp/
+tmp/
+*.tmp
+
+# 瀏覽器數據（Playwright/Puppeteer）
+.playwright/
+.puppeteer/
+browser-data/
+
+# 環境變數（包含 API Keys）
+.env
+.env.local
+
+# 快取
+.cache/
+
