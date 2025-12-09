@@ -50,6 +50,11 @@ import type {
   ItemParticipant,
   CalculationResult as DBCalculationResult,
 } from "./proxy.js";
+import {
+  recommendRestaurants,
+  extractUserPreferences,
+  type RecommendationOptions,
+} from "./restaurantRecommender.js";
 // 延遲加載 TensorFlow.js 相關模塊（避免構建失敗時服務器無法啟動）
 // 優先嘗試使用純 JavaScript 版本（@tensorflow/tfjs），不需要構建 native 模塊
 let ModelLoader: any;
@@ -2654,6 +2659,1133 @@ app.get("/api/food-images/:imageId/recommendations", authenticateUser, async (re
     console.error("獲取食物推薦失敗:", error);
     res.status(500).json({
       error: "獲取食物推薦失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// === 餐廳管理 API ===
+
+// 獲取餐廳列表（支持分頁、篩選、搜索）
+app.get("/api/restaurants", authenticateUser, async (req: any, res) => {
+  try {
+    const {
+      page = "1",
+      limit = "20",
+      cuisine_type,
+      price_range,
+      min_rating,
+      city,
+      search,
+      district,
+    } = req.query;
+
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const offset = (pageNum - 1) * limitNum;
+
+    // 確保 proxy.restaurant 存在且是數組
+    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+      return res.status(200).json({
+        restaurants: [],
+        total: 0,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: 0,
+      });
+    }
+
+    // 過濾有效的餐廳（排除 null/undefined）
+    let restaurants = proxy.restaurant.filter(
+      (r: any) => r != null && r.is_active === 1
+    );
+
+    // 城市篩選（默認只顯示香港）
+    if (city) {
+      restaurants = restaurants.filter((r: any) => r.city === city);
+    } else {
+      // 默認只顯示香港
+      restaurants = restaurants.filter((r: any) => r.city === "香港");
+    }
+
+    // 菜系類型篩選
+    if (cuisine_type) {
+      const cuisineTypes = Array.isArray(cuisine_type)
+        ? cuisine_type
+        : [cuisine_type];
+      restaurants = restaurants.filter((r: any) => {
+        if (!r.cuisine_type) return false;
+        return cuisineTypes.some((type) =>
+          r.cuisine_type.toLowerCase().includes(type.toLowerCase())
+        );
+      });
+    }
+
+    // 價格範圍篩選
+    if (price_range) {
+      const priceRanges = Array.isArray(price_range)
+        ? price_range
+        : [price_range];
+      restaurants = restaurants.filter(
+        (r: any) => r.price_range && priceRanges.includes(r.price_range)
+      );
+    }
+
+    // 最小評分篩選
+    if (min_rating) {
+      const minRating = parseFloat(min_rating);
+      restaurants = restaurants.filter(
+        (r: any) => r.rating && r.rating >= minRating
+      );
+    }
+
+    // 區域篩選（通過地址匹配）
+    if (district) {
+      const districts = Array.isArray(district) ? district : [district];
+      restaurants = restaurants.filter((r: any) => {
+        if (!r.address) return false;
+        return districts.some((d) => r.address.includes(d));
+      });
+    }
+
+    // 搜索（名稱、地址、描述）
+    if (search) {
+      const searchLower = search.toLowerCase();
+      restaurants = restaurants.filter((r: any) => {
+        const name = (r.name || "").toLowerCase();
+        const nameEn = (r.name_en || "").toLowerCase();
+        const address = (r.address || "").toLowerCase();
+        const description = (r.description || "").toLowerCase();
+        return (
+          name.includes(searchLower) ||
+          nameEn.includes(searchLower) ||
+          address.includes(searchLower) ||
+          description.includes(searchLower)
+        );
+      });
+    }
+
+    // 排序（按評分降序，然後按評論數降序）
+    restaurants.sort((a: any, b: any) => {
+      const ratingA = a.rating || 0;
+      const ratingB = b.rating || 0;
+      if (ratingA !== ratingB) {
+        return ratingB - ratingA;
+      }
+      const reviewA = a.review_count || 0;
+      const reviewB = b.review_count || 0;
+      return reviewB - reviewA;
+    });
+
+    // 分頁
+    const total = restaurants.length;
+    const totalPages = Math.ceil(total / limitNum);
+    const paginatedRestaurants = restaurants.slice(offset, offset + limitNum);
+
+    // 格式化返回數據
+    const formattedRestaurants = paginatedRestaurants.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      name_en: r.name_en,
+      description: r.description,
+      cuisine_type: r.cuisine_type,
+      price_range: r.price_range,
+      rating: r.rating,
+      review_count: r.review_count,
+      address: r.address,
+      city: r.city,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      phone: r.phone,
+      website: r.website,
+      image_url: r.image_url,
+      tags: r.tags ? JSON.parse(r.tags) : [],
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+    }));
+
+    res.status(200).json({
+      restaurants: formattedRestaurants,
+      total,
+      page: pageNum,
+      limit: limitNum,
+      totalPages,
+    });
+  } catch (error) {
+    console.error("獲取餐廳列表失敗:", error);
+    res.status(500).json({
+      error: "獲取餐廳列表失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// === 具體路由必須在動態路由之前 ===
+
+// 獲取餐廳推薦（必須在 /:id 之前）
+app.get("/api/restaurants/recommend", authenticateUser, async (req: any, res) => {
+  try {
+    const {
+      limit = "10",
+      latitude,
+      longitude,
+      price_range,
+      cuisine_type,
+      min_score = "0.0",
+    } = req.query;
+
+    const userId = req.user.id;
+
+    // 從用戶歷史偏好中提取偏好信息
+    const userHistoryPreferences = extractUserPreferences(userId);
+
+    // 構建推薦選項
+    const options: RecommendationOptions = {
+      limit: parseInt(limit as string, 10),
+      userLatitude: latitude ? parseFloat(latitude as string) : undefined,
+      userLongitude: longitude ? parseFloat(longitude as string) : undefined,
+      userPreferences: {
+        priceRange: price_range
+          ? (Array.isArray(price_range) ? price_range : [price_range])
+          : userHistoryPreferences.preferredPriceRanges.length > 0
+          ? userHistoryPreferences.preferredPriceRanges
+          : undefined,
+        cuisineTypes: cuisine_type
+          ? (Array.isArray(cuisine_type) ? cuisine_type : [cuisine_type])
+          : userHistoryPreferences.preferredCuisineTypes.length > 0
+          ? userHistoryPreferences.preferredCuisineTypes
+          : undefined,
+      },
+      minScore: parseFloat(min_score as string),
+    };
+
+    // 檢查餐廳數據
+    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+      console.warn("⚠️  proxy.restaurant 不存在或不是數組");
+      return res.status(200).json({
+        recommendations: [],
+        count: 0,
+        message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
+        userPreferences: {
+          cuisineTypes: [],
+          priceRanges: [],
+        },
+      });
+    }
+
+    // 獲取推薦餐廳
+    const recommendations = recommendRestaurants(userId, options);
+
+    // 格式化返回數據
+    const formattedRecommendations = recommendations.map((item) => ({
+      restaurant: {
+        id: item.restaurant.id,
+        name: item.restaurant.name,
+        name_en: item.restaurant.name_en,
+        description: item.restaurant.description,
+        cuisine_type: item.restaurant.cuisine_type,
+        price_range: item.restaurant.price_range,
+        rating: item.restaurant.rating,
+        review_count: item.restaurant.review_count,
+        address: item.restaurant.address,
+        city: item.restaurant.city,
+        latitude: item.restaurant.latitude,
+        longitude: item.restaurant.longitude,
+        phone: item.restaurant.phone,
+        website: item.restaurant.website,
+        image_url: item.restaurant.image_url,
+        tags: item.restaurant.tags ? JSON.parse(item.restaurant.tags) : [],
+      },
+      score: item.score,
+      breakdown: item.breakdown,
+    }));
+
+    res.status(200).json({
+      recommendations: formattedRecommendations,
+      count: formattedRecommendations.length,
+      userPreferences: {
+        cuisineTypes: userHistoryPreferences.preferredCuisineTypes,
+        priceRanges: userHistoryPreferences.preferredPriceRanges,
+      },
+    });
+  } catch (error) {
+    console.error("獲取餐廳推薦失敗:", error);
+    res.status(500).json({
+      error: "獲取餐廳推薦失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// 獲取下一個餐廳（用於心動模式，必須在 /:id 之前）
+app.get(
+  "/api/restaurants/next",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const {
+        exclude_ids,
+        cuisine_type,
+        min_rating,
+        limit = "1",
+      } = req.query;
+
+      // 確保 proxy 數組存在
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        console.warn("⚠️  proxy.restaurant 不存在或不是數組");
+        return res.status(200).json({ 
+          restaurant: null,
+          message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據"
+        });
+      }
+
+      // 獲取用戶已看過的餐廳 ID（從偏好記錄中）
+      let seenRestaurantIds: string[] = [];
+      if (
+        proxy.user_restaurant_preference &&
+        Array.isArray(proxy.user_restaurant_preference)
+      ) {
+        const validPreferences = proxy.user_restaurant_preference.filter(
+          (p: any) => p != null && p.user_id === req.user.id
+        );
+        seenRestaurantIds = validPreferences.map((p: any) => p.restaurant_id);
+      }
+
+      // 合併排除列表
+      const excludeIds = [
+        ...seenRestaurantIds,
+        ...(exclude_ids ? (Array.isArray(exclude_ids) ? exclude_ids : [exclude_ids]) : []),
+      ];
+
+      // 過濾餐廳
+      const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
+      if (validRestaurants.length === 0) {
+        console.warn("⚠️  數據庫中沒有餐廳數據");
+        return res.status(200).json({
+          restaurant: null,
+          message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
+        });
+      }
+
+      let restaurants = validRestaurants.filter(
+        (r: any) =>
+          r.is_active === 1 &&
+          r.city === "香港" &&
+          !excludeIds.includes(r.id)
+      );
+
+      // 菜系類型篩選
+      if (cuisine_type) {
+        const cuisineTypes = Array.isArray(cuisine_type)
+          ? cuisine_type
+          : [cuisine_type];
+        restaurants = restaurants.filter((r: any) => {
+          if (!r.cuisine_type) return false;
+          return cuisineTypes.some((type) =>
+            r.cuisine_type.toLowerCase().includes(type.toLowerCase())
+          );
+        });
+      }
+
+      // 最小評分篩選
+      if (min_rating) {
+        const minRating = parseFloat(min_rating);
+        restaurants = restaurants.filter(
+          (r: any) => r.rating && r.rating >= minRating
+        );
+      }
+
+      // 隨機排序（增加多樣性）
+      restaurants.sort(() => Math.random() - 0.5);
+
+      // 限制數量
+      const limitNum = parseInt(limit, 10);
+      const selectedRestaurants = restaurants.slice(0, limitNum);
+
+      if (selectedRestaurants.length === 0) {
+        return res.status(200).json({
+          restaurant: null,
+          message: "沒有更多餐廳了",
+        });
+      }
+
+      // 格式化返回數據
+      const restaurant = selectedRestaurants[0];
+      const formattedRestaurant = {
+        id: restaurant.id,
+        name: restaurant.name,
+        name_en: restaurant.name_en,
+        description: restaurant.description,
+        cuisine_type: restaurant.cuisine_type,
+        price_range: restaurant.price_range,
+        rating: restaurant.rating,
+        review_count: restaurant.review_count,
+        address: restaurant.address,
+        city: restaurant.city,
+        latitude: restaurant.latitude,
+        longitude: restaurant.longitude,
+        phone: restaurant.phone,
+        website: restaurant.website,
+        image_url: restaurant.image_url,
+        tags: restaurant.tags ? JSON.parse(restaurant.tags) : [],
+      };
+
+      res.status(200).json({
+        restaurant: formattedRestaurant,
+        remaining: restaurants.length - 1,
+      });
+    } catch (error) {
+      console.error("獲取下一個餐廳失敗:", error);
+      res.status(500).json({
+        error: "獲取下一個餐廳失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 獲取餐廳詳情（動態路由，必須在具體路由之後）
+app.get("/api/restaurants/:id", authenticateUser, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+
+    // 確保 proxy.restaurant 存在且是數組
+    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+      return res.status(404).json({ error: "餐廳不存在" });
+    }
+
+    const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
+    const restaurant = validRestaurants.find((r: any) => r.id === id);
+
+    if (!restaurant || restaurant.is_active !== 1) {
+      return res.status(404).json({ error: "餐廳不存在" });
+    }
+
+    // 格式化返回數據
+    const formattedRestaurant = {
+      id: restaurant.id,
+      name: restaurant.name,
+      name_en: restaurant.name_en,
+      description: restaurant.description,
+      cuisine_type: restaurant.cuisine_type,
+      price_range: restaurant.price_range,
+      rating: restaurant.rating,
+      review_count: restaurant.review_count,
+      address: restaurant.address,
+      city: restaurant.city,
+      latitude: restaurant.latitude,
+      longitude: restaurant.longitude,
+      phone: restaurant.phone,
+      website: restaurant.website,
+      image_url: restaurant.image_url,
+      tags: restaurant.tags ? JSON.parse(restaurant.tags) : [],
+      created_at: restaurant.created_at,
+      updated_at: restaurant.updated_at,
+    };
+
+    res.status(200).json({ restaurant: formattedRestaurant });
+  } catch (error) {
+    console.error("獲取餐廳詳情失敗:", error);
+    res.status(500).json({
+      error: "獲取餐廳詳情失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// 搜索餐廳（根據食物類型或菜系）
+app.get("/api/restaurants/search", authenticateUser, async (req: any, res) => {
+  try {
+    const {
+      food_type,
+      cuisine_type,
+      city = "香港",
+      min_rating,
+      limit = "10",
+    } = req.query;
+
+    // 確保 proxy.restaurant 存在且是數組
+    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+      return res.status(200).json({ restaurants: [] });
+    }
+
+    // 過濾有效的餐廳（排除 null/undefined，只顯示香港）
+    let restaurants = proxy.restaurant.filter(
+      (r: any) => r != null && r.is_active === 1 && r.city === city
+    );
+
+    // 根據菜系類型篩選
+    if (cuisine_type) {
+      const cuisineTypes = Array.isArray(cuisine_type)
+        ? cuisine_type
+        : [cuisine_type];
+      restaurants = restaurants.filter((r: any) => {
+        if (!r.cuisine_type) return false;
+        return cuisineTypes.some((type) =>
+          r.cuisine_type.toLowerCase().includes(type.toLowerCase())
+        );
+      });
+    }
+
+    // 根據食物類型搜索（在名稱、描述、標籤中搜索）
+    if (food_type) {
+      const foodTypes = Array.isArray(food_type) ? food_type : [food_type];
+      restaurants = restaurants.filter((r: any) => {
+        const searchText = [
+          r.name,
+          r.name_en,
+          r.description,
+          r.tags ? JSON.parse(r.tags).join(" ") : "",
+        ]
+          .filter((text) => text)
+          .join(" ")
+          .toLowerCase();
+
+        return foodTypes.some((food) => searchText.includes(food.toLowerCase()));
+      });
+    }
+
+    // 最小評分篩選
+    if (min_rating) {
+      const minRating = parseFloat(min_rating);
+      restaurants = restaurants.filter(
+        (r: any) => r.rating && r.rating >= minRating
+      );
+    }
+
+    // 排序（按評分降序）
+    restaurants.sort((a: any, b: any) => {
+      const ratingA = a.rating || 0;
+      const ratingB = b.rating || 0;
+      return ratingB - ratingA;
+    });
+
+    // 限制數量
+    const limitNum = parseInt(limit, 10);
+    const limitedRestaurants = restaurants.slice(0, limitNum);
+
+    // 格式化返回數據
+    const formattedRestaurants = limitedRestaurants.map((r: any) => ({
+      id: r.id,
+      name: r.name,
+      name_en: r.name_en,
+      description: r.description,
+      cuisine_type: r.cuisine_type,
+      price_range: r.price_range,
+      rating: r.rating,
+      review_count: r.review_count,
+      address: r.address,
+      city: r.city,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      phone: r.phone,
+      website: r.website,
+      image_url: r.image_url,
+      tags: r.tags ? JSON.parse(r.tags) : [],
+      distance: null, // 距離計算需要用戶位置，這裡先返回 null
+    }));
+
+    res.status(200).json({
+      restaurants: formattedRestaurants,
+      total: restaurants.length,
+      matched: formattedRestaurants.length,
+    });
+  } catch (error) {
+    console.error("搜索餐廳失敗:", error);
+    res.status(500).json({
+      error: "搜索餐廳失敗",
+      details: error instanceof Error ? error.message : String(error),
+    });
+  }
+});
+
+// 根據食物識別結果推薦餐廳
+app.get(
+  "/api/restaurants/recommend-by-food",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { country, food_name, limit = "10" } = req.query;
+
+      if (!country) {
+        return res.status(400).json({ error: "缺少國家參數" });
+      }
+
+      // 將國家映射到菜系類型
+      const countryToCuisine: { [key: string]: string } = {
+        chinese: "中餐",
+        japanese: "日料",
+        korean: "韓式",
+        thai: "泰式",
+        indian: "印度菜",
+        italian: "義式",
+        french: "法式",
+        mexican: "墨西哥",
+        american: "美式",
+      };
+
+      const cuisineType = countryToCuisine[country.toLowerCase()];
+      if (!cuisineType) {
+        return res.status(400).json({ error: "不支持的國家類型" });
+      }
+
+      // 構建搜索參數
+      const searchParams: any = {
+        cuisine_type: cuisineType,
+        city: "香港",
+      };
+
+      if (food_name) {
+        searchParams.food_type = food_name;
+      }
+
+      // 調用搜索 API 的邏輯
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        return res.status(200).json({ restaurants: [] });
+      }
+
+      let restaurants = proxy.restaurant.filter(
+        (r: any) => r != null && r.is_active === 1 && r.city === "香港"
+      );
+
+      // 根據菜系類型篩選
+      restaurants = restaurants.filter((r: any) => {
+        if (!r.cuisine_type) return false;
+        return r.cuisine_type.toLowerCase().includes(cuisineType.toLowerCase());
+      });
+
+      // 根據食物名稱搜索（如果提供）
+      if (food_name) {
+        const foodName = food_name.toLowerCase();
+        restaurants = restaurants.filter((r: any) => {
+          const searchText = [
+            r.name,
+            r.name_en,
+            r.description,
+            r.tags ? JSON.parse(r.tags).join(" ") : "",
+          ]
+            .filter((text) => text)
+            .join(" ")
+            .toLowerCase();
+          return searchText.includes(foodName);
+        });
+      }
+
+      // 排序（按評分降序）
+      restaurants.sort((a: any, b: any) => {
+        const ratingA = a.rating || 0;
+        const ratingB = b.rating || 0;
+        return ratingB - ratingA;
+      });
+
+      // 限制數量
+      const limitNum = parseInt(limit, 10);
+      const limitedRestaurants = restaurants.slice(0, limitNum);
+
+      // 格式化返回數據
+      const formattedRestaurants = limitedRestaurants.map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        name_en: r.name_en,
+        description: r.description,
+        cuisine_type: r.cuisine_type,
+        price_range: r.price_range,
+        rating: r.rating,
+        review_count: r.review_count,
+        address: r.address,
+        city: r.city,
+        latitude: r.latitude,
+        longitude: r.longitude,
+        phone: r.phone,
+        website: r.website,
+        image_url: r.image_url,
+        tags: r.tags ? JSON.parse(r.tags) : [],
+        match_reason: food_name
+          ? `匹配 ${cuisineType} 和 ${food_name}`
+          : `匹配 ${cuisineType}`,
+      }));
+
+      res.status(200).json({
+        restaurants: formattedRestaurants,
+        total: restaurants.length,
+        matched: formattedRestaurants.length,
+        criteria: {
+          country,
+          cuisine_type: cuisineType,
+          food_name: food_name || null,
+        },
+      });
+    } catch (error) {
+      console.error("根據食物推薦餐廳失敗:", error);
+      res.status(500).json({
+        error: "根據食物推薦餐廳失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// === 用戶餐廳偏好 API ===
+
+// 記錄用戶對餐廳的偏好（like/dislike/favorite）
+app.post(
+  "/api/restaurants/:id/preference",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { id: restaurantId } = req.params;
+      const { preference } = req.body; // like, dislike, favorite
+
+      if (!preference || !["like", "dislike", "favorite"].includes(preference)) {
+        return res.status(400).json({
+          error: "偏好類型必須是 like, dislike 或 favorite",
+        });
+      }
+
+      // 驗證餐廳存在
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
+
+      const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
+      const restaurant = validRestaurants.find((r: any) => r.id === restaurantId);
+
+      if (!restaurant) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
+
+      // 檢查是否已有偏好記錄
+      if (!proxy.user_restaurant_preference || !Array.isArray(proxy.user_restaurant_preference)) {
+        return res.status(500).json({ error: "數據庫錯誤" });
+      }
+
+      const validPreferences = proxy.user_restaurant_preference.filter(
+        (p: any) => p != null
+      );
+      const existingPreference = validPreferences.find(
+        (p: any) => p.user_id === req.user.id && p.restaurant_id === restaurantId
+      );
+
+      const now = new Date().toISOString();
+      const preferenceId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+
+      if (existingPreference) {
+        // 更新現有偏好
+        existingPreference.preference = preference;
+        existingPreference.updated_at = now;
+
+        res.status(200).json({
+          message: "偏好已更新",
+          preference: {
+            id: existingPreference.id,
+            user_id: existingPreference.user_id,
+            restaurant_id: existingPreference.restaurant_id,
+            preference: existingPreference.preference,
+            updated_at: existingPreference.updated_at,
+          },
+        });
+      } else {
+        // 創建新偏好
+        const newPreference = {
+          id: preferenceId,
+          user_id: req.user.id,
+          restaurant_id: restaurantId,
+          preference: preference,
+          created_at: now,
+          updated_at: now,
+        };
+
+        proxy.user_restaurant_preference.push(newPreference);
+
+        res.status(201).json({
+          message: "偏好已記錄",
+          preference: newPreference,
+        });
+      }
+    } catch (error) {
+      console.error("記錄餐廳偏好失敗:", error);
+      res.status(500).json({
+        error: "記錄餐廳偏好失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 獲取用戶的餐廳偏好列表
+app.get(
+  "/api/users/:userId/preferences",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+
+      // 驗證權限（只能查看自己的偏好）
+      if (userId !== req.user.id) {
+        return res.status(403).json({ error: "無權限訪問" });
+      }
+
+      // 確保 proxy 數組存在
+      if (
+        !proxy.user_restaurant_preference ||
+        !Array.isArray(proxy.user_restaurant_preference)
+      ) {
+        return res.status(200).json({ preferences: [] });
+      }
+
+      const validPreferences = proxy.user_restaurant_preference.filter(
+        (p: any) => p != null && p.user_id === userId
+      );
+
+      // 獲取餐廳詳情
+      const preferencesWithRestaurants = validPreferences.map((pref: any) => {
+        const restaurant =
+          proxy.restaurant &&
+          Array.isArray(proxy.restaurant)
+            ? proxy.restaurant.find((r: any) => r && r.id === pref.restaurant_id)
+            : null;
+
+        return {
+          id: pref.id,
+          restaurant_id: pref.restaurant_id,
+          preference: pref.preference,
+          restaurant: restaurant
+            ? {
+                id: restaurant.id,
+                name: restaurant.name,
+                name_en: restaurant.name_en,
+                cuisine_type: restaurant.cuisine_type,
+                rating: restaurant.rating,
+                address: restaurant.address,
+                city: restaurant.city,
+                latitude: restaurant.latitude,
+                longitude: restaurant.longitude,
+                image_url: restaurant.image_url,
+              }
+            : null,
+          created_at: pref.created_at,
+          updated_at: pref.updated_at,
+        };
+      });
+
+      res.status(200).json({
+        preferences: preferencesWithRestaurants,
+        total: preferencesWithRestaurants.length,
+      });
+    } catch (error) {
+      console.error("獲取用戶偏好失敗:", error);
+      res.status(500).json({
+        error: "獲取用戶偏好失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// === 心動模式 API ===
+
+// 獲取下一個餐廳（用於心動模式滑卡）
+app.get(
+  "/api/restaurants/next",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const {
+        exclude_ids,
+        cuisine_type,
+        min_rating,
+        limit = "1",
+      } = req.query;
+
+    // 確保 proxy 數組存在
+    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+      console.warn("⚠️  proxy.restaurant 不存在或不是數組");
+      return res.status(200).json({ 
+        restaurant: null,
+        message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據"
+      });
+    }
+
+      // 獲取用戶已看過的餐廳 ID（從偏好記錄中）
+      let seenRestaurantIds: string[] = [];
+      if (
+        proxy.user_restaurant_preference &&
+        Array.isArray(proxy.user_restaurant_preference)
+      ) {
+        const validPreferences = proxy.user_restaurant_preference.filter(
+          (p: any) => p != null && p.user_id === req.user.id
+        );
+        seenRestaurantIds = validPreferences.map((p: any) => p.restaurant_id);
+      }
+
+      // 合併排除列表
+      const excludeIds = [
+        ...seenRestaurantIds,
+        ...(exclude_ids ? (Array.isArray(exclude_ids) ? exclude_ids : [exclude_ids]) : []),
+      ];
+
+      // 過濾餐廳
+      let restaurants = proxy.restaurant.filter(
+        (r: any) =>
+          r != null &&
+          r.is_active === 1 &&
+          r.city === "香港" &&
+          !excludeIds.includes(r.id)
+      );
+
+      // 菜系類型篩選
+      if (cuisine_type) {
+        const cuisineTypes = Array.isArray(cuisine_type)
+          ? cuisine_type
+          : [cuisine_type];
+        restaurants = restaurants.filter((r: any) => {
+          if (!r.cuisine_type) return false;
+          return cuisineTypes.some((type) =>
+            r.cuisine_type.toLowerCase().includes(type.toLowerCase())
+          );
+        });
+      }
+
+      // 最小評分篩選
+      if (min_rating) {
+        const minRating = parseFloat(min_rating);
+        restaurants = restaurants.filter(
+          (r: any) => r.rating && r.rating >= minRating
+        );
+      }
+
+      // 隨機排序（增加多樣性）
+      restaurants.sort(() => Math.random() - 0.5);
+
+      // 限制數量
+      const limitNum = parseInt(limit, 10);
+      const selectedRestaurants = restaurants.slice(0, limitNum);
+
+      if (selectedRestaurants.length === 0) {
+        return res.status(200).json({
+          restaurant: null,
+          message: "沒有更多餐廳了",
+        });
+      }
+
+      // 格式化返回數據
+      const restaurant = selectedRestaurants[0];
+      const formattedRestaurant = {
+        id: restaurant.id,
+        name: restaurant.name,
+        name_en: restaurant.name_en,
+        description: restaurant.description,
+        cuisine_type: restaurant.cuisine_type,
+        price_range: restaurant.price_range,
+        rating: restaurant.rating,
+        review_count: restaurant.review_count,
+        address: restaurant.address,
+        city: restaurant.city,
+        latitude: restaurant.latitude,
+        longitude: restaurant.longitude,
+        phone: restaurant.phone,
+        website: restaurant.website,
+        image_url: restaurant.image_url,
+        tags: restaurant.tags ? JSON.parse(restaurant.tags) : [],
+      };
+
+      res.status(200).json({
+        restaurant: formattedRestaurant,
+        remaining: restaurants.length - 1,
+      });
+    } catch (error) {
+      console.error("獲取下一個餐廳失敗:", error);
+      res.status(500).json({
+        error: "獲取下一個餐廳失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// 記錄心動模式反饋（like/dislike）
+app.post(
+  "/api/restaurants/feedback",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { restaurant_id, preference } = req.body; // preference: "like" 或 "dislike"
+
+      if (!restaurant_id) {
+        return res.status(400).json({ error: "缺少餐廳 ID" });
+      }
+
+      if (!preference || !["like", "dislike"].includes(preference)) {
+        return res.status(400).json({
+          error: "偏好類型必須是 like 或 dislike",
+        });
+      }
+
+      // 驗證餐廳存在
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
+
+      const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
+      const restaurant = validRestaurants.find((r: any) => r.id === restaurant_id);
+
+      if (!restaurant) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
+
+      // 檢查是否已有偏好記錄
+      if (
+        !proxy.user_restaurant_preference ||
+        !Array.isArray(proxy.user_restaurant_preference)
+      ) {
+        return res.status(500).json({ error: "數據庫錯誤" });
+      }
+
+      const validPreferences = proxy.user_restaurant_preference.filter(
+        (p: any) => p != null
+      );
+      const existingPreference = validPreferences.find(
+        (p: any) =>
+          p.user_id === req.user.id && p.restaurant_id === restaurant_id
+      );
+
+      const now = new Date().toISOString();
+      const preferenceId =
+        Date.now().toString() + Math.random().toString(36).substr(2, 9);
+
+      if (existingPreference) {
+        // 更新現有偏好
+        existingPreference.preference = preference;
+        existingPreference.updated_at = now;
+
+        res.status(200).json({
+          message: "反饋已更新",
+          preference: {
+            id: existingPreference.id,
+            restaurant_id: existingPreference.restaurant_id,
+            preference: existingPreference.preference,
+          },
+        });
+      } else {
+        // 創建新偏好
+        const newPreference = {
+          id: preferenceId,
+          user_id: req.user.id,
+          restaurant_id: restaurant_id,
+          preference: preference,
+          created_at: now,
+          updated_at: now,
+        };
+
+        proxy.user_restaurant_preference.push(newPreference);
+
+        res.status(201).json({
+          message: "反饋已記錄",
+          preference: newPreference,
+        });
+      }
+    } catch (error) {
+      console.error("記錄反饋失敗:", error);
+      res.status(500).json({
+        error: "記錄反饋失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
+
+// === 餐廳推薦 API ===
+
+// 獲取餐廳推薦
+app.get("/api/restaurants/recommend", authenticateUser, async (req: any, res) => {
+  try {
+    const {
+      limit = "10",
+      latitude,
+      longitude,
+      price_range,
+      cuisine_type,
+      min_score = "0.0",
+    } = req.query;
+
+    const userId = req.user.id;
+
+    // 從用戶歷史偏好中提取偏好信息
+    const userHistoryPreferences = extractUserPreferences(userId);
+
+    // 構建推薦選項
+    const options: RecommendationOptions = {
+      limit: parseInt(limit as string, 10),
+      userLatitude: latitude ? parseFloat(latitude as string) : undefined,
+      userLongitude: longitude ? parseFloat(longitude as string) : undefined,
+      userPreferences: {
+        priceRange: price_range
+          ? (Array.isArray(price_range) ? price_range : [price_range])
+          : userHistoryPreferences.preferredPriceRanges.length > 0
+          ? userHistoryPreferences.preferredPriceRanges
+          : undefined,
+        cuisineTypes: cuisine_type
+          ? (Array.isArray(cuisine_type) ? cuisine_type : [cuisine_type])
+          : userHistoryPreferences.preferredCuisineTypes.length > 0
+          ? userHistoryPreferences.preferredCuisineTypes
+          : undefined,
+      },
+      minScore: parseFloat(min_score as string),
+    };
+
+    // 檢查餐廳數據
+    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+      console.warn("⚠️  proxy.restaurant 不存在或不是數組");
+      return res.status(200).json({
+        recommendations: [],
+        count: 0,
+        message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
+        userPreferences: {
+          cuisineTypes: [],
+          priceRanges: [],
+        },
+      });
+    }
+
+    // 獲取推薦餐廳
+    const recommendations = recommendRestaurants(userId, options);
+
+    // 格式化返回數據
+    const formattedRecommendations = recommendations.map((item) => ({
+      restaurant: {
+        id: item.restaurant.id,
+        name: item.restaurant.name,
+        name_en: item.restaurant.name_en,
+        description: item.restaurant.description,
+        cuisine_type: item.restaurant.cuisine_type,
+        price_range: item.restaurant.price_range,
+        rating: item.restaurant.rating,
+        review_count: item.restaurant.review_count,
+        address: item.restaurant.address,
+        city: item.restaurant.city,
+        latitude: item.restaurant.latitude,
+        longitude: item.restaurant.longitude,
+        phone: item.restaurant.phone,
+        website: item.restaurant.website,
+        image_url: item.restaurant.image_url,
+        tags: item.restaurant.tags ? JSON.parse(item.restaurant.tags) : [],
+      },
+      score: item.score,
+      breakdown: item.breakdown,
+    }));
+
+    res.status(200).json({
+      recommendations: formattedRecommendations,
+      count: formattedRecommendations.length,
+      userPreferences: {
+        cuisineTypes: userHistoryPreferences.preferredCuisineTypes,
+        priceRanges: userHistoryPreferences.preferredPriceRanges,
+      },
+    });
+  } catch (error) {
+    console.error("獲取餐廳推薦失敗:", error);
+    res.status(500).json({
+      error: "獲取餐廳推薦失敗",
       details: error instanceof Error ? error.message : String(error),
     });
   }
