@@ -2,9 +2,12 @@
 
 本文件總結 PBC 在完成資料庫升級（JSON → SQLite）後，進一步引入 AI 能力的可能方向。內容涵蓋「方向建議」、「推薦技術與 Library」、「難度」、「電腦與計算需求」等面向，作為後續開發參考路線圖。
 
-> **更新日期**：2025-01-XX  
-> **當前狀態**：Phase 1 核心 AI 功能已完成（OCR + 食物識別），Phase 2-3 待開始  
-> **主要變更**：食物識別已從百度 API 遷移到 TensorFlow.js 分層識別架構（兩層實現，第三層暫時隱藏）
+> **更新日期**：2025-01-20  
+> **當前狀態**：Phase 1-3 核心功能已完成（OCR + 食物識別 + 餐廳推薦系統）  
+> **主要變更**：
+> - 食物識別已從百度 API 遷移到 TensorFlow.js 分層識別架構（兩層實現，第三層暫時隱藏）
+> - Phase 2 完成：餐廳資料爬蟲（OpenRice）+ 心動模式 UI
+> - Phase 3 完成：餐廳推薦算法（規則加權排序）
 
 ---
 
@@ -37,25 +40,31 @@
   - [x] 健康檢查與批量修復機制
   - [ ] ⏳ 獎勵機制集成（識別成功後增加 OCR 次數）
 
-### Phase 2：餐廳資料與偏好（中期）⏳ 待開始
+### Phase 2：餐廳資料與偏好（中期）✅ 已完成 2/2
 
-- [ ] **3. 餐廳資料自動抓取**
+- [x] **3. 餐廳資料自動抓取** ✅
 
-  - [ ] 建立餐廳 schema + seed 資料
-  - [ ] Playwright/Puppeteer 爬蟲實現
-  - [ ] 資料清洗與存儲
+  - [x] 建立餐廳 schema + seed 資料
+  - [x] Playwright 爬蟲實現（OpenRice）
+  - [x] 資料清洗與存儲
+  - [x] 地理編碼（OpenStreetMap Nominatim）
+  - [x] robots.txt 合規檢查
 
-- [ ] **4. 「心動模式」：Tinder 式滑卡餐廳 UI**
-  - [ ] 前端滑卡 UI 實現
-  - [ ] 後端 API（獲取餐廳、記錄偏好）
-  - [ ] 用戶偏好資料表設計
+- [x] **4. 「心動模式」：Tinder 式滑卡餐廳 UI** ✅
+  - [x] 前端滑卡 UI 實現（heart-mode.html）
+  - [x] 後端 API（獲取餐廳、記錄偏好）
+  - [x] 用戶偏好資料表設計（user_restaurant_preference）
+  - [x] 滑動手勢支持（觸摸和鼠標）
+  - [x] 篩選功能（菜系、評分）
 
-### Phase 3：推薦系統（中長期）⏳ 待開始
+### Phase 3：推薦系統（中長期）✅ 已完成 1/1
 
-- [ ] **5. 餐廳推薦演算法**
-  - [ ] 規則加權排序實現
-  - [ ] 用戶偏好分析
-  - [ ] ML 推薦模型（可選）
+- [x] **5. 餐廳推薦演算法** ✅
+  - [x] 規則加權排序實現
+  - [x] 用戶偏好分析
+  - [x] 多因素評分系統（偏好、評分、距離、價格、菜系）
+  - [x] 推薦 API 端點（/api/restaurants/recommend）
+  - [ ] ML 推薦模型（可選，未來擴展）
 
 ---
 
@@ -358,50 +367,71 @@
 
 ---
 
-## 4. 餐廳推薦演算法（偏好 + 距離 + 評分）
+## ✅ 4. 餐廳推薦演算法（已完成 - 規則加權排序）
 
 ### 4.1 功能構想
 
 - 為下次聚會推薦餐廳，考慮用戶歷史偏好（類型/價位）、距離、評分等
 
-### 4.2 推薦技術路線
+### 4.2 實施狀態
 
-- **第一階段：規則加權排序**（無需 ML）
+- ✅ **第一階段：規則加權排序**（已完成）
 
-  - 範例公式：
+  - 實現多因素評分系統：
     ```
-    score = w1 * rating + w2 * f(distance) + w3 * match_preference + w4 * price_fit
+    score = w1 * preference_match + w2 * rating + w3 * distance + w4 * price_fit + w5 * cuisine_match
     ```
-  - 權重、運算可以配置檔與 DB 管理；偏好來自歷史紀錄或心動模式 like/dislike 表
+  - 權重配置：
+    - 用戶偏好匹配：30%
+    - 評分：25%
+    - 距離：20%
+    - 價格：15%
+    - 菜系：10%
+  - 實現用戶偏好提取（從歷史記錄和心動模式）
+  - 實現距離計算（Haversine 公式）
+  - API 端點：`GET /api/restaurants/recommend`
+  - 支持篩選參數：位置、價格、菜系、最小分數
 
-- **第二階段：逐步引入推薦 ML**
+- ⏳ **第二階段：逐步引入推薦 ML**（未來擴展）
   - 可採 content-based filtering（屬性向量）或簡單協同過濾
   - 實作可先純 TS/JS，再考慮 Python + sklearn/LightFM 等
 
 ### 4.3 難度與需求
 
-- 加權規則：容易（重點在 schema 和權重微調）
-- ML 推薦：中等（推薦系統知識；可循序導入）
-- **優先度：★★★★☆**
+- 加權規則：容易（重點在 schema 和權重微調）✅ 已完成
+- ML 推薦：中等（推薦系統知識；可循序導入）⏳ 待實現
+- **優先度：★★★★☆**（核心功能已完成）
 
 ---
 
-## 5. 「心動模式」：Tinder 式滑卡餐廳 UI
+## ✅ 5. 「心動模式」：Tinder 式滑卡餐廳 UI（已完成）
 
 ### 5.1 功能構想
 
 - 一頁只顯示一家餐廳（圖＋名＋菜系＋價位＋距離＋標籤），用戶「右滑喜歡、左滑不感興趣」記錄偏好
 
-### 5.2 工具
+### 5.2 實施狀態
 
-- **前端**：原生 HTML + Tailwind + JS ／ 新增 `public/heart-mode.html` ／ 使用簡單 JS/CSS 動畫
-- **後端/DB**：資料表 `user_restaurant_preferences`（`user_id`, `restaurant_id`, `preference`, `timestamp`），API 見 `/api/restaurants/next`／`/feedback`
+- ✅ **前端**：原生 HTML + Tailwind + JS
+  - 新增 `public/heart-mode.html`
+  - 實現滑動手勢（觸摸和鼠標支持）
+  - 實現餐廳卡片展示（圖片、名稱、菜系、評分、價格、地址、標籤）
+  - 實現篩選功能（菜系類型、最小評分）
+  - 實現統計顯示（已查看、已喜歡、已收藏）
+  - 實現 Toast 通知反饋
+- ✅ **後端/DB**：
+  - 資料表 `user_restaurant_preference`（`user_id`, `restaurant_id`, `preference`, `timestamp`）
+  - API 端點：
+    - `GET /api/restaurants/next`（獲取下一個餐廳）
+    - `POST /api/restaurants/feedback`（記錄滑卡反饋）
+    - `POST /api/restaurants/:id/preference`（記錄偏好：like/dislike/favorite）
+    - `GET /api/users/:userId/preferences`（獲取用戶偏好列表）
 
 ### 5.3 難度與需求
 
-- 難度：中（主要為產品設計和 UI）
+- 難度：中（主要為產品設計和 UI）✅ 已完成
 - 電腦需求低
-- **優先度：★★★★☆**
+- **優先度：★★★★☆**（已完成）
 
 ---
 
@@ -531,17 +561,18 @@ foodImageManager.ts 更新數據庫
 
 ---
 
-### ✅ 中期（Phase 2）：餐廳資料收集與個人偏好（部分完成）
+### ✅ 中期（Phase 2）：餐廳資料收集與個人偏好（已完成）
 
-1. ⏳ 建立餐廳 schema + seed 資料（手動/開放 dataset）
-2. ⏳ Playwright/Puppeteer 爬蟲，將少量資料寫入 SQLite
-3. ⏳ 開發心動模式頁面（滑卡 UI, backend API, 偏好儲存）
+1. ✅ 建立餐廳 schema + seed 資料（10 個示例餐廳）
+2. ✅ Playwright 爬蟲（OpenRice），將資料寫入 SQLite
+3. ✅ 開發心動模式頁面（滑卡 UI, backend API, 偏好儲存）
 4. ✅ **食物圖片識別**（已完成，提前完成）
 
-### 中長期（Phase 3）：推薦系統和影像辨識
+### ✅ 中長期（Phase 3）：推薦系統和影像辨識（已完成）
 
-1. ⏳ 加權規則推薦 → 漸進引入推薦 ML
-2. ✅ **食物圖片分類**（已完成，使用百度 API）
+1. ✅ 加權規則推薦（多因素評分系統）
+2. ✅ **食物圖片分類**（已完成，使用百度 API + TensorFlow.js）
+3. ⏳ ML 推薦模型（可選，未來擴展）
 
 ---
 
