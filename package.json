@@ -48,6 +48,7 @@
     "data:download": "tsx scripts/data-collection/download-datasets.ts",
     "data:extract": "tsx scripts/data-collection/extract-food101.ts",
     "data:status": "tsx scripts/data-collection/check-status.ts",
+    "scrape:openrice": "node --loader ts-node/esm scraper/examples/scrape-by-food-recognition.ts",
     "data:watch": "bash scripts/data-collection/watch-status.sh",
     "build:tensorflow": "bash scripts/build-tensorflow.sh",
     "build:tensorflow:cmd": "scripts\\build-tensorflow.cmd",
@@ -78,7 +79,6 @@
   "dependencies": {
     "@mistralai/mistralai": "^1.10.0",
     "@tensorflow/tfjs": "^4.22.0",
-    "@tensorflow/tfjs-node": "^4.22.0",
     "@types/bcrypt": "^6.0.0",
     "@types/form-data": "^2.5.2",
     "axios": "^1.13.2",
