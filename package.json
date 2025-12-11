@@ -48,6 +48,8 @@
     "data:download": "tsx scripts/data-collection/download-datasets.ts",
     "data:extract": "tsx scripts/data-collection/extract-food101.ts",
     "data:status": "tsx scripts/data-collection/check-status.ts",
+    "scraper:run": "node --loader ts-node/esm scraper/examples/run-scraper.ts",
+    "scraper:test": "node --loader ts-node/esm scraper/examples/test-scraper.ts",
     "scrape:openrice": "node --loader ts-node/esm scraper/examples/scrape-by-food-recognition.ts",
     "data:watch": "bash scripts/data-collection/watch-status.sh",
     "build:tensorflow": "bash scripts/build-tensorflow.sh",
