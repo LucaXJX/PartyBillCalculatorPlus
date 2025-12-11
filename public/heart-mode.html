@@ -301,6 +301,29 @@
       </div>
     </main>
 
+    <!-- Google Maps JavaScript API (可選，如果沒有 API Key 將使用 Haversine 公式) -->
+    <script>
+      // 從環境變數或配置中獲取 Google Maps API Key（如果有的話）
+      const GOOGLE_MAPS_API_KEY = window.GOOGLE_MAPS_API_KEY || null;
+      
+      // 如果有 API Key，加載 Google Maps API
+      if (GOOGLE_MAPS_API_KEY) {
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places`;
+        script.async = true;
+        script.defer = true;
+        script.onload = () => {
+          googleMapsLoaded = true;
+          console.log("✅ Google Maps API 已加載");
+        };
+        script.onerror = () => {
+          console.warn("⚠️ Google Maps API 加載失敗，將使用 Haversine 公式");
+        };
+        document.head.appendChild(script);
+      } else {
+        console.log("ℹ️ 未配置 Google Maps API Key，將使用 Haversine 公式計算距離");
+      }
+    </script>
     <script>
       // 全局變量
       let currentRestaurant = null;
@@ -310,6 +333,16 @@
         liked: 0,
         favorited: 0,
       };
+      let userLocation = null; // { latitude, longitude, address }
+      let googleMapsLoaded = false;
+
+      // 檢查 Google Maps API 是否加載
+      if (typeof google !== 'undefined' && google.maps) {
+        googleMapsLoaded = true;
+      } else {
+        // 如果沒有 API key，使用備選方案（Haversine 公式）
+        console.warn("Google Maps API 未加載，將使用 Haversine 公式計算距離");
+      }
 
       // 認證
       const sessionId =
@@ -328,6 +361,127 @@
         "Content-Type": "application/json",
         Authorization: `Bearer ${sessionId}`,
       };
+
+      // 獲取用戶位置
+      async function getUserLocation() {
+        return new Promise((resolve, reject) => {
+          if (!navigator.geolocation) {
+            reject(new Error("瀏覽器不支持地理位置"));
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(
+            async (position) => {
+              const lat = position.coords.latitude;
+              const lng = position.coords.longitude;
+              
+              // 嘗試獲取地址（使用 Google Geocoding API）
+              let address = null;
+              if (googleMapsLoaded && google.maps.geocoder) {
+                try {
+                  const geocoder = new google.maps.Geocoder();
+                  const latlng = { lat, lng };
+                  const result = await new Promise((resolve, reject) => {
+                    geocoder.geocode({ location: latlng }, (results, status) => {
+                      if (status === 'OK' && results[0]) {
+                        resolve(results[0].formatted_address);
+                      } else {
+                        resolve(null);
+                      }
+                    });
+                  });
+                  address = result;
+                } catch (e) {
+                  console.warn("獲取地址失敗:", e);
+                }
+              }
+
+              userLocation = {
+                latitude: lat,
+                longitude: lng,
+                address: address || `${lat}, ${lng}`,
+              };
+              resolve(userLocation);
+            },
+            (error) => {
+              reject(error);
+            },
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0,
+            }
+          );
+        });
+      }
+
+      // 使用 Google Maps Distance Matrix API 計算距離
+      async function calculateDistanceWithGoogle(origin, destination) {
+        if (!googleMapsLoaded || !google.maps) {
+          // 備選方案：使用 Haversine 公式
+          return calculateDistanceHaversine(
+            origin.latitude,
+            origin.longitude,
+            destination.latitude,
+            destination.longitude
+          );
+        }
+
+        return new Promise((resolve, reject) => {
+          const service = new google.maps.DistanceMatrixService();
+          const origins = [{ lat: origin.latitude, lng: origin.longitude }];
+          const destinations = [{ lat: destination.latitude, lng: destination.longitude }];
+
+          service.getDistanceMatrix(
+            {
+              origins: origins,
+              destinations: destinations,
+              travelMode: google.maps.TravelMode.DRIVING,
+              unitSystem: google.maps.UnitSystem.METRIC,
+            },
+            (response, status) => {
+              if (status === 'OK' && response.rows[0].elements[0].status === 'OK') {
+                const element = response.rows[0].elements[0];
+                const distance = element.distance.value / 1000; // 轉換為公里
+                const duration = element.duration.text;
+                resolve({
+                  distance: distance,
+                  distanceText: element.distance.text,
+                  duration: duration,
+                });
+              } else {
+                // 如果 Google API 失敗，使用 Haversine 公式
+                console.warn("Google Distance Matrix API 失敗，使用 Haversine 公式");
+                const distance = calculateDistanceHaversine(
+                  origin.latitude,
+                  origin.longitude,
+                  destination.latitude,
+                  destination.longitude
+                );
+                resolve({
+                  distance: distance,
+                  distanceText: `${distance.toFixed(1)} 公里`,
+                  duration: null,
+                });
+              }
+            }
+          );
+        });
+      }
+
+      // Haversine 公式計算距離（備選方案）
+      function calculateDistanceHaversine(lat1, lon1, lat2, lon2) {
+        const R = 6371; // 地球半徑（公里）
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1 * Math.PI / 180) *
+            Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      }
 
       // 獲取下一個餐廳
       async function getNextRestaurant() {
@@ -373,8 +527,8 @@
         }
       }
 
-      // 顯示餐廳卡片
-      function displayRestaurant(restaurant) {
+      // 顯示餐廳卡片（帶距離計算）
+      async function displayRestaurant(restaurant) {
         if (!restaurant) {
           document.getElementById("emptyState").classList.remove("hidden");
           document.getElementById("actionButtons").style.display = "none";
@@ -385,6 +539,27 @@
         const container = document.getElementById("cardContainer");
         const emptyState = document.getElementById("emptyState");
         emptyState.classList.add("hidden");
+
+        // 計算距離（如果用戶位置和餐廳位置都存在）
+        let distanceInfo = null;
+        if (userLocation && restaurant.latitude && restaurant.longitude) {
+          try {
+            const distanceResult = await calculateDistanceWithGoogle(
+              userLocation,
+              {
+                latitude: restaurant.latitude,
+                longitude: restaurant.longitude,
+              }
+            );
+            distanceInfo = distanceResult;
+            // 將距離信息添加到餐廳對象中（臨時數據，不存儲）
+            restaurant.distance = distanceResult.distance;
+            restaurant.distanceText = distanceResult.distanceText;
+            restaurant.duration = distanceResult.duration;
+          } catch (error) {
+            console.warn("計算距離失敗:", error);
+          }
+        }
 
         // 創建卡片
         const card = document.createElement("div");
@@ -414,11 +589,21 @@
                 .join(" ")
             : "";
 
+        // 距離顯示
+        const distanceHtml = distanceInfo
+          ? `<div class="flex items-center justify-between text-sm mt-1">
+              <span class="text-blue-600">
+                <i class="fas fa-route"></i> ${distanceInfo.distanceText}
+                ${distanceInfo.duration ? ` (${distanceInfo.duration})` : ""}
+              </span>
+            </div>`
+          : "";
+
         card.innerHTML = `
           <div class="restaurant-image">
             ${
               restaurant.image_url
-                ? `<img src="${restaurant.image_url}" alt="${restaurant.name}" class="w-full h-full object-cover" />`
+                ? `<img src="${restaurant.image_url}" alt="${restaurant.name}" class="w-full h-full object-cover" onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-utensils\\'></i>';" />`
                 : `<i class="fas fa-utensils"></i>`
             }
           </div>
@@ -454,6 +639,7 @@
                     : ""
                 }
               </div>
+              ${distanceHtml}
               ${
                 restaurant.address
                   ? `<p class="text-gray-500 text-xs"><i class="fas fa-map-marker-alt"></i> ${restaurant.address}</p>`
@@ -696,7 +882,7 @@
       // 加載下一個餐廳
       async function loadNextRestaurant() {
         const restaurant = await getNextRestaurant();
-        displayRestaurant(restaurant);
+        await displayRestaurant(restaurant);
       }
 
       // 更新統計
@@ -735,8 +921,27 @@
         loadNextRestaurant();
       });
 
-      // 初始化
-      loadNextRestaurant();
+      // 初始化：獲取用戶位置，然後加載餐廳
+      async function init() {
+        try {
+          // 請求用戶位置
+          showToast("正在獲取您的位置...", "info");
+          await getUserLocation();
+          showToast("位置獲取成功", "success");
+        } catch (error) {
+          console.warn("無法獲取用戶位置:", error);
+          showToast("無法獲取位置，將使用備選距離計算", "info");
+        }
+        // 無論是否獲取到位置，都開始加載餐廳
+        loadNextRestaurant();
+      }
+
+      // 頁面加載完成後初始化
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init);
+      } else {
+        init();
+      }
     </script>
   </body>
 </html>
