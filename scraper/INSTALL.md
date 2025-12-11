@@ -58,3 +58,5 @@ npm run scrape:openrice
 node --loader ts-node/esm scraper/examples/scrape-by-food-recognition.ts
 ```
 
+
+
