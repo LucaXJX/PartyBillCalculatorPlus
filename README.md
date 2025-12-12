@@ -37,12 +37,33 @@
 - 小費計算
 - 付款人指定功能
 
-### 🤖 AI 賬單識別（Beta）
+### 🤖 AI 功能
+
+#### 賬單識別（Beta）
 
 - **OCR 圖片識別**：使用 PaddleOCR 識別賬單圖片中的文字
 - **LLM 智能解析**：使用 Mistral AI 將 OCR 文本解析為結構化數據
 - **自動填充**：識別結果自動填充到表單，減少手動輸入
 - 支持中英文混合識別
+- API 使用量追蹤與每日限制（10 次/天）
+
+#### 食物圖片識別
+
+- **TensorFlow.js 分層識別**：使用本地模型進行食物識別
+  - 第一層：食物檢測（Food/Non-Food 二分類）
+  - 第二層：國家分類（10 個國家/地區）
+  - 第三層：細粒度分類（代碼保留，暫時隱藏）
+- 圖片壓縮與存儲（Sharp）
+- 異步識別調度機制
+- 健康檢查與批量修復機制
+
+#### 餐廳推薦系統
+
+- **餐廳資料爬蟲**：使用 Playwright 從 OpenRice 自動抓取餐廳資料
+- **心動模式**：Tinder 式滑卡 UI 瀏覽餐廳（heart-mode.html）
+- **智能推薦算法**：規則加權排序，考慮用戶偏好、評分、距離、價格、菜系
+- **距離計算**：集成 Google Maps Distance Matrix API（可選），支持瀏覽器端位置獲取
+- 用戶偏好記錄與分析
 
 ### 📊 賬單管理
 
@@ -83,6 +104,9 @@
 
 - **PaddleOCR** - 中文優化的 OCR 識別引擎（Python microservice）
 - **Mistral AI** - LLM API 用於賬單文本結構化解析
+- **TensorFlow.js** - 本地食物圖片識別模型
+- **Playwright** - 餐廳資料爬蟲（OpenRice）
+- **Google Maps API** - 距離計算（可選，支持 Distance Matrix API）
 
 ### 數據存儲
 
@@ -138,6 +162,7 @@
    - `SESSION_SECRET`：會話密鑰（請設置為隨機字符串）
    - `MISTRAL_AI_API_KEY`：Mistral AI API 密鑰（用於 AI 賬單識別）
    - `OCR_SERVICE_URL`：OCR 服務地址（默認：http://localhost:8000）
+   - `GOOGLE_MAPS_API_KEY`：Google Maps API 密鑰（可選，用於距離計算）
 
 4. **設置 OCR 服務**（可選，如需使用 AI 賬單識別功能）
 
@@ -230,6 +255,7 @@
    - 保存賬單到個人賬單列表
 
 4. **管理賬單**
+
    - 在「我的賬單」頁面查看所有賬單
    - 查看統計數據（6 個統計卡片）
    - 標記支付狀態（待支付/已支付）
@@ -237,6 +263,13 @@
    - 查看應收款詳情
    - 確認收款或拒絕收款
    - 使用篩選和搜索功能
+
+5. **餐廳推薦**（心動模式）
+6. - 訪問「心動模式」頁面瀏覽餐廳
+   - 滑動卡片記錄偏好（喜歡/不喜歡/收藏）
+   - 查看餐廳詳情（評分、地址、菜系、價格）
+   - 系統根據偏好推薦餐廳
+   - 支持距離計算（需配置 Google Maps API Key）
 
 ## 📚 API 文檔
 
@@ -277,9 +310,20 @@
 - `POST /api/receipt/upload` - 上傳收據圖片
 - `GET /receipts/:filename` - 獲取收據圖片（需認證）
 
-### AI 功能（Beta）
+### AI 功能
 
 - `POST /api/bill/ocr-upload` - 上傳賬單圖片進行 OCR + LLM 識別
+- `POST /api/food/upload` - 上傳食物圖片進行識別
+- `GET /api/food/recommendations` - 根據識別結果獲取食物推薦
+
+### 餐廳相關
+
+- `GET /api/restaurants/recommend` - 獲取餐廳推薦列表
+- `GET /api/restaurants/next` - 獲取下一個餐廳（心動模式）
+- `GET /api/restaurants/search` - 搜索餐廳（根據菜系、食物類型、評分）
+- `GET /api/restaurants/:id` - 獲取餐廳詳情
+- `GET /api/restaurants/recommend-by-food` - 根據食物識別結果推薦餐廳
+- `POST /api/restaurants/preference` - 記錄用戶餐廳偏好（喜歡/不喜歡/收藏）
 
 ## 📁 項目結構
 
@@ -288,7 +332,9 @@ PartyBillCalculator/
 ├── public/                      # 前端靜態文件
 │   ├── index.html              # 首頁
 │   ├── calculator.html         # 智能計算頁面
-│   ├── my-bills.html           # 我的賬單頁面 ⭐
+│   ├── my-bills.html           # 我的賬單頁面
+│   ├── heart-mode.html         # 心動模式（餐廳推薦）⭐
+│   ├── messages.html           # 消息頁面
 │   ├── login-page.html         # 登入頁面
 │   ├── registration-page.html  # 註冊頁面
 │   ├── copyright.html          # 版權聲明
@@ -305,13 +351,24 @@ PartyBillCalculator/
 │   ├── dataManager.ts         # 數據管理
 │   ├── storage.ts             # 數據存儲 ⭐
 │   ├── messageManager.ts      # 消息管理
-│   └── billCalculator.ts      # 計算邏輯
+│   ├── billCalculator.ts      # 計算邏輯
+│   ├── restaurantRecommender.ts  # 餐廳推薦算法 ⭐
+│   ├── foodRecognition/       # 食物識別模組 ⭐
+│   │   ├── foodImageManager.ts
+│   │   ├── recognitionScheduler.ts
+│   │   ├── foodRecommendationService.ts
+│   │   └── healthCheck.ts
+│   └── food-recognition/      # TensorFlow.js 模型管理 ⭐
+│       └── models/
 ├── docs/                       # 項目文檔
 │   ├── CHANGELOG.md                        # 更新日誌
 │   ├── COMPONENT_SYSTEM.md                 # 組件系統文檔
 │   ├── MESSAGE_SYSTEM.md                   # 消息系統文檔
 │   ├── MY_BILLS_PAGE.md                    # 我的賬單頁面文檔
 │   ├── PAYMENT_FLOW.md                     # 支付流程文檔
+│   ├── RESTAURANT_RECOMMENDATION.md        # 餐廳推薦系統文檔 ⭐
+│   ├── GOOGLE_MAPS_SETUP.md                # Google Maps API 設置指南 ⭐
+│   ├── FOOD_RECOGNITION_ARCHITECTURE.md     # 食物識別架構文檔 ⭐
 │   ├── TEST_USERS.md                       # 測試用戶列表
 │   ├── TESTING_REPORT.md                   # 全面測試報告
 │   ├── TROUBLESHOOTING.md                  # 故障排除
@@ -331,12 +388,25 @@ PartyBillCalculator/
 │       └── README.md
 ├── data/                       # 數據文件
 │   └── receipts/              # 收據圖片 ⭐
-├── ocr-service/                 # OCR 服務（Python microservice）⭐
+├── ocr-service/                 # OCR 服務（Python microservice）
 │   ├── main.py                # FastAPI 服務主文件
 │   ├── requirements.txt       # Python 依賴
 │   ├── Dockerfile             # Docker 配置
 │   ├── README.md              # OCR 服務文檔
 │   └── SETUP.md               # 安裝設置指南
+├── food-recognition-service/    # 食物識別服務（Python + TensorFlow.js）⭐
+│   ├── train/                 # 模型訓練腳本
+│   ├── convert/               # 模型轉換腳本（Python → TensorFlow.js）
+│   ├── models_tfjs/           # 轉換後的 TensorFlow.js 模型
+│   └── README.md              # 食物識別服務文檔
+├── scraper/                     # 餐廳資料爬蟲 ⭐
+│   ├── scrapers/              # 爬蟲實現
+│   │   ├── openrice-scraper.ts  # OpenRice 爬蟲
+│   │   └── types.ts            # 類型定義
+│   ├── examples/              # 示例腳本
+│   │   └── run-scraper.ts     # 運行爬蟲腳本
+│   ├── utils/                 # 工具函數
+│   └── README.md              # 爬蟲文檔
 ├── server/                     # 後端服務器代碼
 │   ├── server.ts              # 主服務器文件
 │   ├── types.ts               # TypeScript 類型定義
@@ -353,8 +423,11 @@ PartyBillCalculator/
 │       ├── prompts.ts         # Prompt 版本管理
 │       ├── types.ts           # 類型定義
 │       └── env.ts             # 環境變數
-├── migrations/                 # 資料庫遷移文件 ⭐
-│   └── 20250101000000_add_llm_api_usage.ts
+├── migrations/                 # 資料庫遷移文件
+│   ├── 20250101000000_add_llm_api_usage.ts
+│   ├── 20250115000000_add_model_recognition_fields.ts
+│   ├── 20250120000000_add_restaurant_tables.ts
+│   └── 20251204020000_add_food_tables.ts
 ├── tests/                      # 測試文件
 │   ├── api-test.js            # API 功能測試
 │   ├── comprehensive-test.js  # 全面系統測試
@@ -431,6 +504,8 @@ PartyBillCalculator/
 - `npm run llm:test` - 測試 LLM prompt（需要指定版本）
 - `npm run db:migrate` - 運行資料庫遷移
 - `npm run db:gen-proxy` - 生成資料庫 proxy 類型
+- `npm run scraper:run` - 運行餐廳資料爬蟲
+- `npm run scraper:test` - 測試爬蟲功能
 
 ## 🧪 測試
 
@@ -473,6 +548,8 @@ cat scripts/README.md
 - 賬單創建和計算
 - 支付狀態管理
 - API 端點功能
+- 食物識別功能
+- 餐廳推薦系統
 
 ## 🚀 部署
 
