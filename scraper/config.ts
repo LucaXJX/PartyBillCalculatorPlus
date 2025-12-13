@@ -52,7 +52,7 @@ export const targetSites: TargetSite[] = [
     robotsUrl: "https://www.openrice.com/robots.txt",
     enabled: true,
     crawlDelay: 2000, // robots.txt 要求 2 秒
-    actualDelay: 3000, // 實際使用 3 秒（更保守）
+    actualDelay: 1500, // 實際使用 1.5 秒（優化速度）
     maxRetries: 3,
     timeout: 30000, // 30 秒
     cities: ["香港"], // 只爬取香港地區

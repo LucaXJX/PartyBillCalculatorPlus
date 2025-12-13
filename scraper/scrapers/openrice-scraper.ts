@@ -126,6 +126,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
     }
 
     const restaurants: RestaurantData[] = [];
+    const seenUrls = new Set<string>(); // 用於去重，避免重複爬取相同餐廳
     let page: Page = await this.createPage(); // 使用 let 以便重新賦值
 
     try {
@@ -150,12 +151,12 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
           });
 
           // 等待頁面基本結構加載
-          await page.waitForTimeout(3000);
+          await page.waitForTimeout(1000);
 
           // 嘗試等待列表容器（如果存在）
           try {
             await page.waitForSelector(".poi-list-desktop-container", {
-              timeout: 10000,
+              timeout: 5000,
             });
             console.log(`   ✅ 列表容器已加載`);
           } catch (e) {
@@ -165,7 +166,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
           // 嘗試等待餐廳列表項目容器
           try {
             await page.waitForSelector(".poi-list-cells, .poi-list-cell", {
-              timeout: 10000,
+              timeout: 5000,
             });
             console.log(`   ✅ 餐廳列表項目容器已加載`);
           } catch (e) {
@@ -174,15 +175,15 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
 
           // 滾動頁面觸發無限滾動加載（OpenRice 使用懶加載）
           console.log(`   📜 滾動頁面觸發內容加載...`);
-          for (let i = 0; i < 3; i++) {
+          for (let i = 0; i < 2; i++) {
             await page.evaluate((pos) => {
               window.scrollTo(0, pos);
-            }, (i + 1) * 800);
-            await page.waitForTimeout(2000);
+            }, (i + 1) * 1000);
+            await page.waitForTimeout(1000);
           }
 
           // 額外等待讓 Vue 渲染完成
-          await this.delay(3000);
+          await this.delay(1000);
         } catch (error) {
           console.error(`   ❌ 訪問頁面失敗: ${pageUrl}`, error);
           hasNextPage = false;
@@ -208,15 +209,69 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
 
         for (const link of restaurantLinks) {
           try {
+            // 檢查是否已經爬取過這個 URL（去重）
+            // 標準化 URL：移除查詢參數、錨點，並確保新格式 URL 的一致性
+            let urlToNormalize = link.url.split('?')[0].split('#')[0];
+            
+            // 確保 URL 是完整的（如果不是以 http 開頭）
+            if (!urlToNormalize.startsWith("http")) {
+              // 如果已經以 / 開頭，直接添加域名；否則添加 /
+              if (urlToNormalize.startsWith("/")) {
+                urlToNormalize = `https://www.openrice.com${urlToNormalize}`;
+              } else {
+                urlToNormalize = `https://www.openrice.com/${urlToNormalize}`;
+              }
+            }
+            
+            // 對於新格式 URL (/r-...)，提取基礎部分（到 -r數字 或結尾）
+            let normalizedUrl: string = urlToNormalize;
+            if (urlToNormalize.includes("/r-")) {
+              // 提取基礎 URL：匹配完整的路徑部分
+              // 格式可能是：https://www.openrice.com/zh/hongkong/r-餐廳名稱-地區-菜系-...-r數字/
+              // 或：https://www.openrice.com/r-餐廳名稱-...-r數字/
+              // 匹配從 /zh/hongkong/r- 或 /r- 開始到 -r數字 或結尾的部分
+              const rPathMatch = urlToNormalize.match(/(\/zh\/hongkong)?\/r-[^\/]+(?:-r\d+)?/);
+              if (rPathMatch) {
+                const domain = urlToNormalize.match(/https?:\/\/[^\/]+/)?.[0] || "https://www.openrice.com";
+                const rPath = rPathMatch[0];
+                normalizedUrl = `${domain}${rPath}${rPath.endsWith("/") ? "" : "/"}`;
+              } else {
+                // 如果匹配失敗，至少確保格式正確
+                normalizedUrl = urlToNormalize.replace(/([^:]\/)\/+/g, "$1");
+                if (!normalizedUrl.endsWith("/") && !normalizedUrl.includes("?")) {
+                  normalizedUrl = normalizedUrl + "/";
+                }
+              }
+            } else {
+              // 修復可能的雙斜杠問題（但保留 http:// 或 https:// 後的雙斜杠）
+              normalizedUrl = urlToNormalize.replace(/([^:]\/)\/+/g, "$1");
+            }
+            
+            if (seenUrls.has(normalizedUrl)) {
+              // 顯示實際的完整 URL 而不是標準化後的 URL（用於去重）
+              const displayUrl = link.url.startsWith("http") 
+                ? link.url 
+                : `https://www.openrice.com${link.url.startsWith("/") ? link.url : "/" + link.url}`;
+              console.log(`   ⏭️  跳過重複 URL: ${link.name} (${displayUrl})`);
+              continue;
+            }
+            seenUrls.add(normalizedUrl);
+
+            // 確保傳遞給 scrapeRestaurantDetail 的 URL 是完整的
+            const urlToScrape = link.url.startsWith("http")
+              ? link.url
+              : `https://www.openrice.com${link.url.startsWith("/") ? link.url : "/" + link.url}`;
+
             const restaurant = await this.scrapeRestaurantDetail(
               currentPage,
-              link.url,
+              urlToScrape,
               link.name,
               criteria
             );
 
             if (restaurant && this.validateRestaurant(restaurant)) {
-              if (this.matchesCriteria(restaurant, criteria)) {
+              const matchResult = this.matchesCriteriaWithReasons(restaurant, criteria);
+              if (matchResult.matches) {
                 restaurants.push(restaurant);
                 successCount++;
                 console.log(
@@ -224,6 +279,11 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                 );
               } else {
                 console.log(`   ⏭️  跳過（不符合條件）: ${restaurant.name}`);
+                if (matchResult.reasons.length > 0) {
+                  matchResult.reasons.forEach((reason) => {
+                    console.log(`      - ${reason}`);
+                  });
+                }
               }
             } else {
               failCount++;
@@ -236,15 +296,15 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
               consecutiveFails = 0;
             }
 
-            // 延遲，避免請求過快
+            // 延遲，避免請求過快（已優化：減少延遲時間）
             await this.delay();
 
-            // 每 10 個餐廳後，稍作休息，避免內存積累
-            if ((successCount + failCount) % 10 === 0) {
+            // 每 20 個餐廳後，稍作休息，避免內存積累（已優化：減少休息頻率）
+            if ((successCount + failCount) % 20 === 0) {
               console.log(
                 `   💤 已處理 ${successCount + failCount} 個餐廳，稍作休息...`
               );
-              await this.delay(5000);
+              await this.delay(2000);
             }
           } catch (error: any) {
             failCount++;
@@ -318,7 +378,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
       // 等待餐廳列表容器出現
       try {
         await page.waitForSelector(".poi-list-desktop-container", {
-          timeout: 10000,
+          timeout: 5000,
         });
         console.log(`   ✅ 找到列表容器: .poi-list-desktop-container`);
       } catch (e) {
@@ -330,7 +390,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
         // 等待至少一個餐廳項目出現
         await page.waitForSelector(
           ".poi-list-desktop-container a[href*='/restaurant/']",
-          { timeout: 15000 }
+          { timeout: 5000 }
         );
         console.log(`   ✅ 餐廳項目已加載`);
       } catch (e) {
@@ -341,12 +401,12 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
       await page.evaluate(() => {
         window.scrollTo(0, document.body.scrollHeight / 2);
       });
-      await page.waitForTimeout(2000);
+        await page.waitForTimeout(1000);
 
       await page.evaluate(() => {
         window.scrollTo(0, document.body.scrollHeight);
       });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(1000);
 
       // 調試：保存頁面 HTML（僅用於調試）
       const html = await page.content();
@@ -383,7 +443,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
 
           const links = await page.$$eval(selector, (elements) => {
             return elements
-              .map((el) => {
+              .map((el, index) => {
                 // 查找鏈接（優先查找新格式 /r-）
                 let linkEl: Element | null = null;
                 let name = "";
@@ -400,10 +460,14 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                     el.closest("a");
                 }
 
-                if (!linkEl) return null;
+                if (!linkEl) {
+                  return null;
+                }
 
                 let url = linkEl.getAttribute("href") || "";
-                if (!url) return null;
+                if (!url) {
+                  return null;
+                }
 
                 // OpenRice 使用兩種 URL 格式：
                 // 1. 新格式：/r-餐廳名稱-... 或 /zh/hongkong/r-...
@@ -434,7 +498,8 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                   "index",
                   "restaurants-map",
                 ];
-                if (functionalPages.some((page) => urlLower.includes(page))) {
+                const isFunctionalPage = functionalPages.some((page) => urlLower.includes(page));
+                if (isFunctionalPage) {
                   return null;
                 }
 
@@ -452,6 +517,16 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                 }
 
                 // 查找餐廳名稱（多種可能的位置）
+                // 如果 el 本身就是 <a> 標籤，需要向上查找父元素（.poi-list-cell）
+                let searchContainer: Element = el;
+                if (el.tagName === "A") {
+                  // 向上查找 .poi-list-cell 父元素
+                  const parentCell = el.closest(".poi-list-cell");
+                  if (parentCell) {
+                    searchContainer = parentCell;
+                  }
+                }
+                
                 // 優先查找 .poi-name 或 .poi-list-cell-link（OpenRice 的實際結構）
                 // 注意：.poi-name 可能包含子元素，需要獲取直接文本
                 const nameSelectors = [
@@ -468,7 +543,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                 ];
 
                 for (const nameSel of nameSelectors) {
-                  const nameEl = el.querySelector(nameSel);
+                  const nameEl = searchContainer.querySelector(nameSel);
                   if (nameEl) {
                     // 獲取直接文本內容（不包括子元素）
                     name = Array.from(nameEl.childNodes)
@@ -518,16 +593,29 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                   }
                 }
 
-                // 如果還是沒有名稱，從 URL 提取
+                // 如果還是沒有名稱，從 URL 提取（但這只是最後的備選方案）
+                // 注意：從 URL 提取的名稱可能不完整，應該優先使用 DOM 中的名稱
                 if (!name) {
+                  // 先移除 /photos 部分（如果存在）
+                  let urlForExtraction = url;
+                  if (urlForExtraction.includes("/photos")) {
+                    urlForExtraction = urlForExtraction.replace(/\/photos.*$/, "");
+                  }
+                  
                   // 嘗試新格式：/r-餐廳名稱-...
                   // 新格式：/zh/hongkong/r-星級好德來小籠包店-佐敦-滬菜-上海-中式包點-r837041/
-                  const newFormatMatch = url.match(/\/r-([^/-]+)/);
+                  // 改進：提取完整的餐廳名稱部分（直到遇到 -r數字 或結尾）
+                  const newFormatMatch = urlForExtraction.match(/\/r-([^-]+?)(?:-r\d+|$|\/)/);
                   if (newFormatMatch) {
-                    name = decodeURIComponent(newFormatMatch[1]);
+                    const urlName = decodeURIComponent(newFormatMatch[1]);
+                    // 只使用 URL 中的名稱作為最後備選，因為它可能不完整
+                    // 但至少比沒有名稱好
+                    if (urlName && urlName.length >= 2) {
+                      name = urlName;
+                    }
                   } else {
                     // 嘗試舊格式：/restaurant/餐廳名稱.htm
-                    const oldFormatMatch = url.match(/restaurant\/([^/?]+)/);
+                    const oldFormatMatch = urlForExtraction.match(/restaurant\/([^/?]+)/);
                     if (oldFormatMatch) {
                       name = decodeURIComponent(oldFormatMatch[1])
                         .replace(/\.htm$/, "")
@@ -545,6 +633,25 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                   // 如果是新格式且包含 /photos，去掉 /photos 部分
                   if (fullUrl.includes("/r-") && fullUrl.includes("/photos")) {
                     fullUrl = fullUrl.replace(/\/photos.*$/, "");
+                  }
+
+                  // 標準化新格式的 URL：移除查詢參數，確保以 / 結尾
+                  if (fullUrl.includes("/r-")) {
+                    // 移除查詢參數和錨點
+                    fullUrl = fullUrl.split('?')[0].split('#')[0];
+                    // 確保以 / 結尾（如果沒有查詢參數）
+                    if (!fullUrl.endsWith("/")) {
+                      // 提取基礎 URL（到 -r數字 或結尾）
+                      // 匹配完整的路徑部分，包括 /zh/hongkong/r-... 或 /r-...
+                      const baseMatch = fullUrl.match(/(\/zh\/hongkong)?\/r-[^/]+(?:-r\d+)?/);
+                      if (baseMatch) {
+                        const domain = fullUrl.match(/https?:\/\/[^\/]+/)?.[0] || "https://www.openrice.com";
+                        const rPath = baseMatch[0];
+                        fullUrl = `${domain}${rPath}/`;
+                      } else if (!fullUrl.includes("?")) {
+                        fullUrl = fullUrl + "/";
+                      }
+                    }
                   }
 
                   // 確保新格式的 URL 以 / 結尾
@@ -570,7 +677,16 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
             console.log(
               `   ✅ 使用選擇器 "${selector}" 找到 ${links.length} 個餐廳`
             );
+            // 調試：顯示前幾個餐廳的名稱和 URL
+            if (links.length > 0) {
+              console.log(`   📋 示例餐廳: ${links[0].name} - ${links[0].url}`);
+            }
             break;
+          } else {
+            // 調試：如果選擇器找到了元素但沒有提取到鏈接
+            if (count > 0) {
+              console.log(`   ⚠️  選擇器 "${selector}" 找到 ${count} 個元素，但沒有提取到有效鏈接`);
+            }
           }
         } catch (error) {
           // 選擇器無效，嘗試下一個
@@ -645,20 +761,21 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
         });
 
         // 等待頁面基本內容加載
-        await currentPage.waitForTimeout(2000);
+        await currentPage.waitForTimeout(1000);
 
-        // 嘗試等待關鍵元素出現
+        // 嘗試等待關鍵元素出現（已優化：減少超時時間）
         try {
           await currentPage.waitForSelector(
             "h1, .poi-name, [itemprop='name']",
             {
-              timeout: 5000,
+              timeout: 3000,
             }
           );
         } catch (e) {
           // 繼續，即使沒有找到
         }
 
+        // 已優化：減少延遲時間
         await this.delay();
 
         // 提取餐廳信息
@@ -714,6 +831,10 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
             ".poi-info-address",
             ".poi-detail-address",
             "[class*='address']",
+            ".poi-info-item", // OpenRice 可能使用這個類
+            "[class*='poi-info']", // 更廣泛的匹配
+            "div[class*='location']", // 位置相關
+            "span[class*='address']", // span 標籤
           ];
           for (const selector of addressSelectors) {
             const el = document.querySelector(selector);
@@ -730,11 +851,22 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
 
           // 如果還是沒有地址，嘗試從頁面文本中查找（包含"地址"或"Address"的文本）
           if (!data.address) {
-            const addressKeywords = ["地址", "Address", "位置", "Location"];
+            const addressKeywords = ["地址", "Address", "位置", "Location", "地址：", "Address:"];
             for (const keyword of addressKeywords) {
               const elements = Array.from(document.querySelectorAll("*"));
               for (const el of elements) {
-                if (el.textContent?.includes(keyword)) {
+                const text = el.textContent || "";
+                if (text.includes(keyword)) {
+                  // 嘗試從同一元素中提取
+                  const match = text.match(new RegExp(`${keyword}\\s*[:：]?\\s*([^\\n]{5,200})`));
+                  if (match && match[1]) {
+                    const potentialAddress = match[1].trim();
+                    if (potentialAddress.length > 5 && potentialAddress.length < 200) {
+                      data.address = potentialAddress;
+                      break;
+                    }
+                  }
+                  // 嘗試從下一個兄弟元素中提取
                   const nextSibling = el.nextElementSibling;
                   if (nextSibling && nextSibling.textContent) {
                     const potentialAddress = nextSibling.textContent.trim();
@@ -751,6 +883,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
               if (data.address) break;
             }
           }
+          
 
           // 3. 提取坐標（從地圖組件或 data 屬性）
           // 方法 1: 從地圖組件的 data 屬性
@@ -857,6 +990,14 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
             ".rating-value",
             ".poi-rating",
             "[data-rating]",
+            ".sr-only", // OpenRice 可能使用 sr-only 類來隱藏評分
+            "[class*='rating']",
+            "[class*='score']",
+            ".poi-score",
+            ".restaurant-rating",
+            ".rating",
+            "span[class*='rating']",
+            "div[class*='rating']",
           ];
           for (const selector of ratingSelectors) {
             const el = document.querySelector(selector);
@@ -870,6 +1011,28 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
               }
             }
           }
+          
+          // 如果所有選擇器都失敗，嘗試從頁面文本中查找評分（例如 "4.5分" 或 "4.5/5"）
+          if (!data.rating) {
+            const pageText = document.body.textContent || "";
+            const ratingPatterns = [
+              /(\d\.\d)\s*分/i,
+              /(\d\.\d)\s*\/\s*5/i,
+              /評分[：:]\s*(\d\.\d)/i,
+              /rating[：:]\s*(\d\.\d)/i,
+            ];
+            for (const pattern of ratingPatterns) {
+              const match = pageText.match(pattern);
+              if (match) {
+                const rating = parseFloat(match[1]);
+                if (!isNaN(rating) && rating > 0 && rating <= 5) {
+                  data.rating = rating;
+                  break;
+                }
+              }
+            }
+          }
+          
 
           // 5. 提取評論數量
           const reviewSelectors = [
@@ -895,12 +1058,36 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
             ".cuisine-type",
             ".poi-cuisine",
             ".restaurant-cuisine",
+            "[class*='cuisine']",
+            "[class*='Cuisine']",
+            ".poi-info-cuisine",
+            ".poi-detail-cuisine",
+            ".sr1-listing-cuisine",
+            "a[href*='cuisine']",
+            "[data-cuisine]",
           ];
           for (const selector of cuisineSelectors) {
             const el = document.querySelector(selector);
             if (el) {
-              data.cuisine_type = el.textContent?.trim() || null;
-              if (data.cuisine_type) break;
+              const cuisineText = el.textContent?.trim() || el.getAttribute("data-cuisine") || "";
+              if (cuisineText) {
+                data.cuisine_type = cuisineText;
+                break;
+              }
+            }
+          }
+          // 如果還是沒有找到，嘗試從 URL 提取（OpenRice URL 格式包含菜系信息）
+          if (!data.cuisine_type) {
+            const url = window.location.href;
+            // OpenRice URL 格式：/r-餐廳名稱-地區-菜系-...
+            const urlMatch = url.match(/\/r-[^/]+-[^/]+-([^/]+?)(?:-r\d+|$|\/)/);
+            if (urlMatch) {
+              const urlCuisine = decodeURIComponent(urlMatch[1]);
+              // 檢查是否看起來像菜系類型（不是地區或餐廳名稱的一部分）
+              const commonCuisines = ['中餐', '日料', '韓式', '泰式', '義式', '法式', '西式', '港式', '川菜', '粵菜', '上海菜', 'chinese', 'japanese', 'korean', 'thai', 'italian'];
+              if (commonCuisines.some(c => urlCuisine.toLowerCase().includes(c.toLowerCase()))) {
+                data.cuisine_type = urlCuisine;
+              }
             }
           }
 
@@ -977,7 +1164,17 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
           if (ogImage) {
             const ogUrl = ogImage.getAttribute("content");
             if (ogUrl && ogUrl.startsWith("http")) {
-              data.image_url = ogUrl;
+              // 過濾404圖片
+              const urlLower = ogUrl.toLowerCase();
+              if (
+                !urlLower.includes("illust-404") &&
+                !urlLower.includes("404.png") &&
+                !urlLower.includes("not-found") &&
+                !urlLower.includes("placeholder") &&
+                !urlLower.includes("default-image")
+              ) {
+                data.image_url = ogUrl;
+              }
             }
           }
 
@@ -997,8 +1194,18 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                     typeof imageUrl === "string" &&
                     imageUrl.startsWith("http")
                   ) {
-                    data.image_url = imageUrl;
-                    break;
+                    // 過濾404圖片
+                    const urlLower = imageUrl.toLowerCase();
+                    if (
+                      !urlLower.includes("illust-404") &&
+                      !urlLower.includes("404.png") &&
+                      !urlLower.includes("not-found") &&
+                      !urlLower.includes("placeholder") &&
+                      !urlLower.includes("default-image")
+                    ) {
+                      data.image_url = imageUrl;
+                      break;
+                    }
                   }
                 }
               } catch (e) {
@@ -1058,14 +1265,24 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                 const urlMatch = bgImage.match(/url\(['"]?([^'"]+)['"]?\)/);
                 if (urlMatch && urlMatch[1]) {
                   let url = urlMatch[1];
-                  if (url.startsWith("http")) {
-                    data.image_url = url;
-                  } else if (url.startsWith("//")) {
-                    data.image_url = `https:${url}`;
-                  } else if (url.startsWith("/")) {
-                    data.image_url = `https://www.openrice.com${url}`;
+                  // 過濾404圖片和無效圖片
+                  const urlLower = url.toLowerCase();
+                  if (
+                    !urlLower.includes("illust-404") &&
+                    !urlLower.includes("404.png") &&
+                    !urlLower.includes("not-found") &&
+                    !urlLower.includes("placeholder") &&
+                    !urlLower.includes("default-image")
+                  ) {
+                    if (url.startsWith("http")) {
+                      data.image_url = url;
+                    } else if (url.startsWith("//")) {
+                      data.image_url = `https:${url}`;
+                    } else if (url.startsWith("/")) {
+                      data.image_url = `https://www.openrice.com${url}`;
+                    }
+                    if (data.image_url) break;
                   }
-                  if (data.image_url) break;
                 }
               }
             }
@@ -1087,29 +1304,49 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
                 !src.includes("logo") &&
                 !src.includes("avatar")
               ) {
-                const width =
-                  parseInt(img.getAttribute("width") || "0", 10) ||
-                  img.naturalWidth ||
-                  0;
-                const height =
-                  parseInt(img.getAttribute("height") || "0", 10) ||
-                  img.naturalHeight ||
-                  0;
-                const size = width * height;
-                if (size > largestSize && size > 10000) {
-                  // 至少 100x100
-                  largestSize = size;
-                  largestImage = src;
+                // 過濾404圖片
+                const srcLower = src.toLowerCase();
+                if (
+                  !srcLower.includes("illust-404") &&
+                  !srcLower.includes("404.png") &&
+                  !srcLower.includes("not-found") &&
+                  !srcLower.includes("placeholder") &&
+                  !srcLower.includes("default-image")
+                ) {
+                  const width =
+                    parseInt(img.getAttribute("width") || "0", 10) ||
+                    img.naturalWidth ||
+                    0;
+                  const height =
+                    parseInt(img.getAttribute("height") || "0", 10) ||
+                    img.naturalHeight ||
+                    0;
+                  const size = width * height;
+                  if (size > largestSize && size > 10000) {
+                    // 至少 100x100
+                    largestSize = size;
+                    largestImage = src;
+                  }
                 }
               }
             }
             if (largestImage) {
-              if (largestImage.startsWith("http")) {
-                data.image_url = largestImage;
-              } else if (largestImage.startsWith("//")) {
-                data.image_url = `https:${largestImage}`;
-              } else if (largestImage.startsWith("/")) {
-                data.image_url = `https://www.openrice.com${largestImage}`;
+              // 過濾404圖片和無效圖片
+              const imageUrlLower = largestImage.toLowerCase();
+              if (
+                !imageUrlLower.includes("illust-404") &&
+                !imageUrlLower.includes("404.png") &&
+                !imageUrlLower.includes("not-found") &&
+                !imageUrlLower.includes("placeholder") &&
+                !imageUrlLower.includes("default-image")
+              ) {
+                if (largestImage.startsWith("http")) {
+                  data.image_url = largestImage;
+                } else if (largestImage.startsWith("//")) {
+                  data.image_url = `https:${largestImage}`;
+                } else if (largestImage.startsWith("/")) {
+                  data.image_url = `https://www.openrice.com${largestImage}`;
+                }
               }
             }
           }
@@ -1133,13 +1370,31 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
         }, fallbackName);
 
         // 構建完整的餐廳資料對象
+        const rawCuisineType = restaurantData.cuisine_type;
+        const normalizedCuisineType = rawCuisineType
+          ? this.normalizeCuisineType(rawCuisineType)
+          : undefined;
+        
+        // 合併搜索關鍵字到 tags
+        const allTags: string[] = [];
+        // 添加從頁面提取的 tags
+        if (restaurantData.tags && restaurantData.tags.length > 0) {
+          allTags.push(...restaurantData.tags);
+        }
+        // 添加搜索的食物類型關鍵字
+        if (criteria.foodTypes && criteria.foodTypes.length > 0) {
+          allTags.push(...criteria.foodTypes);
+        }
+        // 添加搜索的菜系類型關鍵字
+        if (criteria.cuisineTypes && criteria.cuisineTypes.length > 0) {
+          allTags.push(...criteria.cuisineTypes);
+        }
+        
         const restaurant: RestaurantData = {
           name: restaurantData.name || fallbackName,
           name_en: restaurantData.name_en || undefined,
           description: restaurantData.description || undefined,
-          cuisine_type: restaurantData.cuisine_type
-            ? this.normalizeCuisineType(restaurantData.cuisine_type)
-            : undefined,
+          cuisine_type: normalizedCuisineType,
           price_range: restaurantData.price_range || undefined,
           rating: restaurantData.rating || undefined,
           review_count: restaurantData.review_count || 0,
@@ -1150,10 +1405,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
           phone: restaurantData.phone || undefined,
           website: restaurantData.website || undefined,
           image_url: restaurantData.image_url || undefined,
-          tags:
-            restaurantData.tags && restaurantData.tags.length > 0
-              ? restaurantData.tags
-              : undefined,
+          tags: allTags.length > 0 ? allTags : undefined,
           source: "openrice",
           source_url: url,
           scraped_at: new Date().toISOString(),
@@ -1186,8 +1438,8 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
           console.warn(
             `   ⚠️  頁面崩潰 (嘗試 ${attempt}/${maxRetries})，將重試...`
           );
-          // 等待一段時間後重試
-          await this.delay(3000);
+          // 等待一段時間後重試（已優化：減少等待時間）
+          await this.delay(1500);
           // 重新創建頁面
           try {
             if (!currentPage.isClosed()) {
@@ -1209,7 +1461,7 @@ export class OpenRiceScraper extends BaseRestaurantScraper {
           console.warn(
             `   ⚠️  頁面加載超時 (嘗試 ${attempt}/${maxRetries})，將重試...`
           );
-          await this.delay(2000);
+          await this.delay(1000);
           continue;
         }
 

@@ -87,64 +87,55 @@ export abstract class BaseRestaurantScraper {
     restaurant: RestaurantData,
     criteria: MatchCriteria
   ): boolean {
-    // 城市必須匹配
-    if (restaurant.city !== criteria.city) {
-      return false;
+    return this.matchesCriteriaWithReasons(restaurant, criteria).matches;
+  }
+
+  protected matchesCriteriaWithReasons(
+    restaurant: RestaurantData,
+    criteria: MatchCriteria
+  ): { matches: boolean; reasons: string[] } {
+    const reasons: string[] = [];
+    
+    // 主要檢查：地址、圖片、網址是否為空
+    if (!restaurant.address || restaurant.address.trim().length === 0) {
+      reasons.push(`地址為空`);
     }
 
-    // 檢查評分
+    if (!restaurant.image_url || restaurant.image_url.trim().length === 0) {
+      reasons.push(`圖片為空`);
+    }
+
+    if (!restaurant.source_url || restaurant.source_url.trim().length === 0) {
+      reasons.push(`網址為空`);
+    }
+
+    // 城市必須匹配
+    if (restaurant.city !== criteria.city) {
+      reasons.push(`城市不匹配: 餐廳=${restaurant.city}, 條件=${criteria.city}`);
+    }
+
+    // 可選檢查：評分（如果指定了最小評分要求）
     if (
       criteria.minRating !== undefined &&
       (restaurant.rating === undefined || restaurant.rating < criteria.minRating)
     ) {
-      return false;
+      reasons.push(`評分不足: 餐廳=${restaurant.rating ?? '無'}, 最小要求=${criteria.minRating}`);
     }
 
-    // 檢查價格範圍
+    // 可選檢查：價格範圍（如果指定了價格範圍）
     if (
       criteria.priceRange !== undefined &&
       criteria.priceRange.length > 0 &&
       restaurant.price_range &&
       !criteria.priceRange.includes(restaurant.price_range)
     ) {
-      return false;
+      reasons.push(`價格範圍不匹配: 餐廳=${restaurant.price_range}, 條件=${criteria.priceRange.join(',')}`);
     }
 
-    // 檢查菜系類型
-    if (criteria.cuisineTypes && criteria.cuisineTypes.length > 0) {
-      if (!restaurant.cuisine_type) {
-        return false;
-      }
-      const cuisineMatch = criteria.cuisineTypes.some((type) =>
-        restaurant.cuisine_type!.toLowerCase().includes(type.toLowerCase())
-      );
-      if (!cuisineMatch) {
-        return false;
-      }
-    }
+    // 不再檢查菜系類型和食物類型，因為搜索關鍵字已經添加到 tags 中
+    // 通過搜索關鍵字找到的餐廳，默認符合條件
 
-    // 檢查食物類型（通過 tags 或 description）
-    if (criteria.foodTypes && criteria.foodTypes.length > 0) {
-      const searchText = [
-        restaurant.name,
-        restaurant.name_en,
-        restaurant.description,
-        ...(restaurant.tags || []),
-      ]
-        .filter((text) => text)
-        .join(" ")
-        .toLowerCase();
-
-      const foodMatch = criteria.foodTypes.some((food) =>
-        searchText.includes(food.toLowerCase())
-      );
-
-      if (!foodMatch) {
-        return false;
-      }
-    }
-
-    return true;
+    return { matches: reasons.length === 0, reasons };
   }
 
   /**
@@ -152,7 +143,10 @@ export abstract class BaseRestaurantScraper {
    * 將各種菜系名稱映射到標準類型
    */
   protected normalizeCuisineType(cuisineType: string): string {
-    const cuisineMap: { [key: string]: string } = {
+    const cuisineLower = cuisineType.toLowerCase();
+    
+    // 精確匹配映射表
+    const exactMap: { [key: string]: string } = {
       // 中餐
       中餐: "中餐",
       中式: "中餐",
@@ -160,6 +154,9 @@ export abstract class BaseRestaurantScraper {
       粵菜: "中餐",
       川菜: "中餐",
       上海菜: "中餐",
+      滬菜: "中餐",
+      上海: "中餐",
+      港式: "中餐",
       chinese: "中餐",
       "chinese cuisine": "中餐",
       // 日料
@@ -199,8 +196,62 @@ export abstract class BaseRestaurantScraper {
       "mexican cuisine": "墨西哥",
     };
 
-    const normalized = cuisineMap[cuisineType.toLowerCase()];
-    return normalized || cuisineType;
+    // 先嘗試精確匹配
+    if (exactMap[cuisineLower]) {
+      return exactMap[cuisineLower];
+    }
+
+    // 部分匹配（用於處理包含額外文字的菜系類型，如 "滬菜-上海"）
+    const partialMatches: { [key: string]: string } = {
+      // 中餐變體
+      "中餐": "中餐",
+      "中式": "中餐",
+      "中國": "中餐",
+      "粵": "中餐",
+      "川": "中餐",
+      "滬": "中餐",
+      "上海": "中餐",
+      "港式": "中餐",
+      "chinese": "中餐",
+      // 日料變體
+      "日料": "日料",
+      "日本": "日料",
+      "日式": "日料",
+      "japanese": "日料",
+      // 韓式變體
+      "韓式": "韓式",
+      "韓國": "韓式",
+      "korean": "韓式",
+      // 泰式變體
+      "泰式": "泰式",
+      "泰國": "泰式",
+      "thai": "泰式",
+      // 義式變體
+      "義式": "義式",
+      "義大利": "義式",
+      "italian": "義式",
+      // 法式變體
+      "法式": "法式",
+      "法國": "法式",
+      "french": "法式",
+      // 美式變體
+      "美式": "美式",
+      "美國": "美式",
+      "american": "美式",
+      // 墨西哥變體
+      "墨西哥": "墨西哥",
+      "mexican": "墨西哥",
+    };
+
+    // 嘗試部分匹配
+    for (const [key, value] of Object.entries(partialMatches)) {
+      if (cuisineLower.includes(key.toLowerCase())) {
+        return value;
+      }
+    }
+
+    // 如果都不匹配，返回原始值
+    return cuisineType;
   }
 
   /**
