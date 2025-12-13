@@ -204,8 +204,13 @@ longitude decimal(11,8) NULL
 phone varchar(50) NULL
 website varchar(512) NULL
 image_url varchar(512) NULL
+source_url varchar(512) NULL
 tags text NULL
 is_active integer DEFAULT 1
+llm_rating decimal(3,2) NULL
+llm_rating_confidence decimal(3,2) NULL
+llm_rating_reasoning text NULL
+llm_rating_updated_at varchar(64) NULL
 created_at varchar(64)
 updated_at varchar(64)
 

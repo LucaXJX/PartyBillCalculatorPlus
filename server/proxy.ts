@@ -194,8 +194,13 @@ export type Restaurant = {
   phone: null | string
   website: null | string
   image_url: null | string
+  source_url: null | string
   tags: null | string
   is_active: number // default: 1
+  llm_rating: null | number // LLM 獲取的餐廳評分（0-5）
+  llm_rating_confidence: null | number // LLM 評分的置信度（0-1）
+  llm_rating_reasoning: null | string // LLM 評分的理由
+  llm_rating_updated_at: null | string // LLM 評分更新時間
   created_at: string
   updated_at: string
 }
