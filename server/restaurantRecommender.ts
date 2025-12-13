@@ -19,6 +19,7 @@ export interface RecommendationConfig {
     distance: number; // 距離權重（0-1）
     price: number; // 價格匹配權重（0-1）
     cuisine: number; // 菜系匹配權重（0-1）
+    llmRecommendation: number; // LLM 推薦指數權重（0-1）
   };
   
   // 距離計算參數
@@ -37,11 +38,12 @@ export interface RecommendationConfig {
 // 默認配置
 const DEFAULT_CONFIG: RecommendationConfig = {
   weights: {
-    preference: 0.3, // 30% - 用戶偏好最重要
-    rating: 0.25, // 25% - 評分次重要
-    distance: 0.2, // 20% - 距離
-    price: 0.15, // 15% - 價格匹配
-    cuisine: 0.1, // 10% - 菜系匹配
+    preference: 0.15, // 15% - 用戶偏好
+    rating: 0.15, // 15% - 評分
+    distance: 0.1, // 10% - 距離（如果無法計算，權重會重新分配）
+    price: 0.1, // 10% - 價格匹配
+    cuisine: 0.2, // 20% - 菜系匹配
+    llmRecommendation: 0.3, // 30% - LLM 推薦指數（最重要）
   },
   distanceParams: {
     maxDistance: 10, // 10 公里
@@ -113,17 +115,32 @@ function calculateDistanceScore(
 
 /**
  * 計算評分分數（0-1，評分越高分數越高）
+ * 優先使用 LLM 評分，如果沒有則使用原始評分
  */
 function calculateRatingScore(
   rating: number | null | undefined,
+  llmRating: number | null | undefined,
+  llmRatingConfidence: number | null | undefined,
   config: RecommendationConfig
 ): number {
-  if (!rating || rating < config.ratingParams.minRating) {
+  // 優先使用 LLM 評分（如果置信度 > 0.5）
+  let finalRating = rating;
+  if (llmRating != null && llmRatingConfidence != null && llmRatingConfidence > 0.5) {
+    // 如果原始評分存在，使用加權平均
+    if (rating != null && rating > 0) {
+      finalRating = rating * (1 - llmRatingConfidence) + llmRating * llmRatingConfidence;
+    } else {
+      // 如果原始評分不存在，直接使用 LLM 評分
+      finalRating = llmRating;
+    }
+  }
+
+  if (!finalRating || finalRating < config.ratingParams.minRating) {
     return 0; // 低於最小評分，分數為 0
   }
 
   // 標準化到 0-1 範圍
-  const normalized = rating / config.ratingParams.normalizeMax;
+  const normalized = finalRating / config.ratingParams.normalizeMax;
   return Math.max(0, Math.min(1, normalized));
 }
 
@@ -246,6 +263,7 @@ export interface RestaurantScore {
     distance: number;
     price: number;
     cuisine: number;
+    llmRecommendation: number;
   };
 }
 
@@ -258,14 +276,21 @@ export function calculateRestaurantScore(
     priceRange?: string | string[];
     cuisineTypes?: string | string[];
   },
+  llmRecommendationScore?: number, // LLM 推薦指數（0-1）
   config: RecommendationConfig = DEFAULT_CONFIG
 ): RestaurantScore {
   // 計算各項分數
   const preferenceScore = calculatePreferenceScore(userId, restaurant.id);
-  const ratingScore = calculateRatingScore(restaurant.rating, config);
+  const ratingScore = calculateRatingScore(
+    restaurant.rating,
+    restaurant.llm_rating,
+    restaurant.llm_rating_confidence,
+    config
+  );
   
   // 距離分數
   let distanceScore = 0.5; // 默認中性分數
+  let hasValidDistance = false;
   if (
     userLatitude &&
     userLongitude &&
@@ -280,7 +305,16 @@ export function calculateRestaurantScore(
       restaurant.latitude,
       restaurant.longitude
     );
-    distanceScore = calculateDistanceScore(distance, config);
+    if (distance !== Infinity && distance <= config.distanceParams.maxDistance * 2) {
+      distanceScore = calculateDistanceScore(distance, config);
+      hasValidDistance = true;
+    } else {
+      // 距離無效或超出範圍，使用隨機數（0.3-0.7）以增加多樣性
+      distanceScore = 0.3 + Math.random() * 0.4;
+    }
+  } else {
+    // 無法計算距離，使用隨機數（0.3-0.7）以增加多樣性
+    distanceScore = 0.3 + Math.random() * 0.4;
   }
 
   // 價格分數
@@ -295,13 +329,27 @@ export function calculateRestaurantScore(
     userPreferences?.cuisineTypes
   );
 
+  // LLM 推薦指數分數（如果提供）
+  const llmRecommendationScoreValue = llmRecommendationScore ?? 0.5; // 默認中性分數
+
+  // 如果距離無效，調整權重分配（將距離權重重新分配給其他因素）
+  let adjustedWeights = { ...config.weights };
+  if (!hasValidDistance) {
+    // 將距離權重的一半分配給 LLM 推薦指數，一半分配給菜系匹配
+    const distanceWeight = config.weights.distance;
+    adjustedWeights.llmRecommendation = config.weights.llmRecommendation + distanceWeight * 0.5;
+    adjustedWeights.cuisine = config.weights.cuisine + distanceWeight * 0.5;
+    adjustedWeights.distance = 0; // 距離因素不參與計算
+  }
+
   // 加權總分
   const totalScore =
-    preferenceScore * config.weights.preference +
-    ratingScore * config.weights.rating +
-    distanceScore * config.weights.distance +
-    priceScore * config.weights.price +
-    cuisineScore * config.weights.cuisine;
+    preferenceScore * adjustedWeights.preference +
+    ratingScore * adjustedWeights.rating +
+    distanceScore * adjustedWeights.distance +
+    priceScore * adjustedWeights.price +
+    cuisineScore * adjustedWeights.cuisine +
+    llmRecommendationScoreValue * adjustedWeights.llmRecommendation;
 
   return {
     restaurant,
@@ -312,6 +360,7 @@ export function calculateRestaurantScore(
       distance: distanceScore,
       price: priceScore,
       cuisine: cuisineScore,
+      llmRecommendation: llmRecommendationScoreValue,
     },
   };
 }
@@ -332,12 +381,13 @@ export interface RecommendationOptions {
   excludeRestaurantIds?: string[]; // 排除的餐廳 ID
   minScore?: number; // 最小推薦分數（0-1）
   config?: RecommendationConfig; // 自定義配置
+  useLLM?: boolean; // 是否使用 LLM（默認 true）
 }
 
-export function recommendRestaurants(
+export async function recommendRestaurants(
   userId: string,
   options: RecommendationOptions = {}
-): RestaurantScore[] {
+): Promise<RestaurantScore[]> {
   const {
     limit = 10,
     userLatitude,
@@ -346,6 +396,7 @@ export function recommendRestaurants(
     excludeRestaurantIds = [],
     minScore = 0.0,
     config = DEFAULT_CONFIG,
+    useLLM = true, // 是否使用 LLM（默認啟用）
   } = options;
 
   // 獲取所有有效餐廳
@@ -361,20 +412,71 @@ export function recommendRestaurants(
       !excludeRestaurantIds.includes(r.id)
   );
 
+  // 如果啟用 LLM，批量獲取 LLM 評分和推薦指數
+  // 注意：為了性能，我們只對前 N 個餐廳使用 LLM（可以後續優化）
+  const restaurantsToProcess = validRestaurants.slice(0, limit * 2); // 處理前 2 倍數量的餐廳
+
   // 計算每個餐廳的分數
-  const scoredRestaurants = validRestaurants.map((restaurant: any) =>
+  const scoredRestaurants = await Promise.all(
+    restaurantsToProcess.map(async (restaurant: any) => {
+      let llmRecommendationScore: number | undefined;
+
+      if (useLLM) {
+        try {
+          // 動態導入 LLM 服務（避免循環依賴）
+          const { getRestaurantLLMRecommendationScore } = await import(
+            "./llm/restaurantLLMService.js"
+          );
+
+          // 獲取 LLM 推薦指數
+          const llmResult = await getRestaurantLLMRecommendationScore(
+            restaurant.id,
+            {
+              name: restaurant.name,
+              cuisineType: restaurant.cuisine_type || undefined,
+              tags: restaurant.tags ? JSON.parse(restaurant.tags) : undefined,
+              address: restaurant.address || undefined,
+            },
+            userId
+          );
+
+          llmRecommendationScore = llmResult.score;
+        } catch (error) {
+          console.warn(`獲取 LLM 推薦指數失敗 (${restaurant.name}):`, error);
+          // 繼續使用默認值
+        }
+      }
+
+      return calculateRestaurantScore(
+        restaurant,
+        userId,
+        userLatitude,
+        userLongitude,
+        userPreferences,
+        llmRecommendationScore,
+        config
+      );
+    })
+  );
+
+  // 對於未處理的餐廳，使用同步方式計算（不使用 LLM）
+  const remainingRestaurants = validRestaurants.slice(limit * 2);
+  const remainingScored = remainingRestaurants.map((restaurant: any) =>
     calculateRestaurantScore(
       restaurant,
       userId,
       userLatitude,
       userLongitude,
       userPreferences,
+      undefined, // 不使用 LLM 推薦指數
       config
     )
   );
 
+  const allScoredRestaurants = [...scoredRestaurants, ...remainingScored];
+
   // 過濾低分餐廳
-  const filteredRestaurants = scoredRestaurants.filter(
+  const filteredRestaurants = allScoredRestaurants.filter(
     (item) => item.score >= minScore
   );
 
