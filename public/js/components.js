@@ -104,6 +104,12 @@ class ComponentManager {
                     <a href="/my-bills.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
                       <i class="fa fa-file-text mr-2"></i>我的賬單
                     </a>
+                    <a href="/heart-mode.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
+                      <i class="fa fa-heart mr-2"></i>心動模式
+                    </a>
+                    <a href="/my-restaurants.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
+                      <i class="fa fa-star mr-2"></i>我的餐廳
+                    </a>
                     <a href="/messages.html" class="block px-4 py-2 text-gray-700 hover:bg-primary/5 hover:text-primary transition-colors">
                       <i class="fa fa-envelope mr-2"></i>我的消息
                     </a>
@@ -228,6 +234,20 @@ class ComponentManager {
               `
                   : ""
               }
+              <a href="/heart-mode.html" class="${
+                currentPage === "heart-mode"
+                  ? "text-primary font-medium"
+                  : "text-gray-600 hover:text-primary transition-colors"
+              }">
+                <i class="fa fa-heart mr-1"></i>心動模式
+              </a>
+              <a href="/my-restaurants.html" class="${
+                currentPage === "my-restaurants"
+                  ? "text-primary font-medium"
+                  : "text-gray-600 hover:text-primary transition-colors"
+              }">
+                <i class="fa fa-star mr-1"></i>我的餐廳
+              </a>
               ${
                 showContact
                   ? `
@@ -298,15 +318,29 @@ class ComponentManager {
               showMyBills
                 ? `
               <a href="/my-bills.html" class="${
-                currentPage === "my-bills"
-                  ? "block text-primary font-medium py-2"
-                  : "block text-gray-600 hover:text-primary py-2 transition-colors"
-              }">
+                  currentPage === "my-bills"
+                    ? "block text-primary font-medium py-2"
+                    : "block text-gray-600 hover:text-primary py-2 transition-colors"
+                }">
                 <i class="fa fa-file-text mr-2"></i>我的賬單
               </a>
             `
                 : ""
             }
+            <a href="/heart-mode.html" class="${
+              currentPage === "heart-mode"
+                ? "block text-primary font-medium py-2"
+                : "block text-gray-600 hover:text-primary py-2 transition-colors"
+            }">
+              <i class="fa fa-heart mr-2"></i>心動模式
+            </a>
+            <a href="/my-restaurants.html" class="${
+              currentPage === "my-restaurants"
+                ? "block text-primary font-medium py-2"
+                : "block text-gray-600 hover:text-primary py-2 transition-colors"
+            }">
+              <i class="fa fa-star mr-2"></i>我的餐廳
+            </a>
             ${
               showContact
                 ? `

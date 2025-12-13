@@ -10,6 +10,10 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
       rel="stylesheet"
     />
+    <!-- 引入認證和組件管理 -->
+    <script src="/js/auth.js" type="module"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/page-setup.js" type="module"></script>
     <style>
       /* 滑卡動畫 */
       .card-container {
@@ -185,36 +189,19 @@
     </style>
   </head>
   <body class="bg-gray-50 min-h-screen">
-    <!-- 導航欄 -->
-    <nav class="bg-white shadow-sm">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between items-center h-16">
-          <div class="flex items-center">
-            <a href="/index.html" class="text-primary font-bold text-xl">
-              PBC聚賬通
-            </a>
-            <span class="ml-4 text-gray-500">心動模式</span>
-          </div>
-          <div class="flex items-center gap-4">
-            <button
-              id="filterBtn"
-              class="px-4 py-2 text-gray-600 hover:text-primary transition"
-            >
-              <i class="fas fa-filter"></i> 篩選
-            </button>
-            <a
-              href="/my-bills.html"
-              class="px-4 py-2 text-gray-600 hover:text-primary transition"
-            >
-              <i class="fas fa-arrow-left"></i> 返回
-            </a>
-          </div>
-        </div>
-      </div>
-    </nav>
+    <!-- Header 將由 JavaScript 動態插入 -->
 
     <!-- 主內容區 -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
+      <!-- 篩選按鈕 -->
+      <div class="mb-4 flex justify-end">
+        <button
+          id="filterBtn"
+          class="px-4 py-2 bg-white text-gray-600 hover:text-primary hover:bg-gray-50 rounded-lg shadow transition flex items-center gap-2"
+        >
+          <i class="fas fa-filter"></i> 篩選
+        </button>
+      </div>
       <!-- 篩選面板（可選） -->
       <div id="filterPanel" class="hidden mb-6 bg-white p-4 rounded-lg shadow">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -370,8 +357,14 @@
             return;
           }
 
+          // 設置超時計時器
+          const timeoutId = setTimeout(() => {
+            reject(new Error("獲取位置超時，將使用備選距離計算"));
+          }, 15000); // 15 秒超時
+
           navigator.geolocation.getCurrentPosition(
             async (position) => {
+              clearTimeout(timeoutId);
               const lat = position.coords.latitude;
               const lng = position.coords.longitude;
               
@@ -404,12 +397,29 @@
               resolve(userLocation);
             },
             (error) => {
-              reject(error);
+              clearTimeout(timeoutId);
+              // 根據錯誤類型提供更友好的錯誤信息
+              let errorMessage = "無法獲取位置";
+              switch (error.code) {
+                case error.PERMISSION_DENIED:
+                  errorMessage = "位置權限被拒絕，將使用備選距離計算";
+                  break;
+                case error.POSITION_UNAVAILABLE:
+                  errorMessage = "位置信息不可用，將使用備選距離計算";
+                  break;
+                case error.TIMEOUT:
+                  errorMessage = "獲取位置超時，將使用備選距離計算";
+                  break;
+                default:
+                  errorMessage = "無法獲取位置，將使用備選距離計算";
+                  break;
+              }
+              reject(new Error(errorMessage));
             },
             {
-              enableHighAccuracy: true,
-              timeout: 10000,
-              maximumAge: 0,
+              enableHighAccuracy: false, // 改為 false 以加快獲取速度
+              timeout: 15000, // 15 秒超時
+              maximumAge: 300000, // 允許使用 5 分鐘內的緩存位置
             }
           );
         });
@@ -493,35 +503,58 @@
           if (cuisineType) params.append("cuisine_type", cuisineType);
           if (minRating) params.append("min_rating", minRating);
 
-          const response = await fetch(
-            `${API_BASE}/restaurants/next?${params.toString()}`,
-            { 
-              headers,
-              credentials: 'include' // 確保發送 cookies
-            }
-          );
+          const url = `${API_BASE}/restaurants/next${params.toString() ? '?' + params.toString() : ''}`;
+          console.log("🔍 請求餐廳:", url);
+
+          const response = await fetch(url, { 
+            method: 'GET',
+            headers: {
+              ...headers,
+              'Accept': 'application/json',
+            },
+            credentials: 'include' // 確保發送 cookies
+          });
+
+          console.log("📥 API 響應狀態:", response.status, response.statusText);
 
           if (response.status === 401) {
             // 未授權，跳轉到登錄頁
+            console.warn("⚠️ 未授權，跳轉到登錄頁");
             window.location.href = "/login-page.html";
             return null;
           }
 
+          if (response.status === 404) {
+            // 404 錯誤，可能是路由問題或服務器未啟動
+            console.error("❌ API 端點不存在 (404)");
+            const errorText = await response.text().catch(() => '');
+            console.error("響應內容:", errorText);
+            throw new Error("API 端點不存在，請確認服務器已啟動並包含餐廳路由");
+          }
+
           if (!response.ok) {
             const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || `HTTP ${response.status}`);
+            console.error("❌ API 錯誤:", errorData);
+            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
           }
 
           const data = await response.json();
+          console.log("✅ 獲取餐廳成功:", data);
+          
+          // #region agent log
+          if (data.restaurant) {
+            fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heart-mode.html:541',message:'API response received - H8',data:{id:data.restaurant.id,name:data.restaurant.name,rating:data.restaurant.rating,llmRating:data.restaurant.llm_rating,llmRatingConfidence:data.restaurant.llm_rating_confidence,hasRating:data.restaurant.rating!=null,hasLlmRating:data.restaurant.llm_rating!=null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H8'})}).catch(()=>{});
+          }
+          // #endregion
           
           if (!data.restaurant) {
-            console.log("沒有更多餐廳了");
+            console.log("ℹ️ 沒有更多餐廳了");
             return null;
           }
           
           return data.restaurant;
         } catch (error) {
-          console.error("獲取餐廳失敗:", error);
+          console.error("❌ 獲取餐廳失敗:", error);
           showToast(error.message || "獲取餐廳失敗，請稍後再試", "error");
           return null;
         }
@@ -566,11 +599,40 @@
         card.className = "restaurant-card";
         card.dataset.restaurantId = restaurant.id;
 
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heart-mode.html:597',message:'Before rendering rating stars - H6,H7',data:{id:restaurant.id,name:restaurant.name,rating:restaurant.rating,ratingType:typeof restaurant.rating,isNull:restaurant.rating===null,isUndefined:restaurant.rating===undefined,isFalsy:!restaurant.rating},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H6,H7'})}).catch(()=>{});
+        // #endregion
+        
         // 評分星星
-        const ratingStars = restaurant.rating
-          ? "★".repeat(Math.floor(restaurant.rating)) +
-            "☆".repeat(5 - Math.floor(restaurant.rating))
-          : "暫無評分";
+        // 優先使用 LLM 評分（如果置信度 > 0.5），否則使用原始評分
+        let ratingValue = null;
+        let ratingSource = "none";
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heart-mode.html:605',message:'Rating evaluation - H8',data:{id:restaurant.id,name:restaurant.name,rating:restaurant.rating,llmRating:restaurant.llm_rating,llmRatingConfidence:restaurant.llm_rating_confidence,hasRating:restaurant.rating!=null,hasLlmRating:restaurant.llm_rating!=null,llmConfidenceValid:restaurant.llm_rating_confidence!=null&&restaurant.llm_rating_confidence>0.5},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H8'})}).catch(()=>{});
+        // #endregion
+        
+        if (restaurant.llm_rating != null && restaurant.llm_rating_confidence != null && restaurant.llm_rating_confidence > 0.5) {
+          // 使用 LLM 評分
+          ratingValue = restaurant.llm_rating;
+          ratingSource = "llm";
+        } else if (restaurant.rating != null && restaurant.rating > 0) {
+          // 使用原始評分
+          ratingValue = restaurant.rating;
+          ratingSource = "original";
+        }
+        
+        const ratingStars = ratingValue != null && ratingValue > 0
+          ? `<span class="text-yellow-500">${"★".repeat(Math.floor(ratingValue))}${"☆".repeat(5 - Math.floor(ratingValue))}</span>`
+          : '<span class="text-gray-400">暫無評分</span>';
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heart-mode.html:620',message:'After rating evaluation - H8',data:{id:restaurant.id,name:restaurant.name,ratingValue,ratingSource,hasRating:ratingValue!=null,ratingStarsLength:ratingStars.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H8'})}).catch(()=>{});
+        // #endregion
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'heart-mode.html:605',message:'After processing rating stars - H6,H7',data:{id:restaurant.id,name:restaurant.name,originalRating:restaurant.rating,ratingValue,hasRating:ratingValue!=null,ratingStarsLength:ratingStars.length,ratingStarsPreview:ratingStars.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H6,H7'})}).catch(()=>{});
+        // #endregion
 
         // 價格範圍顯示
         const priceDisplay = restaurant.price_range
@@ -629,7 +691,7 @@
             <div class="mt-4 space-y-2">
               <div class="flex items-center justify-between text-sm">
                 <span class="rating-stars">${ratingStars}</span>
-                <span class="text-gray-500">${restaurant.rating || "N/A"}</span>
+                ${ratingValue != null && ratingValue > 0 ? `<span class="text-gray-500">${ratingValue.toFixed(1)}</span>` : ''}
               </div>
               <div class="flex items-center justify-between text-sm">
                 <span class="price-range">${priceDisplay}</span>
@@ -835,17 +897,15 @@
         if (!currentRestaurant) return;
 
         try {
-          const response = await fetch(
-            `${API_BASE}/restaurants/${currentRestaurant.id}/preference`,
-            {
-              method: "POST",
-              headers,
-              credentials: 'include',
-              body: JSON.stringify({
-                preference: "favorite",
-              }),
-            }
-          );
+          const response = await fetch(`${API_BASE}/restaurants/feedback`, {
+            method: "POST",
+            headers,
+            credentials: 'include',
+            body: JSON.stringify({
+              restaurant_id: currentRestaurant.id,
+              preference: "favorite",
+            }),
+          });
 
           if (response.status === 401) {
             window.location.href = "/login-page.html";
@@ -924,23 +984,44 @@
       // 初始化：獲取用戶位置，然後加載餐廳
       async function init() {
         try {
-          // 請求用戶位置
-          showToast("正在獲取您的位置...", "info");
-          await getUserLocation();
-          showToast("位置獲取成功", "success");
+          // 請求用戶位置（不阻塞餐廳加載）
+          getUserLocation()
+            .then(() => {
+              console.log("✅ 位置獲取成功:", userLocation);
+              showToast("位置獲取成功", "success");
+            })
+            .catch((error) => {
+              console.warn("⚠️ 無法獲取用戶位置:", error.message || error);
+              // 不顯示錯誤提示，因為這是可選功能
+            });
         } catch (error) {
-          console.warn("無法獲取用戶位置:", error);
-          showToast("無法獲取位置，將使用備選距離計算", "info");
+          console.warn("⚠️ 位置獲取異常:", error);
         }
-        // 無論是否獲取到位置，都開始加載餐廳
+        
+        // 無論是否獲取到位置，都立即開始加載餐廳
         loadNextRestaurant();
+      }
+
+      // 頁面設置：初始化 Header 和認證
+      async function setupPage() {
+        if (window.pageSetup) {
+          await window.pageSetup.init({
+            currentPage: "heart-mode",
+            requireAuth: true,
+            showHeader: true,
+            showFooter: false,
+          });
+        }
       }
 
       // 頁面加載完成後初始化
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', async () => {
+          await setupPage();
+          init();
+        });
       } else {
-        init();
+        setupPage().then(() => init());
       }
     </script>
   </body>

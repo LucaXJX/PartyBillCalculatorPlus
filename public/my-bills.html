@@ -1253,22 +1253,59 @@
                       ${images
                         .map((img) => {
                           // API 返回的 recognitionResult 已經是解析後的對象
+                          // recognitionStatus: 0=未識別, 1=識別中, 2=已識別, 3=識別失敗
+                          // #region agent log
+                          fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'my-bills.html:1255',message:'Food image recognition status - H13',data:{imageId:img.id,recognitionStatus:img.recognitionStatus,hasRecognitionResult:!!img.recognitionResult,recognitionResultType:typeof img.recognitionResult,hasModelRecognitionResult:!!img.modelRecognitionResult},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H13'})}).catch(()=>{});
+                          // #endregion
+                          
+                          // 如果已識別（status === 2），優先使用 recognitionResult，否則使用 modelRecognitionResult
+                          // API 識別結果是數組: DishRecognitionResult[] = [{name, confidence, calorie}, ...]
+                          // 模型識別結果是對象: RecognitionResult = {is_food, country, food_name, food_confidence, calories, ...}
                           const result = img.recognitionResult || null;
-                          const dishName =
-                            result?.result?.[0]?.name || "識別中...";
-                          const calorie = result?.result?.[0]?.calorie || "";
+                          const modelResult = img.modelRecognitionResult || null;
+                          
+                          // #region agent log
+                          fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'my-bills.html:1264',message:'Extracting dish name - H15',data:{imageId:img.id,hasResult:!!result,resultIsArray:Array.isArray(result),hasModelResult:!!modelResult,modelResultKeys:modelResult?Object.keys(modelResult).slice(0,5):[],resultFirstItem:result?.[0]?{name:result[0].name,hasName:!!result[0].name}:null,modelFoodName:modelResult?.food_name},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H15'})}).catch(()=>{});
+                          // #endregion
+                          
+                          let dishName = "";
+                          let calorie = "";
+                          
+                          if (img.recognitionStatus === 2) {
+                            // 已識別：優先使用 API 識別結果（數組），否則使用模型識別結果（對象）
+                            if (result && Array.isArray(result) && result.length > 0 && result[0]?.name) {
+                              dishName = result[0].name;
+                              calorie = result[0].calorie || result[0].calories || "";
+                            } else if (modelResult && modelResult.food_name) {
+                              dishName = modelResult.food_name;
+                              calorie = modelResult.calories || "";
+                            } else {
+                              dishName = "已識別（無名稱）";
+                            }
+                          } else if (img.recognitionStatus === 3) {
+                            dishName = "識別失敗";
+                          } else if (img.recognitionStatus === 1) {
+                            dishName = "識別中...";
+                          } else {
+                            dishName = "未識別";
+                          }
+                          
                           const statusText =
-                            img.recognitionStatus === 1
+                            img.recognitionStatus === 2
                               ? "已識別"
-                              : img.recognitionStatus === 2
+                              : img.recognitionStatus === 3
                               ? "識別失敗"
-                              : "識別中";
+                              : img.recognitionStatus === 1
+                              ? "識別中"
+                              : "未識別";
                           const statusClass =
-                            img.recognitionStatus === 1
+                            img.recognitionStatus === 2
                               ? "text-green-600"
-                              : img.recognitionStatus === 2
+                              : img.recognitionStatus === 3
                               ? "text-red-600"
-                              : "text-yellow-600";
+                              : img.recognitionStatus === 1
+                              ? "text-yellow-600"
+                              : "text-gray-600";
 
                           // 從 storedPath 中提取文件名
                           const filename = img.storedPath

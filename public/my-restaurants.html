@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="/img/icon32x32.png" sizes="16x16" />
+    <title>我的餐廳 - PBC聚賬通</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <!-- 引入認證和組件管理 -->
+    <script src="/js/auth.js" type="module"></script>
+    <script src="/js/components.js"></script>
+    <script src="/js/page-setup.js" type="module"></script>
+    <style>
+      .restaurant-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .restaurant-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+      }
+
+      .restaurant-image {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 48px;
+      }
+
+      .preference-badge {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        backdrop-filter: blur(10px);
+      }
+
+      .badge-favorite {
+        background: rgba(59, 130, 246, 0.9);
+        color: white;
+      }
+
+      .badge-like {
+        background: rgba(16, 185, 129, 0.9);
+        color: white;
+      }
+    </style>
+  </head>
+  <body class="bg-gray-50 min-h-screen">
+    <!-- Header 將由 JavaScript 動態插入 -->
+
+    <!-- 主內容區 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
+      <!-- 頁面標題和篩選 -->
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">我的餐廳</h1>
+        
+        <!-- 篩選按鈕 -->
+        <div class="flex flex-wrap gap-3">
+          <button
+            id="filterAll"
+            class="px-4 py-2 rounded-lg font-medium transition-colors bg-primary text-white"
+            onclick="filterRestaurants('all')"
+          >
+            <i class="fa fa-list mr-2"></i>全部
+          </button>
+          <button
+            id="filterFavorite"
+            class="px-4 py-2 rounded-lg font-medium transition-colors bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+            onclick="filterRestaurants('favorite')"
+          >
+            <i class="fa fa-star mr-2"></i>收藏
+          </button>
+          <button
+            id="filterLike"
+            class="px-4 py-2 rounded-lg font-medium transition-colors bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
+            onclick="filterRestaurants('like')"
+          >
+            <i class="fa fa-heart mr-2"></i>喜歡
+          </button>
+        </div>
+      </div>
+
+      <!-- 統計信息 -->
+      <div class="mb-6 text-sm text-gray-600">
+        <span id="statsText">共 0 間餐廳</span>
+      </div>
+
+      <!-- 餐廳卡片網格 -->
+      <div id="restaurantsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- 餐廳卡片將動態插入這裡 -->
+      </div>
+
+      <!-- 空狀態 -->
+      <div id="emptyState" class="hidden text-center py-16">
+        <i class="fas fa-utensils text-6xl text-gray-300 mb-4"></i>
+        <h3 class="text-xl font-semibold text-gray-700 mb-2">暫無餐廳</h3>
+        <p class="text-gray-500 mb-6">您還沒有收藏或喜歡任何餐廳</p>
+        <a
+          href="/heart-mode.html"
+          class="inline-block px-6 py-3 bg-primary text-white rounded-lg hover:bg-indigo-700 transition"
+        >
+          <i class="fa fa-heart mr-2"></i>去心動模式發現餐廳
+        </a>
+      </div>
+
+      <!-- 加載狀態 -->
+      <div id="loadingState" class="text-center py-16">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
+        <p class="mt-4 text-gray-600">載入中...</p>
+      </div>
+    </main>
+
+    <script>
+      // 全局變量
+      let allRestaurants = [];
+      let currentFilter = "all";
+
+      // 認證
+      const sessionId =
+        localStorage.getItem("sessionId") ||
+        document.cookie
+          .split("; ")
+          .find((row) => row.startsWith("sessionId="))
+          ?.split("=")[1];
+
+      if (!sessionId) {
+        window.location.href = "/login-page.html";
+      }
+
+      const API_BASE = "/api";
+      const headers = {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sessionId}`,
+      };
+
+      // 頁面設置：初始化 Header 和認證
+      async function setupPage() {
+        if (window.pageSetup) {
+          await window.pageSetup.init({
+            currentPage: "my-restaurants",
+            requireAuth: true,
+            showHeader: true,
+            showFooter: false,
+          });
+        }
+      }
+
+      // 加載餐廳列表
+      async function loadRestaurants(type = "all") {
+        try {
+          document.getElementById("loadingState").classList.remove("hidden");
+          document.getElementById("restaurantsGrid").innerHTML = "";
+          document.getElementById("emptyState").classList.add("hidden");
+
+          const response = await fetch(`${API_BASE}/restaurants/my-favorites?type=${type}`, {
+            method: "GET",
+            headers: {
+              ...headers,
+              Accept: "application/json",
+            },
+            credentials: "include",
+          });
+
+          if (response.status === 401) {
+            window.location.href = "/login-page.html";
+            return;
+          }
+
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `HTTP ${response.status}`);
+          }
+
+          const data = await response.json();
+          allRestaurants = data.restaurants || [];
+          
+          // #region agent log
+          if (allRestaurants.length > 0) {
+            const firstRestaurant = allRestaurants[0];
+            fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'my-restaurants.html:185',message:'API response received - H12',data:{totalRestaurants:allRestaurants.length,firstRestaurantId:firstRestaurant.id,firstRestaurantName:firstRestaurant.name,firstRestaurantRating:firstRestaurant.rating,firstRestaurantLlmRating:firstRestaurant.llm_rating,firstRestaurantLlmConfidence:firstRestaurant.llm_rating_confidence,hasRating:firstRestaurant.rating!=null,hasLlmRating:firstRestaurant.llm_rating!=null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H12'})}).catch(()=>{});
+          }
+          // #endregion
+
+          document.getElementById("loadingState").classList.add("hidden");
+
+          if (allRestaurants.length === 0) {
+            document.getElementById("emptyState").classList.remove("hidden");
+            document.getElementById("statsText").textContent = "共 0 間餐廳";
+          } else {
+            renderRestaurants(allRestaurants);
+            document.getElementById("statsText").textContent = `共 ${allRestaurants.length} 間餐廳`;
+          }
+        } catch (error) {
+          console.error("加載餐廳失敗:", error);
+          document.getElementById("loadingState").classList.add("hidden");
+          document.getElementById("emptyState").classList.remove("hidden");
+          showToast(error.message || "加載失敗，請稍後再試", "error");
+        }
+      }
+
+      // 渲染餐廳卡片
+      function renderRestaurants(restaurants) {
+        const grid = document.getElementById("restaurantsGrid");
+        grid.innerHTML = "";
+
+        restaurants.forEach((restaurant) => {
+          const card = createRestaurantCard(restaurant);
+          grid.appendChild(card);
+        });
+      }
+
+      // 創建餐廳卡片
+      function createRestaurantCard(restaurant) {
+        const card = document.createElement("div");
+        card.className = "restaurant-card bg-white rounded-lg shadow-md overflow-hidden cursor-pointer";
+
+        const badgeClass =
+          restaurant.preference === "favorite" ? "badge-favorite" : "badge-like";
+        const badgeText = restaurant.preference === "favorite" ? "收藏" : "喜歡";
+        const badgeIcon = restaurant.preference === "favorite" ? "fa-star" : "fa-heart";
+
+        // 處理圖片
+        const imageUrl = restaurant.image_url || "";
+
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'my-restaurants.html:229',message:'Before rendering rating - H12',data:{id:restaurant.id,name:restaurant.name,rating:restaurant.rating,llmRating:restaurant.llm_rating,llmRatingConfidence:restaurant.llm_rating_confidence,hasRating:restaurant.rating!=null,hasLlmRating:restaurant.llm_rating!=null,llmConfidenceValid:restaurant.llm_rating_confidence!=null&&restaurant.llm_rating_confidence>0.5},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H12'})}).catch(()=>{});
+        // #endregion
+        
+        // 評分星星
+        // 優先使用 LLM 評分（如果置信度 > 0.5），否則使用原始評分
+        let rating = null;
+        let ratingSource = "none";
+        
+        if (restaurant.llm_rating != null && restaurant.llm_rating_confidence != null && restaurant.llm_rating_confidence > 0.5) {
+          // 使用 LLM 評分
+          rating = restaurant.llm_rating;
+          ratingSource = "llm";
+        } else if (restaurant.rating != null && restaurant.rating > 0) {
+          // 使用原始評分
+          rating = restaurant.rating;
+          ratingSource = "original";
+        }
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'my-restaurants.html:242',message:'After rating evaluation - H12',data:{id:restaurant.id,name:restaurant.name,rating,ratingSource,hasRating:rating!=null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H12'})}).catch(()=>{});
+        // #endregion
+        
+        let starsHtml;
+        if (rating != null && rating > 0) {
+          const stars = Math.floor(rating);
+          starsHtml = `<span class="text-yellow-500 text-sm">${"★".repeat(stars)}${"☆".repeat(5 - stars)}</span>`;
+        } else {
+          starsHtml = '<span class="text-gray-400 text-sm">暫無評分</span>';
+        }
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'my-restaurants.html:237',message:'After processing rating - H4',data:{originalRating:restaurant.rating,displayRating:rating,hasRating:rating!=null,starsHtmlLength:starsHtml.length,starsHtmlPreview:starsHtml.substring(0,50)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H4'})}).catch(()=>{});
+        // #endregion
+
+        // 價格標記
+        const priceRange = restaurant.price_range || "";
+        const priceHtml = priceRange
+          ? `<span class="text-green-600 font-semibold">${priceRange}</span>`
+          : "";
+
+        // 標籤
+        const tags = restaurant.tags || [];
+        const tagsHtml =
+          tags.length > 0
+            ? `<div class="flex flex-wrap gap-2 mt-2">
+                ${tags
+                  .slice(0, 3)
+                  .map(
+                    (tag) =>
+                      `<span class="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs rounded">${tag}</span>`
+                  )
+                  .join("")}
+              </div>`
+            : "";
+
+        card.innerHTML = `
+          <div class="relative">
+            ${imageUrl
+              ? `<img src="${imageUrl}" alt="${restaurant.name}" class="w-full h-48 object-cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />`
+              : ""}
+            <div class="restaurant-image w-full h-48" style="${imageUrl ? "display: none;" : ""}">
+              <i class="fas fa-utensils"></i>
+            </div>
+            <span class="preference-badge ${badgeClass}">
+              <i class="fa ${badgeIcon} mr-1"></i>${badgeText}
+            </span>
+          </div>
+          <div class="p-4">
+            <h3 class="text-xl font-bold text-gray-900 mb-1">${restaurant.name}</h3>
+            ${restaurant.name_en ? `<p class="text-sm text-gray-500 mb-2">${restaurant.name_en}</p>` : ""}
+            ${restaurant.description ? `<p class="text-sm text-gray-600 mb-3 line-clamp-2">${restaurant.description}</p>` : ""}
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                ${starsHtml}
+                ${rating != null ? `<span class="text-gray-600 text-sm">${rating.toFixed(1)}</span>` : ''}
+                ${restaurant.review_count ? `<span class="text-gray-500 text-xs">(${restaurant.review_count})</span>` : ""}
+              </div>
+              ${priceHtml}
+            </div>
+            ${restaurant.cuisine_type ? `<span class="inline-block px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded mb-2">${restaurant.cuisine_type}</span>` : ""}
+            ${tagsHtml}
+            ${restaurant.address ? `<p class="text-xs text-gray-500 mt-2"><i class="fa fa-map-marker-alt mr-1"></i>${restaurant.address}</p>` : ""}
+            <!-- 操作按鈕 -->
+            <div class="mt-4 flex gap-2">
+              <button 
+                class="remove-preference-btn flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg transition-colors text-sm font-medium"
+                data-restaurant-id="${restaurant.id}"
+                data-preference="${restaurant.preference}"
+                onclick="event.stopPropagation(); removePreference('${restaurant.id}', '${restaurant.preference}')"
+              >
+                <i class="fa fa-times mr-1"></i>取消${restaurant.preference === 'favorite' ? '收藏' : '喜歡'}
+              </button>
+              <button 
+                class="openrice-btn px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors text-sm font-medium"
+                onclick="event.stopPropagation(); openOpenRice('${restaurant.id}', '${restaurant.name}')"
+              >
+                <i class="fa fa-external-link-alt mr-1"></i>OpenRice
+              </button>
+            </div>
+          </div>
+        `;
+
+        // 點擊事件：跳轉到餐廳詳情或外部鏈接
+        card.addEventListener("click", (e) => {
+          // 如果點擊的是按鈕，不觸發卡片點擊
+          if (e.target.closest('button')) {
+            return;
+          }
+          if (restaurant.website) {
+            window.open(restaurant.website, "_blank");
+          } else {
+            // 如果沒有網站，可以跳轉到餐廳詳情頁面（如果有的話）
+            // 或者顯示餐廳詳情模態框
+            showRestaurantDetail(restaurant);
+          }
+        });
+
+        return card;
+      }
+
+      // 顯示餐廳詳情（模態框）
+      function showRestaurantDetail(restaurant) {
+        // 創建模態框
+        const modal = document.createElement("div");
+        modal.className =
+          "fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4";
+        modal.innerHTML = `
+          <div class="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div class="sticky top-0 bg-white border-b p-4 flex justify-between items-center">
+              <h2 class="text-2xl font-bold">${restaurant.name}</h2>
+              <button onclick="this.closest('.fixed').remove()" class="text-gray-500 hover:text-gray-700">
+                <i class="fa fa-times text-xl"></i>
+              </button>
+            </div>
+            <div class="p-6">
+              ${restaurant.image_url ? `<img src="${restaurant.image_url}" alt="${restaurant.name}" class="w-full h-64 object-cover rounded-lg mb-4" />` : ""}
+              ${restaurant.description ? `<p class="text-gray-700 mb-4">${restaurant.description}</p>` : ""}
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                ${restaurant.rating ? `<div><strong>評分:</strong> ${restaurant.rating.toFixed(1)} / 5.0</div>` : ""}
+                ${restaurant.cuisine_type ? `<div><strong>菜系:</strong> ${restaurant.cuisine_type}</div>` : ""}
+                ${restaurant.price_range ? `<div><strong>價位:</strong> ${restaurant.price_range}</div>` : ""}
+                ${restaurant.address ? `<div class="col-span-2"><strong>地址:</strong> ${restaurant.address}</div>` : ""}
+                ${restaurant.phone ? `<div><strong>電話:</strong> ${restaurant.phone}</div>` : ""}
+              </div>
+              ${restaurant.website ? `<a href="${restaurant.website}" target="_blank" class="inline-block px-4 py-2 bg-primary text-white rounded-lg hover:bg-indigo-700">訪問網站</a>` : ""}
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        // 點擊背景關閉
+        modal.addEventListener("click", (e) => {
+          if (e.target === modal) {
+            modal.remove();
+          }
+        });
+      }
+
+      // 篩選餐廳
+      function filterRestaurants(type) {
+        currentFilter = type;
+
+        // 更新按鈕樣式
+        document.querySelectorAll("[id^='filter']").forEach((btn) => {
+          btn.classList.remove("bg-primary", "text-white");
+          btn.classList.add("bg-white", "text-gray-700", "border", "border-gray-300");
+        });
+
+        const activeBtn = document.getElementById(`filter${type.charAt(0).toUpperCase() + type.slice(1)}`);
+        if (activeBtn) {
+          activeBtn.classList.remove("bg-white", "text-gray-700", "border", "border-gray-300");
+          activeBtn.classList.add("bg-primary", "text-white");
+        }
+
+        // 加載對應的餐廳
+        loadRestaurants(type);
+      }
+
+      // 取消偏好（取消收藏/取消喜歡）
+      async function removePreference(restaurantId, preference) {
+        try {
+          const response = await fetch(`${API_BASE}/restaurants/feedback`, {
+            method: "DELETE",
+            headers: {
+              "Content-Type": "application/json",
+              ...headers,
+            },
+            credentials: "include",
+            body: JSON.stringify({
+              restaurant_id: restaurantId,
+            }),
+          });
+
+          if (response.status === 401) {
+            window.location.href = "/login-page.html";
+            return;
+          }
+
+          if (response.ok) {
+            showToast(
+              `已取消${preference === "favorite" ? "收藏" : "喜歡"}`,
+              "success"
+            );
+            // 重新加載餐廳列表
+            loadRestaurants(currentFilter);
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || "操作失敗");
+          }
+        } catch (error) {
+          console.error("取消偏好失敗:", error);
+          showToast(error.message || "操作失敗，請稍後再試", "error");
+        }
+      }
+
+      // 打開 OpenRice 鏈接
+      function openOpenRice(restaurantId, restaurantName) {
+        // 查找餐廳的 source_url
+        const restaurant = allRestaurants.find(r => r.id === restaurantId);
+        
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/e0e62e5f-dac0-4669-80e3-631a3943d7a2',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'my-restaurants.html:openOpenRice',message:'Opening OpenRice - H3',data:{restaurantId,restaurantName,hasSourceUrl:!!restaurant?.source_url,sourceUrl:restaurant?.source_url},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H3'})}).catch(()=>{});
+        // #endregion
+        
+        let openriceUrl;
+        
+        if (restaurant && restaurant.source_url) {
+          // 使用實際的 OpenRice URL
+          openriceUrl = restaurant.source_url;
+        } else {
+          // 如果沒有 source_url，使用搜索 URL（降級方案）
+          const searchQuery = encodeURIComponent(restaurantName);
+          openriceUrl = `https://www.openrice.com/zh/hongkong/restaurants?q=${searchQuery}`;
+        }
+        
+        window.open(openriceUrl, "_blank");
+      }
+
+      // 顯示提示
+      function showToast(message, type = "info") {
+        const toast = document.createElement("div");
+        toast.className = "fixed top-20 right-4 px-6 py-3 rounded-lg shadow-lg z-50";
+        toast.style.background =
+          type === "success" ? "#10b981" : type === "error" ? "#ef4444" : "white";
+        toast.style.color = type === "info" ? "#1f2937" : "white";
+        toast.textContent = message;
+
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transition = "opacity 0.3s ease";
+          setTimeout(() => toast.remove(), 300);
+        }, 3000);
+      }
+
+      // 頁面加載完成後初始化
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", async () => {
+          await setupPage();
+          loadRestaurants("all");
+        });
+      } else {
+        setupPage().then(() => loadRestaurants("all"));
+      }
+    </script>
+  </body>
+</html>
+
