@@ -3,6 +3,7 @@
 import { proxy } from "./proxy.js";
 import { dataStorage } from "./storage.js";
 import type { Message, MessageType } from "./types.js";
+import fs from "fs";
 
 /**
  * 消息管理類（使用數據庫）
@@ -108,6 +109,11 @@ export class MessageManager {
   async createMessage(
     messageData: Omit<Message, "id" | "createdAt" | "isRead">
   ): Promise<Message> {
+    if (!proxy.message || !Array.isArray(proxy.message)) {
+      console.error('❌ proxy.message 不存在或不是數組，無法創建消息');
+      throw new Error('消息系統未初始化');
+    }
+    
     const dbMessage = await this.appToDbMessage({
       ...messageData,
       isRead: false,
@@ -143,10 +149,20 @@ export class MessageManager {
    * 獲取用戶的所有消息
    */
   async getUserMessages(userId: string): Promise<Message[]> {
+    if (!proxy.message || !Array.isArray(proxy.message)) {
+      console.error('❌ proxy.message 不存在或不是數組');
+      return [];
+    }
+    
     const dbMessages = proxy.message.filter(
-      (msg) => msg.recipient_id === userId
+      (msg) => msg && msg.recipient_id === userId
     );
-    return dbMessages.map((msg) => this.dbToAppMessage(msg));
+    
+    const messages = dbMessages.map((msg) => {
+      return this.dbToAppMessage(msg);
+    });
+    
+    return messages;
   }
 
   /**
@@ -171,7 +187,21 @@ export class MessageManager {
    * 標記消息為已讀
    */
   async markAsRead(messageId: string): Promise<boolean> {
-    const message = proxy.message.find((msg) => msg.id === messageId);
+    if (!proxy.message || !Array.isArray(proxy.message)) {
+      console.error('❌ proxy.message 不存在或不是數組');
+      return false;
+    }
+    
+    // 使用與 getUserMessages 相同的訪問方式（先 filter 再 find）
+    // 因為代理對象可能需要先過濾才能正確訪問屬性
+    const allMessages = proxy.message.filter((msg: any) => msg != null);
+    const message = allMessages.find((msg: any) => {
+      if (!msg) {
+        return false;
+      }
+      // 直接比較 id（與 markMultipleAsRead 保持一致）
+      return msg.id === messageId;
+    });
 
     if (!message) {
       return false;
@@ -179,7 +209,7 @@ export class MessageManager {
 
     message.is_read = 1;
     message.read_at = new Date().toISOString();
-
+    
     return true;
   }
 
@@ -222,13 +252,42 @@ export class MessageManager {
    * 刪除消息
    */
   async deleteMessage(messageId: string): Promise<boolean> {
-    const messageIndex = proxy.message.findIndex((msg) => msg.id === messageId);
+    if (!proxy.message || !Array.isArray(proxy.message)) {
+      console.error('❌ proxy.message 不存在或不是數組');
+      return false;
+    }
+    
+    // 使用與 getUserMessages 相同的訪問方式（先 filter 再 findIndex）
+    const allMessages = proxy.message.filter((msg: any) => msg != null);
+    const filteredIndex = allMessages.findIndex((msg: any) => {
+      if (!msg) {
+        return false;
+      }
+      return msg.id === messageId;
+    });
 
-    if (messageIndex === -1) {
+    if (filteredIndex === -1) {
       return false;
     }
 
-    proxy.message.splice(messageIndex, 1);
+    // 找到原始數組中對應的索引
+    let originalIndex = -1;
+    let filteredCount = 0;
+    for (let i = 0; i < proxy.message.length; i++) {
+      if (proxy.message[i] != null) {
+        if (filteredCount === filteredIndex) {
+          originalIndex = i;
+          break;
+        }
+        filteredCount++;
+      }
+    }
+    
+    if (originalIndex === -1) {
+      return false;
+    }
+
+    proxy.message.splice(originalIndex, 1);
     return true;
   }
 
@@ -236,7 +295,20 @@ export class MessageManager {
    * 標記操作已完成
    */
   async markActionCompleted(messageId: string): Promise<boolean> {
-    const message = proxy.message.find((msg) => msg.id === messageId);
+    if (!proxy.message || !Array.isArray(proxy.message)) {
+      console.error('❌ proxy.message 不存在或不是數組');
+      return false;
+    }
+    
+    // 使用與 getUserMessages 相同的訪問方式（先 filter 再 find）
+    const allMessages = proxy.message.filter((msg: any) => msg != null);
+    const message = allMessages.find((msg: any) => {
+      if (!msg || !msg.id) {
+        return false;
+      }
+      // 直接比較 id（與 markMultipleAsRead 保持一致）
+      return msg.id === messageId;
+    });
 
     if (!message) {
       return false;
