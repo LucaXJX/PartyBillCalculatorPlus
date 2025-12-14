@@ -240,6 +240,36 @@ const upload = multer({
   },
 });
 
+// 處理 multer 錯誤的函數（用於在路由的 catch 塊中調用）
+const handleMulterError = (err: any, req: any, res: any, next: any) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      console.error("❌ 文件大小超過限制:", err.message);
+      return res
+        .status(400)
+        .json({ error: "賬單圖片無法儲存", details: "文件大小超過 20MB 限制" });
+    } else if (err.code === "LIMIT_FILE_COUNT") {
+      console.error("❌ 文件數量超過限制:", err.message);
+      return res
+        .status(400)
+        .json({ error: "賬單圖片無法儲存", details: "文件數量超過限制" });
+    } else {
+      console.error("❌ Multer 錯誤:", err.code, err.message);
+      return res
+        .status(400)
+        .json({ error: "賬單圖片無法儲存", details: err.message });
+    }
+  } else if (err) {
+    console.error("❌ 文件上傳錯誤:", err.message);
+    return res
+      .status(400)
+      .json({ error: "賬單圖片無法儲存", details: err.message });
+  }
+
+  // 如果不是 multer 錯誤，傳遞給下一個錯誤處理中間件
+  next(err);
+};
+
 // 用戶會話管理器 - 為每個用戶維護獨立的數據管理器
 const userDataManagers = new Map<string, DataManager>();
 
@@ -577,7 +607,7 @@ app.post(
   "/api/bill/payment-status",
   authenticateUser,
   upload.single("receipt"),
-  async (req: any, res) => {
+  async (req: any, res, next: any) => {
     try {
       const { billId, participantId, paymentStatus } = req.body;
 
@@ -588,7 +618,21 @@ app.post(
       // 處理文件上傳（保存相對路徑，不暴露在public目錄）
       let receiptImageUrl = null;
       if (req.file) {
-        receiptImageUrl = `/receipts/${req.file.filename}`;
+        try {
+          receiptImageUrl = `/receipts/${req.file.filename}`;
+          console.log(
+            `✅ 收據圖片已上傳: ${req.file.filename}, 路徑: ${receiptImageUrl}`
+          );
+        } catch (fileError) {
+          console.error("❌ 處理收據圖片文件時出錯:", fileError);
+          return res.status(500).json({
+            error: "賬單圖片無法儲存",
+            details:
+              fileError instanceof Error
+                ? fileError.message
+                : String(fileError),
+          });
+        }
       }
 
       await dataStorage.updatePaymentStatus(
@@ -612,8 +656,19 @@ app.post(
 
       res.status(200).json({ message: "支付狀態已更新" });
     } catch (error) {
-      console.error("更新支付狀態失敗:", error);
-      res.status(500).json({ error: "更新支付狀態失敗" });
+      if (error instanceof multer.MulterError) {
+        return handleMulterError(error, req, res, next);
+      }
+      console.error("❌ 更新支付狀態失敗:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      res.status(500).json({
+        error:
+          errorMessage.includes("賬單") || errorMessage.includes("圖片")
+            ? errorMessage
+            : "更新支付狀態失敗",
+        details: errorMessage,
+      });
     }
   }
 );
@@ -718,7 +773,7 @@ app.post(
   "/api/receipt/upload",
   authenticateUser,
   upload.single("receipt"),
-  async (req: any, res) => {
+  async (req: any, res, next: any) => {
     try {
       const { billId, type } = req.body;
 
@@ -739,6 +794,9 @@ app.post(
         receiptUrl: receiptImageUrl,
       });
     } catch (error) {
+      if (error instanceof multer.MulterError) {
+        return handleMulterError(error, req, res, next);
+      }
       console.error("上傳收據失敗:", error);
       res.status(500).json({ error: "上傳收據失敗" });
     }
@@ -772,7 +830,7 @@ app.post(
   "/api/bill/ocr-upload",
   authenticateUser,
   upload.single("billImage"),
-  async (req: any, res) => {
+  async (req: any, res, next: any) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "請上傳圖片文件" });
@@ -872,6 +930,9 @@ app.post(
         },
       });
     } catch (error) {
+      if (error instanceof multer.MulterError) {
+        return handleMulterError(error, req, res, next);
+      }
       console.error("OCR 上傳處理失敗:", error);
       res.status(500).json({
         error: "處理失敗",
@@ -1050,7 +1111,7 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
     // 過濾掉 null/undefined 元素
     const validBills = proxy.bill.filter((b: any) => b != null);
     const existingBill = validBills.find((b: any) => b && b.id === billId);
-    
+
     // 獲取參與者對應的用戶 ID（通過用戶名查找）
     const participantUserIds: Map<string, string> = new Map();
     for (const participant of billRecord.participants) {
@@ -1098,7 +1159,9 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
     // 先刪除舊的參與者記錄（如果存在）
     // 確保 proxy.bill_participant 存在且是數組
     if (proxy.bill_participant && Array.isArray(proxy.bill_participant)) {
-      const validParticipants = proxy.bill_participant.filter((bp: any) => bp != null);
+      const validParticipants = proxy.bill_participant.filter(
+        (bp: any) => bp != null
+      );
       const existingParticipants = validParticipants.filter(
         (bp: any) => bp && bp.bill_id === billId
       );
@@ -1128,7 +1191,9 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
       if (proxy.bill_participant && Array.isArray(proxy.bill_participant)) {
         proxy.bill_participant.push(dbParticipant);
       } else {
-        console.warn("⚠️  proxy.bill_participant 不存在或不是數組，跳過參與者同步");
+        console.warn(
+          "⚠️  proxy.bill_participant 不存在或不是數組，跳過參與者同步"
+        );
       }
     }
 
@@ -1139,7 +1204,9 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
       console.warn("⚠️  proxy.item 不存在或不是數組，跳過項目同步");
     } else {
       const validItems = proxy.item.filter((item: any) => item != null);
-      const existingItems = validItems.filter((item: any) => item && item.bill_id === billId);
+      const existingItems = validItems.filter(
+        (item: any) => item && item.bill_id === billId
+      );
       for (const item of existingItems) {
         const index = proxy.item.indexOf(item);
         if (index !== -1) {
@@ -1147,7 +1214,9 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
         }
         // 同時刪除相關的 item_participant 記錄
         if (proxy.item_participant && Array.isArray(proxy.item_participant)) {
-          const validItemParticipants = proxy.item_participant.filter((ip: any) => ip != null);
+          const validItemParticipants = proxy.item_participant.filter(
+            (ip: any) => ip != null
+          );
           const itemParticipants = validItemParticipants.filter(
             (ip: any) => ip && ip.item_id === item.id
           );
@@ -1182,7 +1251,8 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
         if (item.participantIds && Array.isArray(item.participantIds)) {
           if (proxy.item_participant && Array.isArray(proxy.item_participant)) {
             for (const participantId of item.participantIds) {
-              const userId = participantUserIds.get(participantId) || participantId;
+              const userId =
+                participantUserIds.get(participantId) || participantId;
               const dbItemParticipant: ItemParticipant = {
                 id: generateId(),
                 item_id: item.id,
@@ -1201,9 +1271,13 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
     // 同步計算結果
     // 先刪除舊的計算結果記錄（如果存在）
     if (!proxy.calculation_result || !Array.isArray(proxy.calculation_result)) {
-      console.warn("⚠️  proxy.calculation_result 不存在或不是數組，跳過計算結果同步");
+      console.warn(
+        "⚠️  proxy.calculation_result 不存在或不是數組，跳過計算結果同步"
+      );
     } else {
-      const validResults = proxy.calculation_result.filter((cr: any) => cr != null);
+      const validResults = proxy.calculation_result.filter(
+        (cr: any) => cr != null
+      );
       const existingResults = validResults.filter(
         (cr: any) => cr && cr.bill_id === billId
       );
@@ -1220,7 +1294,8 @@ async function syncBillToDatabase(billRecord: BillRecord): Promise<void> {
           console.warn(`⚠️  跳過無效的計算結果: ${JSON.stringify(result)}`);
           continue;
         }
-        const userId = participantUserIds.get(result.participantId) || result.participantId;
+        const userId =
+          participantUserIds.get(result.participantId) || result.participantId;
         const dbResult: DBCalculationResult = {
           id: generateId(),
           bill_id: billId,
@@ -1284,7 +1359,7 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
 
     // 如果 bill 沒有 id，生成一個新的 id（新建賬單）
     const billId = bill.id || generateId();
-    
+
     const billRecord: BillRecord = {
       ...bill,
       id: billId,
@@ -1294,7 +1369,17 @@ app.post("/api/bill/save", authenticateUser, async (req: any, res) => {
       createdBy: req.user.id,
     };
 
+    // 驗證 createdBy 是否正確設置
+    if (!billRecord.createdBy || billRecord.createdBy !== req.user.id) {
+      console.error(
+        `❌ 賬單 ${billId} 的 createdBy 設置錯誤: 期望 ${req.user.id}, 實際 ${billRecord.createdBy}`
+      );
+    }
+
     await dataStorage.saveBill(billRecord);
+    console.log(
+      `✅ 賬單已保存: ${billId}, createdBy: ${billRecord.createdBy}, 用戶: ${req.user.username}`
+    );
 
     // 同步賬單到數據庫（用於消息系統的外鍵引用）
     // 如果同步失敗，跳過消息發送（避免外鍵約束錯誤）
@@ -1389,10 +1474,10 @@ app.post(
       }
 
       // 檢查消息是否已經被標記為已完成
-      const message = await messageManager.getUserMessages(req.user.id).then(
-        (messages) => messages.find((m) => m.id === messageId)
-      );
-      
+      const message = await messageManager
+        .getUserMessages(req.user.id)
+        .then((messages) => messages.find((m) => m.id === messageId));
+
       if (message && message.actionCompleted) {
         console.warn(`⚠️  消息 ${messageId} 已經被確認過，跳過重複操作`);
         return res.status(200).json({ message: "收款已確認（重複操作）" });
@@ -1485,12 +1570,14 @@ app.post("/api/messages", authenticateUser, async (req: any, res) => {
           error: "無法創建測試消息：數據庫未初始化",
         });
       }
-      
+
       // 過濾掉 null/undefined 元素
       const validBills = proxy.bill.filter((b: any) => b != null);
-      
+
       // 查找用戶的第一個賬單
-      const userBills = validBills.filter((b: any) => b && b.created_by === req.user.id);
+      const userBills = validBills.filter(
+        (b: any) => b && b.created_by === req.user.id
+      );
       if (userBills.length > 0) {
         targetBillId = userBills[0].id || "";
       } else {
@@ -1506,7 +1593,7 @@ app.post("/api/messages", authenticateUser, async (req: any, res) => {
     if (!proxy.bill || !Array.isArray(proxy.bill)) {
       return res.status(500).json({ error: "數據庫未初始化" });
     }
-    
+
     // 過濾掉 null/undefined 元素
     const validBills = proxy.bill.filter((b: any) => b != null);
     const bill = validBills.find((b: any) => b && b.id === targetBillId);
@@ -1617,10 +1704,10 @@ app.post(
       }
 
       // 檢查消息是否已經被標記為已完成
-      const message = await messageManager.getUserMessages(req.user.id).then(
-        (messages) => messages.find((m) => m.id === messageId)
-      );
-      
+      const message = await messageManager
+        .getUserMessages(req.user.id)
+        .then((messages) => messages.find((m) => m.id === messageId));
+
       if (message && message.actionCompleted) {
         console.warn(`⚠️  消息 ${messageId} 已經被確認過，跳過重複操作`);
         return res.status(200).json({ message: "收款已確認（重複操作）" });
@@ -1716,9 +1803,26 @@ app.post(
 app.get("/api/bills", authenticateUser, async (req: any, res) => {
   try {
     const bills = await dataStorage.getBillsByUser(req.user.id);
+
+    // 診斷：如果沒有找到賬單，檢查所有賬單的 createdBy
+    if (bills.length === 0) {
+      const allBills = await dataStorage.getAllBillsForDiagnosis();
+      if (allBills.length > 0) {
+        console.warn(
+          `⚠️  用戶 ${req.user.username} (${req.user.id}) 沒有賬單，但系統中有 ${allBills.length} 個賬單`
+        );
+        const recentBills = allBills.slice(-5);
+        console.warn(
+          `   最近5個賬單的 createdBy: ${recentBills
+            .map((b: any) => `${b.id}:${b.createdBy || "無"}`)
+            .join(", ")}`
+        );
+      }
+    }
+
     res.status(200).json({ bills });
   } catch (error) {
-    console.error("Get bills error:", error);
+    console.error("❌ 獲取賬單失敗:", error);
     res.status(500).json({ error: "獲取賬單失敗" });
   }
 });
@@ -1806,10 +1910,11 @@ app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
 
         // #region agent log
         try {
-          const logPath = 'c:\\Users\\Lucas\\OneDrive\\文档\\Code\\dae-2025-4\\.cursor\\debug.log';
+          const logPath =
+            "c:\\Users\\Lucas\\OneDrive\\文档\\Code\\dae-2025-4\\.cursor\\debug.log";
           const logData = {
-            location: 'server.ts:1672',
-            message: 'Food image API response - H13',
+            location: "server.ts:1672",
+            message: "Food image API response - H13",
             data: {
               imageId: img.id,
               recognitionStatus: img.recognitionStatus,
@@ -1819,14 +1924,14 @@ app.get("/api/food/images/:billId", authenticateUser, async (req: any, res) => {
               modelRecognitionError: img.modelRecognitionError,
             },
             timestamp: Date.now(),
-            sessionId: 'debug-session',
-            runId: 'run1',
-            hypothesisId: 'H13'
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "H13",
           };
-          fs.appendFileSync(logPath, JSON.stringify(logData) + '\n');
+          fs.appendFileSync(logPath, JSON.stringify(logData) + "\n");
         } catch (e) {}
         // #endregion
-        
+
         return {
           id: img.id,
           filename: img.originalFilename,
@@ -2748,80 +2853,88 @@ app.get("/api/food/models/active", authenticateUser, async (req: any, res) => {
 // === 食物推薦 API ===
 
 // 獲取訂單的食物推薦（基於 API 和模型識別結果）
-app.get("/api/bills/:billId/food-recommendations", authenticateUser, async (req: any, res) => {
-  try {
-    const { billId } = req.params;
+app.get(
+  "/api/bills/:billId/food-recommendations",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { billId } = req.params;
 
-    // 驗證訂單存在且用戶有權限
-    const bill = await dataStorage.getBillById(billId);
-    if (!bill) {
-      return res.status(404).json({ error: "訂單不存在" });
-    }
+      // 驗證訂單存在且用戶有權限
+      const bill = await dataStorage.getBillById(billId);
+      if (!bill) {
+        return res.status(404).json({ error: "訂單不存在" });
+      }
 
-    if (bill.createdBy !== req.user.id) {
-      return res.status(403).json({ error: "無權限訪問此訂單" });
-    }
+      if (bill.createdBy !== req.user.id) {
+        return res.status(403).json({ error: "無權限訪問此訂單" });
+      }
 
-    // 獲取訂單的所有食物圖片
-    const images = await getFoodImagesByBillId(billId);
+      // 獲取訂單的所有食物圖片
+      const images = await getFoodImagesByBillId(billId);
 
-    if (images.length === 0) {
-      return res.status(200).json({
-        recommendations: [],
-        message: "該訂單沒有食物圖片",
+      if (images.length === 0) {
+        return res.status(200).json({
+          recommendations: [],
+          message: "該訂單沒有食物圖片",
+        });
+      }
+
+      // 獲取多樣性推薦
+      const recommendations = getDiverseRecommendations(images);
+
+      res.status(200).json({
+        recommendations,
+        formatted: formatRecommendations(recommendations),
+        imageCount: images.length,
+      });
+    } catch (error) {
+      console.error("獲取食物推薦失敗:", error);
+      res.status(500).json({
+        error: "獲取食物推薦失敗",
+        details: error instanceof Error ? error.message : String(error),
       });
     }
-
-    // 獲取多樣性推薦
-    const recommendations = getDiverseRecommendations(images);
-
-    res.status(200).json({
-      recommendations,
-      formatted: formatRecommendations(recommendations),
-      imageCount: images.length,
-    });
-  } catch (error) {
-    console.error("獲取食物推薦失敗:", error);
-    res.status(500).json({
-      error: "獲取食物推薦失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
   }
-});
+);
 
 // 獲取單張圖片的食物推薦
-app.get("/api/food-images/:imageId/recommendations", authenticateUser, async (req: any, res) => {
-  try {
-    const { imageId } = req.params;
+app.get(
+  "/api/food-images/:imageId/recommendations",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const { imageId } = req.params;
 
-    // 獲取圖片記錄
-    const image = await getFoodImageById(parseInt(imageId));
+      // 獲取圖片記錄
+      const image = await getFoodImageById(parseInt(imageId));
 
-    if (!image) {
-      return res.status(404).json({ error: "圖片不存在" });
+      if (!image) {
+        return res.status(404).json({ error: "圖片不存在" });
+      }
+
+      // 驗證權限
+      const bill = await dataStorage.getBillById(image.billId);
+      if (!bill || bill.createdBy !== req.user.id) {
+        return res.status(403).json({ error: "無權限訪問此圖片" });
+      }
+
+      // 獲取推薦
+      const recommendations = getRecommendedFoods(image);
+
+      res.status(200).json({
+        recommendations,
+        formatted: formatRecommendations(recommendations),
+      });
+    } catch (error) {
+      console.error("獲取食物推薦失敗:", error);
+      res.status(500).json({
+        error: "獲取食物推薦失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
-
-    // 驗證權限
-    const bill = await dataStorage.getBillById(image.billId);
-    if (!bill || bill.createdBy !== req.user.id) {
-      return res.status(403).json({ error: "無權限訪問此圖片" });
-    }
-
-    // 獲取推薦
-    const recommendations = getRecommendedFoods(image);
-
-    res.status(200).json({
-      recommendations,
-      formatted: formatRecommendations(recommendations),
-    });
-  } catch (error) {
-    console.error("獲取食物推薦失敗:", error);
-    res.status(500).json({
-      error: "獲取食物推薦失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
   }
-});
+);
 
 // === 餐廳管理 API ===
 
@@ -2983,410 +3096,447 @@ app.get("/api/restaurants", authenticateUser, async (req: any, res) => {
 // === 具體路由必須在動態路由之前 ===
 
 // 獲取餐廳推薦（必須在 /:id 之前）
-app.get("/api/restaurants/recommend", authenticateUser, async (req: any, res) => {
-  try {
-    const {
-      limit = "10",
-      latitude,
-      longitude,
-      price_range,
-      cuisine_type,
-      min_score = "0.0",
-    } = req.query;
-
-    const userId = req.user.id;
-
-    // 從用戶歷史偏好中提取偏好信息
-    const userHistoryPreferences = extractUserPreferences(userId);
-
-    // 構建推薦選項
-    const options: RecommendationOptions = {
-      limit: parseInt(limit as string, 10),
-      userLatitude: latitude ? parseFloat(latitude as string) : undefined,
-      userLongitude: longitude ? parseFloat(longitude as string) : undefined,
-      userPreferences: {
-        priceRange: price_range
-          ? (Array.isArray(price_range) ? price_range : [price_range])
-          : userHistoryPreferences.preferredPriceRanges.length > 0
-          ? userHistoryPreferences.preferredPriceRanges
-          : undefined,
-        cuisineTypes: cuisine_type
-          ? (Array.isArray(cuisine_type) ? cuisine_type : [cuisine_type])
-          : userHistoryPreferences.preferredCuisineTypes.length > 0
-          ? userHistoryPreferences.preferredCuisineTypes
-          : undefined,
-      },
-      minScore: parseFloat(min_score as string),
-    };
-
-    // 檢查餐廳數據
-    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
-      console.warn("⚠️  proxy.restaurant 不存在或不是數組");
-      return res.status(200).json({
-        recommendations: [],
-        count: 0,
-        message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
-        userPreferences: {
-          cuisineTypes: [],
-          priceRanges: [],
-        },
-      });
-    }
-
-    // 獲取推薦餐廳
-    const recommendations = await recommendRestaurants(userId, options);
-
-    // 格式化返回數據
-    const formattedRecommendations = recommendations.map((item) => ({
-      restaurant: {
-        id: item.restaurant.id,
-        name: item.restaurant.name,
-        name_en: item.restaurant.name_en,
-        description: item.restaurant.description,
-        cuisine_type: item.restaurant.cuisine_type,
-        price_range: item.restaurant.price_range,
-        rating: item.restaurant.rating,
-        review_count: item.restaurant.review_count,
-        address: item.restaurant.address,
-        city: item.restaurant.city,
-        latitude: item.restaurant.latitude,
-        longitude: item.restaurant.longitude,
-        phone: item.restaurant.phone,
-        website: item.restaurant.website,
-        image_url: item.restaurant.image_url,
-        tags: item.restaurant.tags ? JSON.parse(item.restaurant.tags) : [],
-      },
-      score: item.score,
-      breakdown: item.breakdown,
-    }));
-
-    res.status(200).json({
-      recommendations: formattedRecommendations,
-      count: formattedRecommendations.length,
-      userPreferences: {
-        cuisineTypes: userHistoryPreferences.preferredCuisineTypes,
-        priceRanges: userHistoryPreferences.preferredPriceRanges,
-      },
-    });
-  } catch (error) {
-    console.error("獲取餐廳推薦失敗:", error);
-    res.status(500).json({
-      error: "獲取餐廳推薦失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
-  }
-});
-
-// 獲取下一個餐廳（用於心動模式，必須在 /:id 之前）
 app.get(
-  "/api/restaurants/next",
+  "/api/restaurants/recommend",
   authenticateUser,
   async (req: any, res) => {
     try {
       const {
-        exclude_ids,
+        limit = "10",
+        latitude,
+        longitude,
+        price_range,
         cuisine_type,
-        min_rating,
-        limit = "1",
+        min_score = "0.0",
       } = req.query;
 
-      // 確保 proxy 數組存在
+      const userId = req.user.id;
+
+      // 從用戶歷史偏好中提取偏好信息
+      const userHistoryPreferences = extractUserPreferences(userId);
+
+      // 構建推薦選項
+      const options: RecommendationOptions = {
+        limit: parseInt(limit as string, 10),
+        userLatitude: latitude ? parseFloat(latitude as string) : undefined,
+        userLongitude: longitude ? parseFloat(longitude as string) : undefined,
+        userPreferences: {
+          priceRange: price_range
+            ? Array.isArray(price_range)
+              ? price_range
+              : [price_range]
+            : userHistoryPreferences.preferredPriceRanges.length > 0
+            ? userHistoryPreferences.preferredPriceRanges
+            : undefined,
+          cuisineTypes: cuisine_type
+            ? Array.isArray(cuisine_type)
+              ? cuisine_type
+              : [cuisine_type]
+            : userHistoryPreferences.preferredCuisineTypes.length > 0
+            ? userHistoryPreferences.preferredCuisineTypes
+            : undefined,
+        },
+        minScore: parseFloat(min_score as string),
+      };
+
+      // 檢查餐廳數據
       if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
         console.warn("⚠️  proxy.restaurant 不存在或不是數組");
-        return res.status(200).json({ 
-          restaurant: null,
-          message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據"
-        });
-      }
-
-      // 獲取用戶已看過的餐廳 ID（從偏好記錄中）
-      let seenRestaurantIds: string[] = [];
-      if (
-        proxy.user_restaurant_preference &&
-        Array.isArray(proxy.user_restaurant_preference)
-      ) {
-        const validPreferences = proxy.user_restaurant_preference.filter(
-          (p: any) => p != null && p.user_id === req.user.id
-        );
-        seenRestaurantIds = validPreferences.map((p: any) => p.restaurant_id);
-      }
-
-      // 合併排除列表
-      const excludeIds = [
-        ...seenRestaurantIds,
-        ...(exclude_ids ? (Array.isArray(exclude_ids) ? exclude_ids : [exclude_ids]) : []),
-      ];
-
-      // 過濾餐廳
-      const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
-      if (validRestaurants.length === 0) {
-        console.warn("⚠️  數據庫中沒有餐廳數據");
         return res.status(200).json({
-          restaurant: null,
+          recommendations: [],
+          count: 0,
           message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
+          userPreferences: {
+            cuisineTypes: [],
+            priceRanges: [],
+          },
         });
       }
 
-      let restaurants = validRestaurants.filter(
-        (r: any) =>
-          r.is_active === 1 &&
-          r.city === "香港" &&
-          !excludeIds.includes(r.id)
-      );
-
-      // 菜系類型篩選
-      if (cuisine_type) {
-        const cuisineTypes = Array.isArray(cuisine_type)
-          ? cuisine_type
-          : [cuisine_type];
-        restaurants = restaurants.filter((r: any) => {
-          if (!r.cuisine_type) return false;
-          return cuisineTypes.some((type) =>
-            r.cuisine_type.toLowerCase().includes(type.toLowerCase())
-          );
-        });
-      }
-
-      // 最小評分篩選
-      if (min_rating) {
-        const minRating = parseFloat(min_rating);
-        restaurants = restaurants.filter(
-          (r: any) => r.rating && r.rating >= minRating
-        );
-      }
-
-      // 隨機排序（增加多樣性）
-      restaurants.sort(() => Math.random() - 0.5);
-
-      // 限制數量
-      const limitNum = parseInt(limit, 10);
-      const selectedRestaurants = restaurants.slice(0, limitNum);
-
-      if (selectedRestaurants.length === 0) {
-        return res.status(200).json({
-          restaurant: null,
-          message: "沒有更多餐廳了",
-        });
-      }
+      // 獲取推薦餐廳
+      const recommendations = await recommendRestaurants(userId, options);
 
       // 格式化返回數據
-      const restaurant = selectedRestaurants[0];
-      
-      // 如果餐廳沒有評分（既沒有原始評分也沒有 LLM 評分），嘗試獲取 LLM 評分
-      if (!restaurant.rating && !restaurant.llm_rating && restaurant.source_url && req.user?.id && restaurant.id) {
-        try {
-          // #region agent log
-          try {
-            const fs = await import('fs');
-            const logPath = 'c:\\Users\\Lucas\\OneDrive\\文档\\Code\\dae-2025-4\\.cursor\\debug.log';
-            const logData = {
-              location: 'server.ts:3018',
-              message: 'Before calling LLM for rating - H11',
-              data: {
-                restaurantId: restaurant.id,
-                restaurantName: restaurant.name,
-                restaurantUrl: restaurant.source_url,
-                hasRating: !!restaurant.rating,
-                hasLlmRating: !!restaurant.llm_rating,
-              },
-              timestamp: Date.now(),
-              sessionId: 'debug-session',
-              runId: 'run1',
-              hypothesisId: 'H11'
-            };
-            fs.appendFileSync(logPath, JSON.stringify(logData) + '\n');
-          } catch (e) {}
-          // #endregion
-          
-          const { getRestaurantLLMRating } = await import("./llm/restaurantLLMService.js");
-          const llmResult = await getRestaurantLLMRating(
-            restaurant.id,
-            restaurant.name,
-            restaurant.source_url,
-            req.user.id
-          );
-          
-          // #region agent log
-          try {
-            const fs = await import('fs');
-            const logPath = 'c:\\Users\\Lucas\\OneDrive\\文档\\Code\\dae-2025-4\\.cursor\\debug.log';
-            const logData = {
-              location: 'server.ts:3031',
-              message: 'After calling LLM for rating - H11',
-              data: {
-                restaurantId: restaurant.id,
-                restaurantName: restaurant.name,
-                llmRating: llmResult.rating,
-                llmConfidence: llmResult.confidence,
-                hasReasoning: !!llmResult.reasoning,
-              },
-              timestamp: Date.now(),
-              sessionId: 'debug-session',
-              runId: 'run1',
-              hypothesisId: 'H11'
-            };
-            fs.appendFileSync(logPath, JSON.stringify(logData) + '\n');
-          } catch (e) {}
-          // #endregion
-          
-          // 直接使用 LLM 結果更新餐廳對象（因為緩存已經保存到數據庫）
-          restaurant.llm_rating = llmResult.rating;
-          restaurant.llm_rating_confidence = llmResult.confidence;
-          restaurant.llm_rating_reasoning = llmResult.reasoning || null;
-          console.log(`✅ 已獲取 LLM 評分: ${restaurant.name} - ${llmResult.rating} (置信度: ${llmResult.confidence})`);
-        } catch (error: any) {
-          console.warn(`⚠️ 獲取 LLM 評分失敗 (${restaurant.name}):`, error?.message || String(error));
-          // 即使失敗也繼續返回餐廳（只是沒有評分）
-        }
-      }
-      
-      const formattedRestaurant = {
-        id: restaurant.id,
-        name: restaurant.name,
-        name_en: restaurant.name_en,
-        description: restaurant.description,
-        cuisine_type: restaurant.cuisine_type,
-        price_range: restaurant.price_range,
-        rating: restaurant.rating,
-        llm_rating: restaurant.llm_rating,
-        llm_rating_confidence: restaurant.llm_rating_confidence,
-        llm_rating_reasoning: restaurant.llm_rating_reasoning,
-        review_count: restaurant.review_count,
-        address: restaurant.address,
-        city: restaurant.city,
-        latitude: restaurant.latitude,
-        longitude: restaurant.longitude,
-        phone: restaurant.phone,
-        website: restaurant.website,
-        image_url: restaurant.image_url,
-        source_url: restaurant.source_url || null, // 返回 OpenRice URL
-        tags: restaurant.tags ? JSON.parse(restaurant.tags) : [],
-      };
-      
-      // #region agent log - DISABLED (causing server crash)
-      // #endregion
+      const formattedRecommendations = recommendations.map((item) => ({
+        restaurant: {
+          id: item.restaurant.id,
+          name: item.restaurant.name,
+          name_en: item.restaurant.name_en,
+          description: item.restaurant.description,
+          cuisine_type: item.restaurant.cuisine_type,
+          price_range: item.restaurant.price_range,
+          rating: item.restaurant.rating,
+          review_count: item.restaurant.review_count,
+          address: item.restaurant.address,
+          city: item.restaurant.city,
+          latitude: item.restaurant.latitude,
+          longitude: item.restaurant.longitude,
+          phone: item.restaurant.phone,
+          website: item.restaurant.website,
+          image_url: item.restaurant.image_url,
+          tags: item.restaurant.tags ? JSON.parse(item.restaurant.tags) : [],
+        },
+        score: item.score,
+        breakdown: item.breakdown,
+      }));
 
       res.status(200).json({
-        restaurant: formattedRestaurant,
-        remaining: restaurants.length - 1,
+        recommendations: formattedRecommendations,
+        count: formattedRecommendations.length,
+        userPreferences: {
+          cuisineTypes: userHistoryPreferences.preferredCuisineTypes,
+          priceRanges: userHistoryPreferences.preferredPriceRanges,
+        },
       });
     } catch (error) {
-      console.error("獲取下一個餐廳失敗:", error);
+      console.error("獲取餐廳推薦失敗:", error);
       res.status(500).json({
-        error: "獲取下一個餐廳失敗",
+        error: "獲取餐廳推薦失敗",
         details: error instanceof Error ? error.message : String(error),
       });
     }
   }
 );
 
-// 獲取用戶的收藏和喜歡的餐廳（必須在動態路由之前）
-app.get("/api/restaurants/my-favorites", authenticateUser, async (req: any, res) => {
+// 獲取下一個餐廳（用於心動模式，必須在 /:id 之前）
+app.get("/api/restaurants/next", authenticateUser, async (req: any, res) => {
   try {
-    const userId = req.user.id;
-    const { type = "all" } = req.query; // all, favorite, like
+    const { exclude_ids, cuisine_type, min_rating, limit = "1" } = req.query;
 
     // 確保 proxy 數組存在
-    if (!proxy.user_restaurant_preference || !Array.isArray(proxy.user_restaurant_preference)) {
+    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+      console.warn("⚠️  proxy.restaurant 不存在或不是數組");
       return res.status(200).json({
-        restaurants: [],
-        count: 0,
-        message: "暫無偏好記錄",
+        restaurant: null,
+        message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
       });
     }
 
-    // 獲取用戶的偏好記錄
-    let preferences = proxy.user_restaurant_preference.filter(
-      (p: any) => p != null && p.user_id === userId
+    // 獲取用戶已看過的餐廳 ID（從偏好記錄中）
+    let seenRestaurantIds: string[] = [];
+    if (
+      proxy.user_restaurant_preference &&
+      Array.isArray(proxy.user_restaurant_preference)
+    ) {
+      const validPreferences = proxy.user_restaurant_preference.filter(
+        (p: any) => p != null && p.user_id === req.user.id
+      );
+      seenRestaurantIds = validPreferences.map((p: any) => p.restaurant_id);
+    }
+
+    // 合併排除列表
+    const excludeIds = [
+      ...seenRestaurantIds,
+      ...(exclude_ids
+        ? Array.isArray(exclude_ids)
+          ? exclude_ids
+          : [exclude_ids]
+        : []),
+    ];
+
+    // 過濾餐廳
+    const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
+    if (validRestaurants.length === 0) {
+      console.warn("⚠️  數據庫中沒有餐廳數據");
+      return res.status(200).json({
+        restaurant: null,
+        message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
+      });
+    }
+
+    let restaurants = validRestaurants.filter(
+      (r: any) =>
+        r.is_active === 1 && r.city === "香港" && !excludeIds.includes(r.id)
     );
 
-    // 根據類型篩選
-    if (type === "favorite") {
-      preferences = preferences.filter((p: any) => p.preference === "favorite");
-    } else if (type === "like") {
-      preferences = preferences.filter((p: any) => p.preference === "like");
-    } else {
-      // all: 只顯示 favorite 和 like，不顯示 dislike
-      preferences = preferences.filter(
-        (p: any) => p.preference === "favorite" || p.preference === "like"
+    // 菜系類型篩選
+    if (cuisine_type) {
+      const cuisineTypes = Array.isArray(cuisine_type)
+        ? cuisine_type
+        : [cuisine_type];
+      restaurants = restaurants.filter((r: any) => {
+        if (!r.cuisine_type) return false;
+        return cuisineTypes.some((type) =>
+          r.cuisine_type.toLowerCase().includes(type.toLowerCase())
+        );
+      });
+    }
+
+    // 最小評分篩選
+    if (min_rating) {
+      const minRating = parseFloat(min_rating);
+      restaurants = restaurants.filter(
+        (r: any) => r.rating && r.rating >= minRating
       );
     }
 
-    // 獲取餐廳 ID 列表
-    const restaurantIds = preferences.map((p: any) => p.restaurant_id);
+    // 隨機排序（增加多樣性）
+    restaurants.sort(() => Math.random() - 0.5);
 
-    if (restaurantIds.length === 0) {
+    // 限制數量
+    const limitNum = parseInt(limit, 10);
+    const selectedRestaurants = restaurants.slice(0, limitNum);
+
+    if (selectedRestaurants.length === 0) {
       return res.status(200).json({
-        restaurants: [],
-        count: 0,
-        message: type === "favorite" ? "暫無收藏餐廳" : type === "like" ? "暫無喜歡餐廳" : "暫無偏好記錄",
+        restaurant: null,
+        message: "沒有更多餐廳了",
       });
     }
 
-    // 獲取餐廳詳情
-    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
-      return res.status(200).json({
-        restaurants: [],
-        count: 0,
-        message: "暫無餐廳數據",
-      });
-    }
+    // 格式化返回數據
+    const restaurant = selectedRestaurants[0];
 
-    const restaurants = proxy.restaurant
-      .filter((r: any) => r != null && restaurantIds.includes(r.id) && r.is_active === 1)
-      .map((r: any) => {
-        // 找到對應的偏好記錄
-        const pref = preferences.find((p: any) => p.restaurant_id === r.id);
-        
-        // #region agent log - DISABLED (causing server crash)
+    // 如果餐廳沒有評分（既沒有原始評分也沒有 LLM 評分），嘗試獲取 LLM 評分
+    if (
+      !restaurant.rating &&
+      !restaurant.llm_rating &&
+      restaurant.source_url &&
+      req.user?.id &&
+      restaurant.id
+    ) {
+      try {
+        // #region agent log
+        try {
+          const fs = await import("fs");
+          const logPath =
+            "c:\\Users\\Lucas\\OneDrive\\文档\\Code\\dae-2025-4\\.cursor\\debug.log";
+          const logData = {
+            location: "server.ts:3018",
+            message: "Before calling LLM for rating - H11",
+            data: {
+              restaurantId: restaurant.id,
+              restaurantName: restaurant.name,
+              restaurantUrl: restaurant.source_url,
+              hasRating: !!restaurant.rating,
+              hasLlmRating: !!restaurant.llm_rating,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "H11",
+          };
+          fs.appendFileSync(logPath, JSON.stringify(logData) + "\n");
+        } catch (e) {}
         // #endregion
-        
-        return {
-          id: r.id,
-          name: r.name,
-          name_en: r.name_en,
-          description: r.description,
-          cuisine_type: r.cuisine_type,
-          price_range: r.price_range,
-          rating: r.rating,
-          llm_rating: r.llm_rating,
-          llm_rating_confidence: r.llm_rating_confidence,
-          llm_rating_reasoning: r.llm_rating_reasoning,
-          review_count: r.review_count,
-          address: r.address,
-          city: r.city,
-          latitude: r.latitude,
-          longitude: r.longitude,
-          phone: r.phone,
-          website: r.website,
-          image_url: r.image_url,
-          source_url: r.source_url || null, // 返回 OpenRice URL
-          tags: r.tags ? JSON.parse(r.tags) : [],
-          preference: pref?.preference || "like", // 偏好類型
-          preference_date: pref?.created_at || null, // 偏好記錄時間
-        };
-      });
 
-    // 按偏好時間排序（最新的在前）
-    restaurants.sort((a: any, b: any) => {
-      const dateA = a.preference_date ? new Date(a.preference_date).getTime() : 0;
-      const dateB = b.preference_date ? new Date(b.preference_date).getTime() : 0;
-      return dateB - dateA;
-    });
+        const { getRestaurantLLMRating } = await import(
+          "./llm/restaurantLLMService.js"
+        );
+        const llmResult = await getRestaurantLLMRating(
+          restaurant.id,
+          restaurant.name,
+          restaurant.source_url,
+          req.user.id
+        );
+
+        // #region agent log
+        try {
+          const fs = await import("fs");
+          const logPath =
+            "c:\\Users\\Lucas\\OneDrive\\文档\\Code\\dae-2025-4\\.cursor\\debug.log";
+          const logData = {
+            location: "server.ts:3031",
+            message: "After calling LLM for rating - H11",
+            data: {
+              restaurantId: restaurant.id,
+              restaurantName: restaurant.name,
+              llmRating: llmResult.rating,
+              llmConfidence: llmResult.confidence,
+              hasReasoning: !!llmResult.reasoning,
+            },
+            timestamp: Date.now(),
+            sessionId: "debug-session",
+            runId: "run1",
+            hypothesisId: "H11",
+          };
+          fs.appendFileSync(logPath, JSON.stringify(logData) + "\n");
+        } catch (e) {}
+        // #endregion
+
+        // 直接使用 LLM 結果更新餐廳對象（因為緩存已經保存到數據庫）
+        restaurant.llm_rating = llmResult.rating;
+        restaurant.llm_rating_confidence = llmResult.confidence;
+        restaurant.llm_rating_reasoning = llmResult.reasoning || null;
+        console.log(
+          `✅ 已獲取 LLM 評分: ${restaurant.name} - ${llmResult.rating} (置信度: ${llmResult.confidence})`
+        );
+      } catch (error: any) {
+        console.warn(
+          `⚠️ 獲取 LLM 評分失敗 (${restaurant.name}):`,
+          error?.message || String(error)
+        );
+        // 即使失敗也繼續返回餐廳（只是沒有評分）
+      }
+    }
+
+    const formattedRestaurant = {
+      id: restaurant.id,
+      name: restaurant.name,
+      name_en: restaurant.name_en,
+      description: restaurant.description,
+      cuisine_type: restaurant.cuisine_type,
+      price_range: restaurant.price_range,
+      rating: restaurant.rating,
+      llm_rating: restaurant.llm_rating,
+      llm_rating_confidence: restaurant.llm_rating_confidence,
+      llm_rating_reasoning: restaurant.llm_rating_reasoning,
+      review_count: restaurant.review_count,
+      address: restaurant.address,
+      city: restaurant.city,
+      latitude: restaurant.latitude,
+      longitude: restaurant.longitude,
+      phone: restaurant.phone,
+      website: restaurant.website,
+      image_url: restaurant.image_url,
+      source_url: restaurant.source_url || null, // 返回 OpenRice URL
+      tags: restaurant.tags ? JSON.parse(restaurant.tags) : [],
+    };
+
+    // #region agent log - DISABLED (causing server crash)
+    // #endregion
 
     res.status(200).json({
-      restaurants,
-      count: restaurants.length,
-      type: type,
+      restaurant: formattedRestaurant,
+      remaining: restaurants.length - 1,
     });
   } catch (error) {
-    console.error("獲取收藏餐廳失敗:", error);
+    console.error("獲取下一個餐廳失敗:", error);
     res.status(500).json({
-      error: "獲取收藏餐廳失敗",
+      error: "獲取下一個餐廳失敗",
       details: error instanceof Error ? error.message : String(error),
     });
   }
 });
+
+// 獲取用戶的收藏和喜歡的餐廳（必須在動態路由之前）
+app.get(
+  "/api/restaurants/my-favorites",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { type = "all" } = req.query; // all, favorite, like
+
+      // 確保 proxy 數組存在
+      if (
+        !proxy.user_restaurant_preference ||
+        !Array.isArray(proxy.user_restaurant_preference)
+      ) {
+        return res.status(200).json({
+          restaurants: [],
+          count: 0,
+          message: "暫無偏好記錄",
+        });
+      }
+
+      // 獲取用戶的偏好記錄
+      let preferences = proxy.user_restaurant_preference.filter(
+        (p: any) => p != null && p.user_id === userId
+      );
+
+      // 根據類型篩選
+      if (type === "favorite") {
+        preferences = preferences.filter(
+          (p: any) => p.preference === "favorite"
+        );
+      } else if (type === "like") {
+        preferences = preferences.filter((p: any) => p.preference === "like");
+      } else {
+        // all: 只顯示 favorite 和 like，不顯示 dislike
+        preferences = preferences.filter(
+          (p: any) => p.preference === "favorite" || p.preference === "like"
+        );
+      }
+
+      // 獲取餐廳 ID 列表
+      const restaurantIds = preferences.map((p: any) => p.restaurant_id);
+
+      if (restaurantIds.length === 0) {
+        return res.status(200).json({
+          restaurants: [],
+          count: 0,
+          message:
+            type === "favorite"
+              ? "暫無收藏餐廳"
+              : type === "like"
+              ? "暫無喜歡餐廳"
+              : "暫無偏好記錄",
+        });
+      }
+
+      // 獲取餐廳詳情
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        return res.status(200).json({
+          restaurants: [],
+          count: 0,
+          message: "暫無餐廳數據",
+        });
+      }
+
+      const restaurants = proxy.restaurant
+        .filter(
+          (r: any) =>
+            r != null && restaurantIds.includes(r.id) && r.is_active === 1
+        )
+        .map((r: any) => {
+          // 找到對應的偏好記錄
+          const pref = preferences.find((p: any) => p.restaurant_id === r.id);
+
+          // #region agent log - DISABLED (causing server crash)
+          // #endregion
+
+          return {
+            id: r.id,
+            name: r.name,
+            name_en: r.name_en,
+            description: r.description,
+            cuisine_type: r.cuisine_type,
+            price_range: r.price_range,
+            rating: r.rating,
+            llm_rating: r.llm_rating,
+            llm_rating_confidence: r.llm_rating_confidence,
+            llm_rating_reasoning: r.llm_rating_reasoning,
+            review_count: r.review_count,
+            address: r.address,
+            city: r.city,
+            latitude: r.latitude,
+            longitude: r.longitude,
+            phone: r.phone,
+            website: r.website,
+            image_url: r.image_url,
+            source_url: r.source_url || null, // 返回 OpenRice URL
+            tags: r.tags ? JSON.parse(r.tags) : [],
+            preference: pref?.preference || "like", // 偏好類型
+            preference_date: pref?.created_at || null, // 偏好記錄時間
+          };
+        });
+
+      // 按偏好時間排序（最新的在前）
+      restaurants.sort((a: any, b: any) => {
+        const dateA = a.preference_date
+          ? new Date(a.preference_date).getTime()
+          : 0;
+        const dateB = b.preference_date
+          ? new Date(b.preference_date).getTime()
+          : 0;
+        return dateB - dateA;
+      });
+
+      res.status(200).json({
+        restaurants,
+        count: restaurants.length,
+        type: type,
+      });
+    } catch (error) {
+      console.error("獲取收藏餐廳失敗:", error);
+      res.status(500).json({
+        error: "獲取收藏餐廳失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+);
 
 // 獲取餐廳詳情（動態路由，必須在具體路由之後）
 app.get("/api/restaurants/:id", authenticateUser, async (req: any, res) => {
@@ -3486,7 +3636,9 @@ app.get("/api/restaurants/search", authenticateUser, async (req: any, res) => {
           .join(" ")
           .toLowerCase();
 
-        return foodTypes.some((food) => searchText.includes(food.toLowerCase()));
+        return foodTypes.some((food) =>
+          searchText.includes(food.toLowerCase())
+        );
       });
     }
 
@@ -3684,7 +3836,10 @@ app.post(
       const { id: restaurantId } = req.params;
       const { preference } = req.body; // like, dislike, favorite
 
-      if (!preference || !["like", "dislike", "favorite"].includes(preference)) {
+      if (
+        !preference ||
+        !["like", "dislike", "favorite"].includes(preference)
+      ) {
         return res.status(400).json({
           error: "偏好類型必須是 like, dislike 或 favorite",
         });
@@ -3696,14 +3851,19 @@ app.post(
       }
 
       const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
-      const restaurant = validRestaurants.find((r: any) => r.id === restaurantId);
+      const restaurant = validRestaurants.find(
+        (r: any) => r.id === restaurantId
+      );
 
       if (!restaurant) {
         return res.status(404).json({ error: "餐廳不存在" });
       }
 
       // 檢查是否已有偏好記錄
-      if (!proxy.user_restaurant_preference || !Array.isArray(proxy.user_restaurant_preference)) {
+      if (
+        !proxy.user_restaurant_preference ||
+        !Array.isArray(proxy.user_restaurant_preference)
+      ) {
         return res.status(500).json({ error: "數據庫錯誤" });
       }
 
@@ -3711,11 +3871,13 @@ app.post(
         (p: any) => p != null
       );
       const existingPreference = validPreferences.find(
-        (p: any) => p.user_id === req.user.id && p.restaurant_id === restaurantId
+        (p: any) =>
+          p.user_id === req.user.id && p.restaurant_id === restaurantId
       );
 
       const now = new Date().toISOString();
-      const preferenceId = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+      const preferenceId =
+        Date.now().toString() + Math.random().toString(36).substr(2, 9);
 
       if (existingPreference) {
         // 更新現有偏好
@@ -3788,9 +3950,10 @@ app.get(
       // 獲取餐廳詳情
       const preferencesWithRestaurants = validPreferences.map((pref: any) => {
         const restaurant =
-          proxy.restaurant &&
-          Array.isArray(proxy.restaurant)
-            ? proxy.restaurant.find((r: any) => r && r.id === pref.restaurant_id)
+          proxy.restaurant && Array.isArray(proxy.restaurant)
+            ? proxy.restaurant.find(
+                (r: any) => r && r.id === pref.restaurant_id
+              )
             : null;
 
         return {
@@ -3838,273 +4001,310 @@ app.get(
 // 注意：/api/restaurants/next 路由已在上面定義（第 2921 行），此處不再重複定義
 
 // 記錄餐廳偏好（like/dislike/favorite）- 統一的 feedback API
-app.post("/api/restaurants/feedback", authenticateUser, async (req: any, res) => {
-  try {
-    const userId = req.user.id;
-    const { restaurant_id, preference } = req.body; // preference: "like", "dislike", "favorite"
+app.post(
+  "/api/restaurants/feedback",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { restaurant_id, preference } = req.body; // preference: "like", "dislike", "favorite"
 
-    if (!restaurant_id || !preference) {
-      return res.status(400).json({ error: "缺少必要參數" });
-    }
+      if (!restaurant_id || !preference) {
+        return res.status(400).json({ error: "缺少必要參數" });
+      }
 
-    if (!["like", "dislike", "favorite"].includes(preference)) {
-      return res.status(400).json({ error: "無效的偏好類型" });
-    }
+      if (!["like", "dislike", "favorite"].includes(preference)) {
+        return res.status(400).json({ error: "無效的偏好類型" });
+      }
 
-    // 驗證餐廳存在
-    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
-      return res.status(404).json({ error: "餐廳不存在" });
-    }
+      // 驗證餐廳存在
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
 
-    const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
-    const restaurant = validRestaurants.find((r: any) => r.id === restaurant_id);
+      const validRestaurants = proxy.restaurant.filter((r: any) => r != null);
+      const restaurant = validRestaurants.find(
+        (r: any) => r.id === restaurant_id
+      );
 
-    if (!restaurant || restaurant.is_active !== 1) {
-      return res.status(404).json({ error: "餐廳不存在" });
-    }
+      if (!restaurant || restaurant.is_active !== 1) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
 
-    // 檢查是否已有偏好記錄
-    if (!proxy.user_restaurant_preference || !Array.isArray(proxy.user_restaurant_preference)) {
-      return res.status(500).json({ error: "數據庫錯誤" });
-    }
+      // 檢查是否已有偏好記錄
+      if (
+        !proxy.user_restaurant_preference ||
+        !Array.isArray(proxy.user_restaurant_preference)
+      ) {
+        return res.status(500).json({ error: "數據庫錯誤" });
+      }
 
-    const validPreferences = proxy.user_restaurant_preference.filter(
-      (p: any) => p != null
-    );
-    const existingPreference = validPreferences.find(
-      (p: any) => p.user_id === userId && p.restaurant_id === restaurant_id
-    );
+      const validPreferences = proxy.user_restaurant_preference.filter(
+        (p: any) => p != null
+      );
+      const existingPreference = validPreferences.find(
+        (p: any) => p.user_id === userId && p.restaurant_id === restaurant_id
+      );
 
-    const now = new Date().toISOString();
-    const preferenceId = `${userId}_${restaurant_id}_${Date.now()}`;
+      const now = new Date().toISOString();
+      const preferenceId = `${userId}_${restaurant_id}_${Date.now()}`;
 
-    if (existingPreference) {
-      // 更新現有記錄
-      db.prepare(
-        `UPDATE user_restaurant_preference 
+      if (existingPreference) {
+        // 更新現有記錄
+        db.prepare(
+          `UPDATE user_restaurant_preference 
          SET preference = ?, updated_at = ? 
          WHERE user_id = ? AND restaurant_id = ?`
-      ).run(preference, now, userId, restaurant_id);
-    } else {
-      // 創建新記錄
-      db.prepare(
-        `INSERT INTO user_restaurant_preference (id, user_id, restaurant_id, preference, created_at, updated_at)
+        ).run(preference, now, userId, restaurant_id);
+      } else {
+        // 創建新記錄
+        db.prepare(
+          `INSERT INTO user_restaurant_preference (id, user_id, restaurant_id, preference, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(preferenceId, userId, restaurant_id, preference, now, now);
-    }
+        ).run(preferenceId, userId, restaurant_id, preference, now, now);
+      }
 
-    res.status(200).json({
-      success: true,
-      message: preference === "favorite" ? "已收藏" : preference === "like" ? "已添加到喜歡" : "已記錄",
-      preference: preference,
-    });
-  } catch (error) {
-    console.error("記錄餐廳偏好失敗:", error);
-    res.status(500).json({
-      error: "記錄餐廳偏好失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
+      res.status(200).json({
+        success: true,
+        message:
+          preference === "favorite"
+            ? "已收藏"
+            : preference === "like"
+            ? "已添加到喜歡"
+            : "已記錄",
+        preference: preference,
+      });
+    } catch (error) {
+      console.error("記錄餐廳偏好失敗:", error);
+      res.status(500).json({
+        error: "記錄餐廳偏好失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
-});
+);
 
 // 取消餐廳偏好（刪除偏好記錄）
-app.delete("/api/restaurants/feedback", authenticateUser, async (req: any, res) => {
-  try {
-    const userId = req.user.id;
-    const { restaurant_id } = req.body;
+app.delete(
+  "/api/restaurants/feedback",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { restaurant_id } = req.body;
 
-    if (!restaurant_id) {
-      return res.status(400).json({ error: "缺少餐廳 ID" });
-    }
+      if (!restaurant_id) {
+        return res.status(400).json({ error: "缺少餐廳 ID" });
+      }
 
-    // 刪除偏好記錄
-    const result = db.prepare(
-      `DELETE FROM user_restaurant_preference 
+      // 刪除偏好記錄
+      const result = db
+        .prepare(
+          `DELETE FROM user_restaurant_preference 
        WHERE user_id = ? AND restaurant_id = ?`
-    ).run(userId, restaurant_id);
+        )
+        .run(userId, restaurant_id);
 
-    if (result.changes === 0) {
-      return res.status(404).json({ error: "偏好記錄不存在" });
+      if (result.changes === 0) {
+        return res.status(404).json({ error: "偏好記錄不存在" });
+      }
+
+      res.status(200).json({
+        success: true,
+        message: "已取消偏好",
+      });
+    } catch (error) {
+      console.error("取消餐廳偏好失敗:", error);
+      res.status(500).json({
+        error: "取消餐廳偏好失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
-
-    res.status(200).json({
-      success: true,
-      message: "已取消偏好",
-    });
-  } catch (error) {
-    console.error("取消餐廳偏好失敗:", error);
-    res.status(500).json({
-      error: "取消餐廳偏好失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
   }
-});
+);
 
 // === 餐廳推薦 API ===
 
 // 獲取餐廳推薦
-app.get("/api/restaurants/recommend", authenticateUser, async (req: any, res) => {
-  try {
-    const {
-      limit = "10",
-      latitude,
-      longitude,
-      price_range,
-      cuisine_type,
-      min_score = "0.0",
-    } = req.query;
+app.get(
+  "/api/restaurants/recommend",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const {
+        limit = "10",
+        latitude,
+        longitude,
+        price_range,
+        cuisine_type,
+        min_score = "0.0",
+      } = req.query;
 
-    const userId = req.user.id;
+      const userId = req.user.id;
 
-    // 從用戶歷史偏好中提取偏好信息
-    const userHistoryPreferences = extractUserPreferences(userId);
+      // 從用戶歷史偏好中提取偏好信息
+      const userHistoryPreferences = extractUserPreferences(userId);
 
-    // 構建推薦選項
-    const options: RecommendationOptions = {
-      limit: parseInt(limit as string, 10),
-      userLatitude: latitude ? parseFloat(latitude as string) : undefined,
-      userLongitude: longitude ? parseFloat(longitude as string) : undefined,
-      userPreferences: {
-        priceRange: price_range
-          ? (Array.isArray(price_range) ? price_range : [price_range])
-          : userHistoryPreferences.preferredPriceRanges.length > 0
-          ? userHistoryPreferences.preferredPriceRanges
-          : undefined,
-        cuisineTypes: cuisine_type
-          ? (Array.isArray(cuisine_type) ? cuisine_type : [cuisine_type])
-          : userHistoryPreferences.preferredCuisineTypes.length > 0
-          ? userHistoryPreferences.preferredCuisineTypes
-          : undefined,
-      },
-      minScore: parseFloat(min_score as string),
-    };
-
-    // 檢查餐廳數據
-    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
-      console.warn("⚠️  proxy.restaurant 不存在或不是數組");
-      return res.status(200).json({
-        recommendations: [],
-        count: 0,
-        message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
+      // 構建推薦選項
+      const options: RecommendationOptions = {
+        limit: parseInt(limit as string, 10),
+        userLatitude: latitude ? parseFloat(latitude as string) : undefined,
+        userLongitude: longitude ? parseFloat(longitude as string) : undefined,
         userPreferences: {
-          cuisineTypes: [],
-          priceRanges: [],
+          priceRange: price_range
+            ? Array.isArray(price_range)
+              ? price_range
+              : [price_range]
+            : userHistoryPreferences.preferredPriceRanges.length > 0
+            ? userHistoryPreferences.preferredPriceRanges
+            : undefined,
+          cuisineTypes: cuisine_type
+            ? Array.isArray(cuisine_type)
+              ? cuisine_type
+              : [cuisine_type]
+            : userHistoryPreferences.preferredCuisineTypes.length > 0
+            ? userHistoryPreferences.preferredCuisineTypes
+            : undefined,
+        },
+        minScore: parseFloat(min_score as string),
+      };
+
+      // 檢查餐廳數據
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        console.warn("⚠️  proxy.restaurant 不存在或不是數組");
+        return res.status(200).json({
+          recommendations: [],
+          count: 0,
+          message: "暫無餐廳數據，請先運行爬蟲或添加餐廳數據",
+          userPreferences: {
+            cuisineTypes: [],
+            priceRanges: [],
+          },
+        });
+      }
+
+      // 獲取推薦餐廳
+      const recommendations = await recommendRestaurants(userId, options);
+
+      // 格式化返回數據
+      const formattedRecommendations = recommendations.map((item) => ({
+        restaurant: {
+          id: item.restaurant.id,
+          name: item.restaurant.name,
+          name_en: item.restaurant.name_en,
+          description: item.restaurant.description,
+          cuisine_type: item.restaurant.cuisine_type,
+          price_range: item.restaurant.price_range,
+          rating: item.restaurant.rating,
+          review_count: item.restaurant.review_count,
+          address: item.restaurant.address,
+          city: item.restaurant.city,
+          latitude: item.restaurant.latitude,
+          longitude: item.restaurant.longitude,
+          phone: item.restaurant.phone,
+          website: item.restaurant.website,
+          image_url: item.restaurant.image_url,
+          tags: item.restaurant.tags ? JSON.parse(item.restaurant.tags) : [],
+        },
+        score: item.score,
+        breakdown: item.breakdown,
+      }));
+
+      res.status(200).json({
+        recommendations: formattedRecommendations,
+        count: formattedRecommendations.length,
+        userPreferences: {
+          cuisineTypes: userHistoryPreferences.preferredCuisineTypes,
+          priceRanges: userHistoryPreferences.preferredPriceRanges,
         },
       });
+    } catch (error) {
+      console.error("獲取餐廳推薦失敗:", error);
+      res.status(500).json({
+        error: "獲取餐廳推薦失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
-
-    // 獲取推薦餐廳
-    const recommendations = await recommendRestaurants(userId, options);
-
-    // 格式化返回數據
-    const formattedRecommendations = recommendations.map((item) => ({
-      restaurant: {
-        id: item.restaurant.id,
-        name: item.restaurant.name,
-        name_en: item.restaurant.name_en,
-        description: item.restaurant.description,
-        cuisine_type: item.restaurant.cuisine_type,
-        price_range: item.restaurant.price_range,
-        rating: item.restaurant.rating,
-        review_count: item.restaurant.review_count,
-        address: item.restaurant.address,
-        city: item.restaurant.city,
-        latitude: item.restaurant.latitude,
-        longitude: item.restaurant.longitude,
-        phone: item.restaurant.phone,
-        website: item.restaurant.website,
-        image_url: item.restaurant.image_url,
-        tags: item.restaurant.tags ? JSON.parse(item.restaurant.tags) : [],
-      },
-      score: item.score,
-      breakdown: item.breakdown,
-    }));
-
-    res.status(200).json({
-      recommendations: formattedRecommendations,
-      count: formattedRecommendations.length,
-      userPreferences: {
-        cuisineTypes: userHistoryPreferences.preferredCuisineTypes,
-        priceRanges: userHistoryPreferences.preferredPriceRanges,
-      },
-    });
-  } catch (error) {
-    console.error("獲取餐廳推薦失敗:", error);
-    res.status(500).json({
-      error: "獲取餐廳推薦失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
   }
-});
+);
 
 // 記錄用戶餐廳偏好（like/dislike/favorite）
-app.post("/api/restaurants/feedback", authenticateUser, async (req: any, res) => {
-  try {
-    const userId = req.user.id;
-    const { restaurant_id, preference } = req.body; // preference: "like", "dislike", "favorite"
+app.post(
+  "/api/restaurants/feedback",
+  authenticateUser,
+  async (req: any, res) => {
+    try {
+      const userId = req.user.id;
+      const { restaurant_id, preference } = req.body; // preference: "like", "dislike", "favorite"
 
-    if (!restaurant_id || !preference) {
-      return res.status(400).json({ error: "缺少必要參數" });
-    }
+      if (!restaurant_id || !preference) {
+        return res.status(400).json({ error: "缺少必要參數" });
+      }
 
-    if (!["like", "dislike", "favorite"].includes(preference)) {
-      return res.status(400).json({ error: "無效的偏好類型" });
-    }
+      if (!["like", "dislike", "favorite"].includes(preference)) {
+        return res.status(400).json({ error: "無效的偏好類型" });
+      }
 
-    // 檢查餐廳是否存在
-    if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
-      return res.status(404).json({ error: "餐廳不存在" });
-    }
+      // 檢查餐廳是否存在
+      if (!proxy.restaurant || !Array.isArray(proxy.restaurant)) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
 
-    const restaurant = proxy.restaurant.find(
-      (r: any) => r != null && r.id === restaurant_id && r.is_active === 1
-    );
+      const restaurant = proxy.restaurant.find(
+        (r: any) => r != null && r.id === restaurant_id && r.is_active === 1
+      );
 
-    if (!restaurant) {
-      return res.status(404).json({ error: "餐廳不存在" });
-    }
+      if (!restaurant) {
+        return res.status(404).json({ error: "餐廳不存在" });
+      }
 
-    // 檢查是否已有偏好記錄
-    const existingPreference = proxy.user_restaurant_preference?.find(
-      (p: any) =>
-        p != null && p.user_id === userId && p.restaurant_id === restaurant_id
-    );
+      // 檢查是否已有偏好記錄
+      const existingPreference = proxy.user_restaurant_preference?.find(
+        (p: any) =>
+          p != null && p.user_id === userId && p.restaurant_id === restaurant_id
+      );
 
-    const now = new Date().toISOString();
-    const preferenceId = `${userId}_${restaurant_id}_${Date.now()}`;
+      const now = new Date().toISOString();
+      const preferenceId = `${userId}_${restaurant_id}_${Date.now()}`;
 
-    if (existingPreference) {
-      // 更新現有記錄
-      db.prepare(
-        `UPDATE user_restaurant_preference 
+      if (existingPreference) {
+        // 更新現有記錄
+        db.prepare(
+          `UPDATE user_restaurant_preference 
          SET preference = ?, updated_at = ? 
          WHERE user_id = ? AND restaurant_id = ?`
-      ).run(preference, now, userId, restaurant_id);
-    } else {
-      // 創建新記錄
-      db.prepare(
-        `INSERT INTO user_restaurant_preference (id, user_id, restaurant_id, preference, created_at, updated_at)
+        ).run(preference, now, userId, restaurant_id);
+      } else {
+        // 創建新記錄
+        db.prepare(
+          `INSERT INTO user_restaurant_preference (id, user_id, restaurant_id, preference, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?)`
-      ).run(preferenceId, userId, restaurant_id, preference, now, now);
+        ).run(preferenceId, userId, restaurant_id, preference, now, now);
+      }
+
+      // 重新生成 proxy（如果需要）
+      // 注意：這裡可能需要重新加載數據，但為了性能，我們先返回成功
+      // 實際應用中可能需要使用更好的緩存策略
+
+      res.status(200).json({
+        success: true,
+        message:
+          preference === "favorite"
+            ? "已收藏"
+            : preference === "like"
+            ? "已添加到喜歡"
+            : "已記錄",
+        preference: preference,
+      });
+    } catch (error) {
+      console.error("記錄餐廳偏好失敗:", error);
+      res.status(500).json({
+        error: "記錄餐廳偏好失敗",
+        details: error instanceof Error ? error.message : String(error),
+      });
     }
-
-    // 重新生成 proxy（如果需要）
-    // 注意：這裡可能需要重新加載數據，但為了性能，我們先返回成功
-    // 實際應用中可能需要使用更好的緩存策略
-
-    res.status(200).json({
-      success: true,
-      message: preference === "favorite" ? "已收藏" : preference === "like" ? "已添加到喜歡" : "已記錄",
-      preference: preference,
-    });
-  } catch (error) {
-    console.error("記錄餐廳偏好失敗:", error);
-    res.status(500).json({
-      error: "記錄餐廳偏好失敗",
-      details: error instanceof Error ? error.message : String(error),
-    });
   }
-});
+);
 
 // === 服務器啟動 ===
 
@@ -4113,7 +4313,7 @@ async function startServer() {
   try {
     console.log("🔧 開始初始化服務器...");
     console.log("📦 檢查數據庫連接...");
-    
+
     // 檢查數據庫和 proxy 是否正常
     if (!db) {
       throw new Error("數據庫未初始化");
@@ -4121,7 +4321,7 @@ async function startServer() {
     if (!proxy || !proxy.restaurant) {
       console.warn("⚠️  proxy.restaurant 未初始化，但繼續啟動服務器");
     }
-    
+
     console.log("📦 加載 TensorFlow.js 模塊...");
     // 加載 TensorFlow.js 模塊（如果可用）
     await loadTensorFlowModules();
@@ -4138,7 +4338,9 @@ async function startServer() {
       console.log(`🚀 服務器運行在 http://localhost:${PORT}`);
       console.log(`- 靜態資源來源: public 文件夾`);
       console.log(`- API 根路徑: /api`);
-      console.log(`- 測試頁面: http://localhost:${PORT}/food-recognition-test.html`);
+      console.log(
+        `- 測試頁面: http://localhost:${PORT}/food-recognition-test.html`
+      );
     });
   } catch (error: any) {
     console.error("❌ 服務器啟動失敗:", error);
@@ -4147,10 +4349,13 @@ async function startServer() {
       console.error("錯誤堆棧:", error.stack);
     }
     // 嘗試輸出錯誤對象的所有屬性
-    if (error && typeof error === 'object') {
+    if (error && typeof error === "object") {
       try {
         console.error("錯誤對象屬性:", Object.keys(error));
-        console.error("錯誤對象值:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+        console.error(
+          "錯誤對象值:",
+          JSON.stringify(error, Object.getOwnPropertyNames(error))
+        );
       } catch (e) {
         console.error("無法序列化錯誤對象");
       }
@@ -4160,7 +4365,7 @@ async function startServer() {
 }
 
 // 全局錯誤處理
-process.on('uncaughtException', (error: any) => {
+process.on("uncaughtException", (error: any) => {
   console.error("❌ 未捕獲的異常:", error);
   console.error("錯誤詳情:", error?.message || String(error));
   if (error?.stack) {
@@ -4169,7 +4374,7 @@ process.on('uncaughtException', (error: any) => {
   process.exit(1);
 });
 
-process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+process.on("unhandledRejection", (reason: any, promise: Promise<any>) => {
   console.error("❌ 未處理的 Promise 拒絕:", reason);
   console.error("錯誤詳情:", reason?.message || String(reason));
   if (reason?.stack) {

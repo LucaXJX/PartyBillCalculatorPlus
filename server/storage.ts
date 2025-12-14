@@ -111,11 +111,30 @@ export class DataStorage {
     const existingIndex = bills.findIndex((b) => b.id === billRecord.id);
 
     if (existingIndex !== -1) {
-      bills[existingIndex] = {
+      // 更新現有賬單時，保留原來的 createdBy（如果新記錄沒有設置）
+      const existingBill = bills[existingIndex];
+      const updatedBill: BillRecord = {
         ...billRecord,
+        createdBy: billRecord.createdBy || existingBill.createdBy || "",
         updatedAt: new Date().toISOString(),
       };
+      bills[existingIndex] = updatedBill;
+      // 只在 createdBy 變化時輸出警告
+      if (
+        billRecord.createdBy &&
+        billRecord.createdBy !== existingBill.createdBy
+      ) {
+        console.warn(
+          `⚠️  更新賬單 ${billRecord.id} 時 createdBy 從 ${existingBill.createdBy} 變為 ${billRecord.createdBy}`
+        );
+      }
     } else {
+      // 新建賬單
+      if (!billRecord.createdBy) {
+        console.error(
+          `❌ 新建賬單 ${billRecord.id} 但沒有 createdBy，這不應該發生`
+        );
+      }
       bills.push(billRecord);
     }
 
@@ -134,11 +153,12 @@ export class DataStorage {
     // 查找用戶信息
     const user = users.find((u) => u.id === userId);
     if (!user) {
+      console.error(`❌ 用戶不存在: ${userId}`);
       return [];
     }
 
     // 返回用戶創建的或參與的所有賬單
-    return bills.filter((bill) => {
+    const filteredBills = bills.filter((bill) => {
       // 檢查是否是創建者
       if (bill.createdBy === userId) {
         return true;
@@ -153,6 +173,21 @@ export class DataStorage {
 
       return false;
     });
+
+    // 只在有問題時輸出詳細日誌
+    if (filteredBills.length === 0 && bills.length > 0) {
+      console.warn(
+        `⚠️  用戶 ${user.username} (${userId}) 沒有找到賬單，但總共有 ${bills.length} 個賬單`
+      );
+      console.warn(
+        `   最近3個賬單的 createdBy: ${bills
+          .slice(-3)
+          .map((b: any) => `${b.id}:${b.createdBy || "無"}`)
+          .join(", ")}`
+      );
+    }
+
+    return filteredBills;
   }
 
   async deleteBill(id: string): Promise<boolean> {
@@ -190,6 +225,11 @@ export class DataStorage {
       await this.saveBills([]);
       return [];
     }
+  }
+
+  // 診斷用：獲取所有賬單（不進行過濾）
+  async getAllBillsForDiagnosis(): Promise<BillRecord[]> {
+    return await this.loadBills();
   }
 
   private async saveBills(bills: BillRecord[]): Promise<void> {

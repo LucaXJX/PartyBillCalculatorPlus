@@ -2,7 +2,7 @@
   "name": "partybillcalculatorplus",
   "version": "1.0.0",
   "type": "module",
-  "description": "PartyBillCalculatorPlus（PBC+ 記賬）是一個由於 DAE 課程而製作的在線網頁，能幫不同的用戶，實現多設備網頁端記賬的功能。主要用於聚會、聚餐之後的計算賬單的計算，讓不同的人可以依照規則計算自己的消費。",
+  "description": "PartyBillCalculatorPlus（PBC+ 聚賬通）是一個由於 DAE 課程而製作的在線網頁，能幫不同的用戶，實現多設備網頁端記賬的功能。主要用於聚會、聚餐之後的計算賬單的計算，讓不同的人可以依照規則計算自己的消費。",
   "main": "index.js",
   "scripts": {
     "start": "node dist/server.js",
